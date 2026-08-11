@@ -1,0 +1,12 @@
+# Send all application routes to index.php.
+#
+# Existing real files/directories are left alone, although the
+# production single-file build normally does not need any of them.
+
+RewriteEngine On
+
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+RewriteRule ^ index.php [L]
