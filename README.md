@@ -1,25 +1,56 @@
-# Single PHP + React SPA — Base-Path Independent
+# Single PHP + React SPA — Rewrite‑Free Routing
 
 This project creates a **single `index.php` production artifact** containing:
 
 - PHP API routing
-- React production JavaScript
-- React CSS
+- React production JavaScript (inlined)
+- React CSS (inlined)
 - SPA HTML
-- Static assets
+- No separate asset files
 
-The resulting application is **completely independent of its installation path**.
+The result is completely **independent of its installation path** and requires
+**no rewrite rules at all** — no `.htaccess`, no Nginx `try_files`.
 
 The exact same `index.php` can be copied to:
 
 ```text
-https://example.com/
-https://example.com/myapp/
-https://example.com/tools/myapp/
-https://example.com/a/b/c/myapp/
+https://example.com/index.php
+https://example.com/myapp/index.php
+https://example.com/tools/myapp/index.php
+https://example.com/a/b/c/myapp/index.php
 ```
 
 No rebuild is required.
+
+## Routing model
+
+Routing is done entirely with **query parameters**, which every web server
+handles natively. There is nothing to configure.
+
+| URL                                                    | Behavior              |
+| ------------------------------------------------------ | --------------------- |
+| `/index.php`                                           | React route `/`       |
+| `/index.php?u=editor/123`                              | React route `/editor/123` |
+| `/index.php?u=settings`                                | React route `/settings`  |
+| `/index.php?module=api&action=hello`                   | JSON API              |
+| `/index.php?module=api&action=projects`                | JSON API              |
+
+The protocol is strict and predictable:
+
+```text
+module=api  -> server-side JSON API (action required)
+u=...       -> client-side SPA route
+anything    -> application parameters (handled by the app)
+```
+
+Because `u` is just a query parameter, the URLs are real and shareable:
+
+```text
+/index.php?u=editor/123
+/index.php?u=settings
+```
+
+No `.htaccess`, no `#/` hash routing, no history-mode server rewrites.
 
 ## Build
 
@@ -35,242 +66,124 @@ Run:
 php build.php
 ```
 
-The script runs the Vite production build and embeds the generated files into `index.php`.
+The script runs the Vite production build, **inlines all JavaScript and CSS
+into the HTML**, and embeds that HTML into `index.php`. The build is
+idempotent — you can run it repeatedly.
 
 ## Production deployment
 
-After building, only these files are required:
+After building, only one file is required:
 
 ```text
-index.php
-.htaccess
+www/
+└── index.php
 ```
 
-For example:
+That's it. No `.htaccess`, no Nginx config, no directory structure.
 
-```text
-/var/www/html/myapp/
-├── index.php
-└── .htaccess
-```
+The same file works at `/`, `/myapp/`, or any deeper path. The browser makes
+exactly **one HTTP request** per page load, because the JS and CSS are inlined.
 
-The following all work:
+## How it works
 
-```text
-/myapp/
-/myapp/editor/123
-/myapp/settings
+### Server side (`index.php`)
 
-/myapp/api
-/myapp/api/hello
-/myapp/api/time
-/myapp/api/projects
-```
-
-You can then move the same files to:
-
-```text
-/var/www/html/
-```
-
-and they become:
-
-```text
-/
-/editor/123
-/settings
-
-/api
-/api/hello
-```
-
-No code changes are necessary.
-
-## How base-path detection works
-
-PHP uses:
+The entry point checks `?module`:
 
 ```php
-$_SERVER['SCRIPT_NAME']
+$module = request_param('module');
+
+if ($module === 'api') {
+    handle_api((string) request_param('action', ''), $method);
+}
+
+$route = (string) request_param('u', '/');
+serve_spa($route);
 ```
 
-to determine where `index.php` is mounted.
+The API is a switch on `action`:
 
-For example:
+```php
+case 'hello':
+    json_response(['message' => 'Hello from PHP!']);
 
-```text
-SCRIPT_NAME = /myapp/index.php
+case 'projects':
+    // GET list / POST create
+
+default:
+    json_response(['error' => 'Unknown action'], 404);
 ```
 
-produces:
+`serve_spa()` injects route-aware `<meta>`/`<title>` tags (optional SEO) and
+echoes the fully inlined HTML.
 
-```text
-base path = /myapp
-```
+### Client side (React)
 
-while:
-
-```text
-SCRIPT_NAME = /tools/myapp/index.php
-```
-
-produces:
-
-```text
-base path = /tools/myapp
-```
-
-The incoming URL is then normalized relative to that base.
-
-For example:
-
-```text
-/tools/myapp/api/projects
-```
-
-becomes internally:
-
-```text
-/api/projects
-```
-
-and therefore reaches the same API handler.
-
-## React API URLs
-
-The PHP response injects:
-
-```html
-<meta name="app-base-path" content="/myapp/">
-```
-
-React reads this value and constructs:
-
-```text
-/myapp/api/hello
-/myapp/api/time
-```
-
-instead of assuming that the application lives at `/`.
-
-Therefore the same JavaScript bundle works at arbitrary mount points.
-
-## React assets
-
-Vite is configured with:
+React reads the same `u` parameter and does client-side navigation by
+updating `?u=` with `history.pushState`:
 
 ```js
-base: './'
-```
-
-and the build process normalizes the generated asset references into the embedded `/assets/...` namespace.
-
-PHP then resolves:
-
-```text
-/myapp/assets/app-abc123.js
-```
-
-to:
-
-```text
-/assets/app-abc123.js
-```
-
-internally.
-
-## SPA history routing
-
-The `.htaccess` file sends unknown paths to `index.php`.
-
-Therefore:
-
-```text
-/myapp/editor/123
-```
-
-does not need a physical directory:
-
-```text
-/myapp/editor/123/
-```
-
-PHP receives the request, sees that it is not an API or asset request, and returns the React application.
-
-React can then implement client-side routing.
-
-## Apache
-
-`.htaccess`:
-
-```apache
-RewriteEngine On
-
-RewriteCond %{REQUEST_FILENAME} -f [OR]
-RewriteCond %{REQUEST_FILENAME} -d
-RewriteRule ^ - [L]
-
-RewriteRule ^ index.php [L]
-```
-
-Apache must allow `.htaccess` overrides, normally through:
-
-```apache
-AllowOverride FileInfo
-```
-
-or an equivalent virtual-host configuration.
-
-## Nginx
-
-Nginx does not support `.htaccess`.
-
-Use an equivalent front-controller configuration:
-
-```nginx
-location / {
-    try_files $uri $uri/ /index.php?$query_string;
+function readRoute() {
+  const route = new URLSearchParams(window.location.search).get('u')
+  return route == null || route === '' ? '/' : route
 }
 
-location ~ \.php$ {
-    include fastcgi_params;
-    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-    fastcgi_pass unix:/run/php/php-fpm.sock;
+function navigate(route) {
+  const query = new URLSearchParams(window.location.search)
+  query.set('u', route)
+  window.history.pushState({}, '', '?' + query.toString())
 }
 ```
 
-Adjust the PHP-FPM socket to your system.
+So the URL bar always shows real, shareable URLs and the browser back/forward
+buttons work (via `popstate`).
 
-For an application mounted under a specific prefix, the corresponding `location` block should be scoped to that prefix.
+### API URLs
+
+Because the API lives behind the same `index.php`, React addresses it
+relative to the current document — no base-path configuration is needed:
+
+```js
+const url = `${window.location.pathname}?module=api&action=hello`
+```
+
+This is why the identical bundle works at any mount depth.
 
 ## API
 
-API routing lives directly inside `index.php`.
-
-For example:
+API routing lives directly inside `index.php`. For example:
 
 ```php
-if ($path === '/api/hello' && $method === 'GET') {
+case 'hello':
     json_response([
         'message' => 'Hello from PHP!',
+        'time'    => date(DATE_ATOM),
     ]);
-}
 ```
 
 You can replace this with:
 
-- PDO
-- SQLite
-- MySQL
-- PostgreSQL
-- authentication
-- sessions
-- CRUD
-- file uploads
+- PDO / SQLite / MySQL / PostgreSQL
+- authentication and sessions
+- CRUD and file uploads
 - background-job dispatch
 - etc.
 
 The architecture does not require a PHP framework.
+
+## Adding a new SPA route
+
+Client-side routes are declared in `frontend/src/main.jsx` via `matchRoute()`:
+
+```js
+function matchRoute(route) {
+  const segments = route.split('/').filter(Boolean)
+  if (segments[0] === 'editor') return { name: 'editor', params: { id: segments[1] } }
+  return { name: 'notfound', params: {} }
+}
+```
+
+Add a case there and a corresponding page component, then rebuild.
 
 ## Important security considerations
 
@@ -290,32 +203,34 @@ Before using this as a real production application:
 
 The React bundle is public.
 
+## SEO note
+
+`/index.php?u=editor/123` is a real URL and is more crawler-friendly than a
+hash route. PHP already injects a route-aware `<title>` and `<meta
+name="description">`. For full SEO the PHP entry point can generate
+route-specific open-graph tags while still serving the same React
+application.
+
 ## Architecture
 
 ```text
                          Browser
-                            │
+                            │  (one request: JS + CSS inlined)
                             ▼
                     ┌───────────────┐
                     │   index.php   │
                     └───────┬───────┘
                             │
-              ┌─────────────┼──────────────┐
-              │             │              │
-           /api/*       /assets/*       everything
-              │             │              │
-              ▼             ▼              ▼
-         PHP JSON       embedded JS/CSS   React SPA
+                    ┌───────┴───────┐
+                    │               │
+         ?module=api        ?u=... (and anything else)
+              │                   │
+              ▼                   ▼
+         PHP JSON API          React SPA
+
+The production server needs only:
+    ONE index.php
+    (no rewrite rules, no separate assets)
 ```
 
-The important property is:
-
-```text
-ONE index.php
-      +
-ONE .htaccess
-      ↓
-portable application
-```
-
-The production server does not need Node.js.
+The production server does **not** need Node.js.

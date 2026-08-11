@@ -1,0 +1,69 @@
+# =========================================================================
+# Node.js & Vite (Dependencies and Build Outputs)
+# =========================================================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Vite build directory
+dist/
+dist-ssr/
+*.local
+
+# =========================================================================
+# PHP & Composer
+# =========================================================================
+vendor/
+composer.lock
+.phpunit.result.cache
+.php_cs.cache
+.php-cs-fixer.cache
+
+# If using frameworks like Laravel / Symfony
+/bootstrap/cache/
+/storage/*.key
+/public/storage
+/public/build
+/.var/
+
+# =========================================================================
+# Environment & Sensitive Files (NEVER COMMIT)
+# =========================================================================
+.env
+.env.accounts
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.config.php
+config.local.php
+
+# =========================================================================
+# Linux Specific Files
+# =========================================================================
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# =========================================================================
+# IDEs and Editors (Optional but highly recommended)
+# =========================================================================
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Vite build output (inlined into index.php by build.php)
+frontend/dist/
+
+# Node
+frontend/node_modules/

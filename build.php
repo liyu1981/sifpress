@@ -2,7 +2,8 @@
 declare(strict_types=1);
 
 /**
- * Build the React application and embed its generated assets into index.php.
+ * Build the React application, inline all its assets into the HTML,
+ * and embed that HTML into index.php.
  *
  * Usage:
  *
@@ -18,7 +19,9 @@ declare(strict_types=1);
  *   /myapp/
  *   /tools/myapp/
  *
- * without rebuilding.
+ * without rebuilding and WITHOUT any rewrite rules (.htaccess / Nginx
+ * try_files / etc.). All JavaScript and CSS is inlined, so the browser
+ * makes exactly one request.
  */
 
 $root = __DIR__;
@@ -65,6 +68,84 @@ function run(string $command, string $cwd): void
     }
 }
 
+/**
+ * Inline every stylesheet and script that references a built asset
+ * in dist/. The result is a fully self-contained HTML document.
+ */
+function inline_assets(string $html, string $dist): string
+{
+    $html = preg_replace_callback(
+        '/<link\b[^>]*\bhref="([^"]+)"[^>]*>/i',
+        function (array $match) use ($dist): string {
+            $tag = $match[0];
+            $href = $match[1];
+
+            // Only inline stylesheets that point into dist/assets/.
+            if (!str_contains($tag, 'stylesheet') || !str_contains($href, 'assets/')) {
+                return $tag;
+            }
+
+            $file = $dist . '/' . ltrim(html_entity_decode($href), './');
+
+            if (!is_file($file)) {
+                return $tag;
+            }
+
+            $css = file_get_contents($file);
+
+            if ($css === false) {
+                return $tag;
+            }
+
+            return '<style>' . $css . '</style>';
+        },
+        $html
+    );
+
+    if ($html === null) {
+        throw new RuntimeException('Could not inline stylesheets');
+    }
+
+    $html = preg_replace_callback(
+        '/<script\b[^>]*\bsrc="([^"]+)"[^>]*>/i',
+        function (array $match) use ($dist): string {
+            $tag = $match[0];
+            $src = $match[1];
+
+            // Only inline scripts that point into dist/assets/.
+            if (!str_contains($src, 'assets/')) {
+                return $tag;
+            }
+
+            $file = $dist . '/' . ltrim(html_entity_decode($src), './');
+
+            if (!is_file($file)) {
+                return $tag;
+            }
+
+            $js = file_get_contents($file);
+
+            if ($js === false) {
+                return $tag;
+            }
+
+            // Keep type/crossorigin attributes; drop the src attribute.
+            // The opening tag has no closing part, so append the JS and
+            // a single closing tag.
+            $cleaned = preg_replace('/\bsrc="[^"]*"/i', '', $tag);
+
+            return $cleaned . $js . '</script>';
+        },
+        $html
+    );
+
+    if ($html === null) {
+        throw new RuntimeException('Could not inline scripts');
+    }
+
+    return $html;
+}
+
 if (!is_dir($frontend)) {
     throw new RuntimeException('frontend directory not found');
 }
@@ -85,64 +166,6 @@ if ($indexSource === false) {
     throw new RuntimeException('Could not read index.php');
 }
 
-$assetMap = [];
-
-$iterator = new RecursiveIteratorIterator(
-    new RecursiveDirectoryIterator(
-        $dist,
-        FilesystemIterator::SKIP_DOTS
-    )
-);
-
-foreach ($iterator as $file) {
-    if (!$file->isFile()) {
-        continue;
-    }
-
-    $absolute = $file->getPathname();
-
-    if (basename($absolute) === 'index.html') {
-        continue;
-    }
-
-    $relative = substr($absolute, strlen($dist));
-
-    $url = '/assets' . str_replace(
-        DIRECTORY_SEPARATOR,
-        '/',
-        $relative
-    );
-
-    $contents = file_get_contents($absolute);
-
-    if ($contents === false) {
-        throw new RuntimeException("Could not read $absolute");
-    }
-
-    $extension = strtolower(pathinfo($absolute, PATHINFO_EXTENSION));
-
-    $mime = match ($extension) {
-        'js', 'mjs' => 'application/javascript',
-        'css' => 'text/css',
-        'json' => 'application/json',
-        'svg' => 'image/svg+xml',
-        'png' => 'image/png',
-        'jpg', 'jpeg' => 'image/jpeg',
-        'gif' => 'image/gif',
-        'webp' => 'image/webp',
-        'woff' => 'font/woff',
-        'woff2' => 'font/woff2',
-        'ttf' => 'font/ttf',
-        'wasm' => 'application/wasm',
-        default => 'application/octet-stream',
-    };
-
-    $assetMap[$url] = [
-        'mime' => $mime,
-        'data' => base64_encode($contents),
-    ];
-}
-
 $html = file_get_contents($dist . '/index.html');
 
 if ($html === false) {
@@ -150,13 +173,9 @@ if ($html === false) {
 }
 
 /*
- * Vite base="./" normally emits:
- *
- *   ./assets/index-xxxx.js
- *
- * Normalize those references to the application's internal
- * /assets/... namespace. PHP will prepend the real mount path
- * conceptually by resolving requests relative to SCRIPT_NAME.
+ * Normalize Vite's relative ./assets/... references. Inlining below
+ * only matches assets/..., so "./assets/foo.js" matches too, but keep
+ * the HTML tidy by canonicalizing the prefix.
  */
 $html = preg_replace(
     '#(?:\./)?assets/#',
@@ -169,40 +188,45 @@ if ($html === null) {
 }
 
 /*
+ * Inline all JS and CSS so the document is fully self-contained.
+ * The static title is stripped; PHP injects a route-aware title.
+ */
+$html = inline_assets($html, $dist);
+$html = preg_replace('/<title[^>]*>.*?<\/title>/is', '', $html);
+
+if ($html === null) {
+    throw new RuntimeException('Could not strip the static title');
+}
+
+/*
  * The HTML is injected into the PHP source as a single-quoted
  * PHP string via var_export(), so arbitrary HTML is safe here.
  */
 $htmlPhp = var_export($html, true);
-$assetPhp = var_export($assetMap, true);
 
-$assetsPattern =
-    '/const EMBEDDED_ASSETS = \[\s*\/\/ BUILD_ASSETS\s*\];/s';
-
-$indexSource = preg_replace(
-    $assetsPattern,
-    'const EMBEDDED_ASSETS = ' . $assetPhp . ';',
+/*
+ * Inject the fully inlined HTML into the delimited region.
+ * preg_replace_callback returns the literal replacement directly,
+ * so unlike a string replacement there is no $/backslash processing.
+ * This is also idempotent: it works whether the region currently
+ * holds the marker or an earlier build's HTML.
+ */
+$count = 0;
+$indexSource = preg_replace_callback(
+    '#// ___BEGIN_EMBEDDED___\n.*?// ___END_EMBEDDED___#s',
+    function () use ($htmlPhp): string {
+        return "// ___BEGIN_EMBEDDED___\nconst EMBEDDED_HTML = " .
+            $htmlPhp . ";\n// ___END_EMBEDDED___";
+    },
     $indexSource,
     1,
     $count
 );
 
 if ($count !== 1) {
-    throw new RuntimeException('Could not find BUILD_ASSETS marker');
-}
-
-$htmlPattern =
-    '/const EMBEDDED_HTML = <<\x27HTML\x27;\n<!-- BUILD_HTML -->\nHTML;/s';
-
-$indexSource = preg_replace(
-    $htmlPattern,
-    'const EMBEDDED_HTML = ' . $htmlPhp . ';',
-    $indexSource,
-    1,
-    $count
-);
-
-if ($count !== 1) {
-    throw new RuntimeException('Could not find BUILD_HTML marker');
+    throw new RuntimeException(
+        'Could not find the embedded HTML region (matched ' . $count . ')'
+    );
 }
 
 if (file_put_contents($index, $indexSource) === false) {
@@ -213,5 +237,5 @@ echo PHP_EOL;
 echo "Build complete." . PHP_EOL;
 echo "Production artifact: index.php" . PHP_EOL;
 echo PHP_EOL;
-echo "The generated index.php is mount-point independent." . PHP_EOL;
-echo "It can be copied to /, /myapp/, or any deeper directory." . PHP_EOL;
+echo "No .htaccess, no rewrite rules are required." . PHP_EOL;
+echo "Routes: /index.php?u=...   API: /index.php?module=api&action=..." . PHP_EOL;
