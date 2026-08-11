@@ -67,10 +67,11 @@ Run:
 php build.php
 ```
 
-The script runs the Vite production build (`pnpm run build`), **inlines all
-JavaScript and CSS into the HTML**, embeds that HTML into the PHP source, and
-assembles the fragments from `src/` into **`dist/index.php`**. The build is
-idempotent — you can run it repeatedly.
+The script runs the Vite production build (`pnpm run build`, which first
+type-checks with `tsc --noEmit`), **inlines all JavaScript and CSS into the
+HTML**, embeds that HTML into the PHP source, and assembles the fragments from
+`src/` into **`dist/index.php`**. The build is idempotent — you can run it
+repeatedly.
 
 Source is split into fragments for maintainability:
 
@@ -132,31 +133,26 @@ echoes the fully inlined HTML.
 
 ### Client side (React)
 
-React reads the same `u` parameter and does client-side navigation by
-updating `?u=` with `history.pushState`:
+The React app uses **TanStack Router** with a URL-rewrite layer that maps the
+browser URL to the internal route tree and back. The `rewrite` option in
+`frontend/src/router.tsx` is bidirectional:
 
-```js
-function readRoute() {
-  const route = new URLSearchParams(window.location.search).get('u')
-  return route == null || route === '' ? '/' : route
-}
+- **`input`** (browser → router): reads `?u=editor/123` and turns it into the
+  internal path `/editor/123` (missing `u` → `/`).
+- **`output`** (router → browser): turns the internal path back into
+  `index.php?u=...` (re-rooted at the current document), so `<Link>` hrefs
+  and the URL bar always show real, shareable URLs.
 
-function navigate(route) {
-  const query = new URLSearchParams(window.location.search)
-  query.set('u', route)
-  window.history.pushState({}, '', '?' + query.toString())
-}
-```
-
-So the URL bar always shows real, shareable URLs and the browser back/forward
-buttons work (via `popstate`).
+Route changes go through `history.pushState`, so the browser back/forward
+buttons work out of the box.
 
 ### API URLs
 
-Because the API lives behind the same `index.php`, React addresses it
-relative to the current document — no base-path configuration is needed:
+Because the API lives behind the same `index.php`, the fetch wrappers in
+`frontend/src/lib/api.ts` address it relative to the current document — no
+base-path configuration is needed:
 
-```js
+```ts
 const url = `${window.location.pathname}?module=api&action=hello`
 ```
 
@@ -186,17 +182,26 @@ The architecture does not require a PHP framework.
 
 ## Adding a new SPA route
 
-Client-side routes are declared in `frontend/src/main.jsx` via `matchRoute()`:
+The frontend is a TypeScript + TanStack Router app in `frontend/`:
 
-```js
-function matchRoute(route) {
-  const segments = route.split('/').filter(Boolean)
-  if (segments[0] === 'editor') return { name: 'editor', params: { id: segments[1] } }
-  return { name: 'notfound', params: {} }
-}
+```text
+frontend/src/
+├── main.tsx          React entry (QueryClientProvider + RouterProvider)
+├── router.tsx        route tree + ?u= rewrite mapping
+├── pages/            one component per route
+├── lib/api.ts        fetch wrappers (?module=api&action=...)
+├── hooks/            usePageTitle, ...
+└── components/ui/    shadcn/ui components
 ```
 
-Add a case there and a corresponding page component, then rebuild.
+Add a route by:
+
+1. creating a page component in `frontend/src/pages/`,
+2. declaring it in `frontend/src/router.tsx` with `createRoute` (static paths,
+   dynamic params like `$id`, or the `$` catch-all for 404),
+3. rebuilding with `php build.php`.
+
+Rebuilding is required because the bundle is inlined into `dist/index.php`.
 
 ## Important security considerations
 
