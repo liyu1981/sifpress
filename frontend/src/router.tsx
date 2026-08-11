@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-router'
 
 import { Button } from '@/components/ui/button'
+import { AmbientBackground } from '@/components/ambient-background'
 import { LanguageToggle } from '@/components/language-toggle'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { EditorPage } from '@/pages/editor'
@@ -68,7 +69,8 @@ function AppNav() {
 function RootLayout() {
   return (
     <div className="ambient-bg min-h-screen w-full">
-      <div className="mx-auto flex min-h-screen w-full max-w-xl flex-col justify-center gap-6 px-6 py-12">
+      <AmbientBackground />
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-xl flex-col justify-center gap-6 px-6 py-12">
         <div className="sticky top-4 z-10 flex items-center justify-end gap-1">
           <LanguageToggle />
           <ThemeToggle />
