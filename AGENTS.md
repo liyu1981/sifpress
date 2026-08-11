@@ -84,6 +84,22 @@ dist/index.php      the single production artifact (gitignored)
   `pnpm dlx shadcn@latest add <name>`. Components.json aliases `@/*` to
   `frontend/src/*`.
 - Route-aware `<title>` is set per page via `src/hooks/use-page-title.ts`.
+- **Theming** (`src/lib/theme.tsx`): `ThemeProvider` + `useTheme` with
+  `light` / `dark` / `system` (persisted in localStorage; `system` follows
+  `prefers-color-scheme`). A tiny inline script in `index.html` applies the
+  stored theme before first paint to avoid FOUC. Dark variants of the glass
+  classes live in `index.css`.
+- **i18n** (`src/lib/i18n.ts`): `react-i18next` with inline `en`/`zh`
+  resources, language persisted in localStorage and synced to
+  `document.documentElement.lang`. Add keys in the `resources` object; use
+  `useTranslation()` in components.
+- **Glass design system** in `index.css` (`@layer components`):
+  `glass-control` (frosted surfaces — applied by default to `Card`),
+  `apple-panel` (chrome — used by the nav pill), `ambient-bg` (page
+  backdrop that the glass blurs, applied to the full-viewport wrapper in
+  `RootLayout`). All translucency is `color-mix(in oklch, var(--...),
+  transparent)` from theme tokens; `prefers-reduced-motion` and
+  `prefers-reduced-transparency` guards are included.
 
 ## Conventions
 

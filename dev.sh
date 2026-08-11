@@ -2,6 +2,7 @@
 set -euo pipefail
 
 PORT="${PORT:-5000}"
+RETRY_INTERVAL="${RETRY_INTERVAL:-5}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 WATCH_DIRS=(
@@ -27,8 +28,27 @@ if ! command -v inotifywait >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "==> Building initial bundle..."
-php build.php
+build() {
+  php build.php
+}
+
+# The server needs dist/index.php to exist, so a missing artifact blocks
+# (with retries) until the first build succeeds.
+if [ ! -f "$ROOT/dist/index.php" ]; then
+  echo "==> No dist/index.php yet — building (retrying every ${RETRY_INTERVAL}s)..."
+  while ! build; do
+    sleep "$RETRY_INTERVAL"
+  done
+  LAST_BUILD_OK=1
+else
+  echo "==> Building initial bundle..."
+  if build; then
+    LAST_BUILD_OK=1
+  else
+    echo "==> Initial build failed — serving the last good build and retrying."
+    LAST_BUILD_OK=0
+  fi
+fi
 
 echo "==> Starting PHP dev server on port $PORT..."
 php -S "0.0.0.0:$PORT" "$ROOT/dist/index.php" &
@@ -43,9 +63,22 @@ echo "==> Serving at http://localhost:$PORT"
 echo "==> Watching src/ and frontend/ for changes (Ctrl-C to stop)"
 
 while true; do
-  inotifywait -q -r -e modify,create,delete,move \
-    "${WATCH_DIRS[@]}" || true
-  echo "==> Change detected, rebuilding..."
-  php build.php
-  echo "==> Rebuild complete. Reload http://localhost:$PORT"
+  if [ "$LAST_BUILD_OK" -eq 1 ]; then
+    # Healthy: block until a file actually changes.
+    inotifywait -q -r -e modify,create,delete,move \
+      "${WATCH_DIRS[@]}" >/dev/null 2>&1 || true
+  else
+    # Failing: wait for a change OR retry at the fixed interval.
+    inotifywait -q -r -t "$RETRY_INTERVAL" -e modify,create,delete,move \
+      "${WATCH_DIRS[@]}" >/dev/null 2>&1 || true
+  fi
+
+  echo "==> Rebuilding..."
+  if build; then
+    echo "==> Rebuild complete. Reload http://localhost:$PORT"
+    LAST_BUILD_OK=1
+  else
+    echo "==> Build failed — server keeps serving the last good build; retrying in ${RETRY_INTERVAL}s"
+    LAST_BUILD_OK=0
+  fi
 done

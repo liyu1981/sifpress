@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import type { FormEvent } from 'react'
 
 import { Badge } from '@/components/ui/badge'
@@ -17,7 +18,9 @@ import { createProject } from '@/lib/api'
 import { usePageTitle } from '@/hooks/use-page-title'
 
 export function SettingsPage() {
-  usePageTitle('Settings')
+  const { t } = useTranslation()
+
+  usePageTitle(t('settings.title'))
 
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
@@ -45,38 +48,35 @@ export function SettingsPage() {
   return (
     <Card>
       <CardHeader>
-        <Badge className="w-fit">Route → settings / POST API</Badge>
-        <CardTitle className="text-3xl tracking-tight">Settings</CardTitle>
-        <CardDescription>
-          Create a project via <code>?module=api&amp;action=projects</code>{' '}
-          (POST).
-        </CardDescription>
+        <Badge className="w-fit">{t('settings.badge')}</Badge>
+        <CardTitle className="text-3xl tracking-tight">
+          {t('settings.title')}
+        </CardTitle>
+        <CardDescription>{t('settings.description')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <form className="flex items-end gap-3" onSubmit={handleSubmit}>
           <div className="flex-1 space-y-1.5">
-            <Label htmlFor="project-name">Project name</Label>
+            <Label htmlFor="project-name">{t('settings.name')}</Label>
             <Input
               id="project-name"
               value={name}
-              placeholder="My project"
+              placeholder={t('settings.placeholder')}
               onChange={(event) => setName(event.target.value)}
             />
           </div>
           <Button type="submit" disabled={mutation.isPending}>
-            {mutation.isPending ? 'Creating…' : 'Create'}
+            {mutation.isPending ? t('settings.creating') : t('settings.create')}
           </Button>
         </form>
 
         <div className="space-y-1 rounded-lg bg-muted/50 p-4">
-          <p className="text-sm font-medium">Last created</p>
+          <p className="text-sm font-medium">{t('settings.lastCreated')}</p>
           <p className="text-sm text-muted-foreground">
             {created ? `#${created.id} — ${created.name}` : '—'}
           </p>
           {mutation.isError && (
-            <p className="text-sm text-destructive">
-              Could not create project.
-            </p>
+            <p className="text-sm text-destructive">{t('settings.error')}</p>
           )}
         </div>
       </CardContent>

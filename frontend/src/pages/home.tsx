@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import {
@@ -13,7 +14,9 @@ import { fetchHello, fetchTime } from '@/lib/api'
 import { usePageTitle } from '@/hooks/use-page-title'
 
 export function HomePage() {
-  usePageTitle('Single PHP React SPA')
+  const { t } = useTranslation()
+
+  usePageTitle(t('home.title'))
 
   const hello = useQuery({
     queryKey: ['api', 'hello'],
@@ -28,41 +31,35 @@ export function HomePage() {
   return (
     <Card>
       <CardHeader>
-        <Badge className="w-fit">PHP + React</Badge>
+        <Badge className="w-fit">{t('home.badge')}</Badge>
         <CardTitle className="text-3xl tracking-tight">
-          Single-file SPA
+          {t('home.title')}
         </CardTitle>
-        <CardDescription>
-          One <code>index.php</code> that works at the domain root or any
-          subdirectory — no rewrite rules required.
-        </CardDescription>
+        <CardDescription>{t('home.description')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-1 rounded-lg bg-muted/50 p-4">
-          <p className="text-sm font-medium">Current URL</p>
+          <p className="text-sm font-medium">{t('home.url')}</p>
           <p className="text-sm text-muted-foreground">
             {window.location.pathname}
           </p>
         </div>
 
         <div className="space-y-1 rounded-lg bg-muted/50 p-4">
-          <p className="text-sm font-medium">API response (hello)</p>
+          <p className="text-sm font-medium">{t('home.api')}</p>
           <p className="text-sm text-muted-foreground">
-            {hello.isLoading ? 'Loading…' : hello.data?.message}
+            {hello.isLoading ? t('home.loading') : hello.data?.message}
           </p>
         </div>
 
         <div className="space-y-1 rounded-lg bg-muted/50 p-4">
-          <p className="text-sm font-medium">Server time</p>
+          <p className="text-sm font-medium">{t('home.time')}</p>
           <p className="text-sm text-muted-foreground">
-            {time.isLoading ? 'Loading…' : time.data?.iso ?? '—'}
+            {time.isLoading ? t('home.loading') : time.data?.iso ?? '—'}
           </p>
         </div>
 
-        <p className="text-xs text-muted-foreground">
-          Routes are pure query parameters (<code>u=...</code>). Try the links
-          below.
-        </p>
+        <p className="text-xs text-muted-foreground">{t('home.hint')}</p>
       </CardContent>
     </Card>
   )

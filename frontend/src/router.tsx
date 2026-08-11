@@ -7,11 +7,13 @@ import {
 } from '@tanstack/react-router'
 
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { LanguageToggle } from '@/components/language-toggle'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { EditorPage } from '@/pages/editor'
 import { HomePage } from '@/pages/home'
 import { NotFoundPage } from '@/pages/not-found'
 import { SettingsPage } from '@/pages/settings'
+import { useTranslation } from 'react-i18next'
 
 const basePath = window.location.pathname
 
@@ -26,17 +28,18 @@ function normalizeInternalPath(route: string): string {
 }
 
 function AppNav() {
+  const { t } = useTranslation()
   const activeClass = 'bg-accent text-accent-foreground'
 
   return (
-    <nav className="flex items-center gap-2">
+    <nav className="apple-panel sticky top-4 z-10 mx-auto flex w-fit items-center gap-1 rounded-full p-1">
       <Button asChild variant="ghost" size="sm">
         <Link
           to="/"
           activeOptions={{ exact: true }}
-          activeProps={{ className: cn(activeClass) }}
+          activeProps={{ className: activeClass }}
         >
-          Home
+          {t('nav.home')}
         </Link>
       </Button>
       <Button asChild variant="ghost" size="sm">
@@ -44,18 +47,18 @@ function AppNav() {
           to="/editor/$id"
           params={{ id: '123' }}
           activeOptions={{ exact: true }}
-          activeProps={{ className: cn(activeClass) }}
+          activeProps={{ className: activeClass }}
         >
-          Editor 123
+          {t('nav.editor')}
         </Link>
       </Button>
       <Button asChild variant="ghost" size="sm">
         <Link
           to="/settings"
           activeOptions={{ exact: true }}
-          activeProps={{ className: cn(activeClass) }}
+          activeProps={{ className: activeClass }}
         >
-          Settings
+          {t('nav.settings')}
         </Link>
       </Button>
     </nav>
@@ -64,9 +67,17 @@ function AppNav() {
 
 function RootLayout() {
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-xl flex-col justify-center gap-8 px-6 py-12">
-      <AppNav />
-      <Outlet />
+    <div className="ambient-bg min-h-screen w-full">
+      <div className="mx-auto flex min-h-screen w-full max-w-xl flex-col justify-center gap-6 px-6 py-12">
+        <div className="sticky top-4 z-10 flex items-center justify-end gap-1">
+          <LanguageToggle />
+          <ThemeToggle />
+        </div>
+        <AppNav />
+        <main className="animate-in slide-in-from-bottom-3 duration-500 ease-out">
+          <Outlet />
+        </main>
+      </div>
     </div>
   )
 }

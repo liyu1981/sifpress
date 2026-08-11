@@ -1,4 +1,5 @@
 import { Link, useLocation } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -12,22 +13,26 @@ import {
 import { usePageTitle } from '@/hooks/use-page-title'
 
 export function NotFoundPage() {
-  usePageTitle('Not found')
+  const { t } = useTranslation()
+
+  usePageTitle(t('notFound.title'))
 
   const location = useLocation()
 
   return (
     <Card>
       <CardHeader>
-        <Badge className="w-fit">404</Badge>
-        <CardTitle className="text-3xl tracking-tight">Not found</CardTitle>
+        <Badge className="w-fit">{t('notFound.badge')}</Badge>
+        <CardTitle className="text-3xl tracking-tight">
+          {t('notFound.title')}
+        </CardTitle>
         <CardDescription>
-          The route <strong>{location.href}</strong> does not exist.
+          {t('notFound.description', { href: location.href })}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Button asChild size="sm">
-          <Link to="/">Back home</Link>
+        <Button asChild size="sm" variant="glass">
+          <Link to="/">{t('notFound.back')}</Link>
         </Button>
       </CardContent>
     </Card>
