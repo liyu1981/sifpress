@@ -1,0 +1,71 @@
+/**
+ * ------------------------------------------------------------
+ * Embedded React application
+ *
+ * All JavaScript and CSS are inlined into EMBEDDED_HTML at build
+ * time, so dist/index.php is the single production artifact and no
+ * asset requests need rewrite rules.
+ * ------------------------------------------------------------
+ */
+
+/**
+ * Sanitize an SPA route into a safe, single-segment identifier used
+ * only for optional <meta> tags. React receives the raw route through
+ * ?u= and is responsible for lookup/404 handling.
+ */
+function route_title_key(string $route): string
+{
+    $route = trim($route, '/');
+
+    if ($route === '') {
+        return '';
+    }
+
+    $first = explode('/', $route)[0];
+
+    if (!preg_match('/^[A-Za-z0-9_-]+$/', $first)) {
+        return '';
+    }
+
+    return $first;
+}
+
+function serve_spa(string $route): never
+{
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: no-cache');
+    header('X-Content-Type-Options: nosniff');
+
+    $html = EMBEDDED_HTML;
+
+    /*
+     * Route-aware, optional SEO/meta injection. The static <title>
+     * is stripped at build time, so the route-aware one (or the app
+     * default) injected here is authoritative. React still renders
+     * the full client-side content.
+     */
+    $key = route_title_key($route);
+
+    $meta = '<meta name="app-route" content="' .
+        htmlspecialchars($route, ENT_QUOTES | ENT_HTML5, 'UTF-8') .
+        '">';
+
+    if ($key !== '') {
+        $displayName = APP_NAME . ' — ' . ucfirst($key);
+        $meta .= '<title>' . htmlspecialchars($displayName, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '</title>';
+        $meta .= '<meta name="description" content="' .
+            htmlspecialchars($displayName, ENT_QUOTES | ENT_HTML5, 'UTF-8') .
+            '">';
+    } else {
+        $meta .= '<title>' . htmlspecialchars(APP_NAME, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '</title>';
+    }
+
+    $html = str_replace(
+        '</head>',
+        $meta . '</head>',
+        $html
+    );
+
+    echo $html;
+    exit;
+}

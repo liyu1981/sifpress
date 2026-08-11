@@ -13,6 +13,9 @@ dist/
 dist-ssr/
 *.local
 
+# Assembled production artifact (built by php build.php)
+dist/index.php
+
 # =========================================================================
 # PHP & Composer
 # =========================================================================
