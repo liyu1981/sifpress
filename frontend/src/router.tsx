@@ -139,7 +139,7 @@ function RootLayout() {
   }
 
   return (
-    <div className="ambient-bg min-h-screen w-full">
+    <div className="ambient-bg min-h-screen w-full overflow-x-clip">
       <AmbientBackground />
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-6 px-6 py-12">
         <AppHeader />

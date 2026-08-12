@@ -118,6 +118,8 @@ export interface PageInput {
   title: string
   content_md: string
   status: PageStatus
+  created_at?: string
+  updated_at?: string
 }
 
 export const systemApi = {

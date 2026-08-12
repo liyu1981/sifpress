@@ -2,21 +2,24 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Loader2, Lock, Save, Trash2, UserPlus } from 'lucide-react'
+import {
+  ArrowLeft,
+  ChevronDown,
+  Loader2,
+  Lock,
+  Save,
+  ShieldCheck,
+  Trash2,
+  UserPlus,
+} from 'lucide-react'
 import type { FormEvent } from 'react'
 
 import { ApiError } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { Markdown } from '@/components/markdown/markdown'
 import { useAuth } from '@/lib/auth'
 import { pagesApi, type PageStatus } from '@/lib/pages'
@@ -29,6 +32,8 @@ interface FormState {
   title: string
   status: PageStatus
   content_md: string
+  created_at: string
+  updated_at: string
 }
 
 const emptyForm: FormState = {
@@ -36,6 +41,16 @@ const emptyForm: FormState = {
   title: '',
   status: 'draft',
   content_md: '',
+  created_at: '',
+  updated_at: '',
+}
+
+function toLocalInput(dbTime: string): string {
+  return dbTime ? dbTime.slice(0, 16).replace(' ', 'T') : ''
+}
+
+function toDbTime(local: string): string {
+  return local ? `${local.replace('T', ' ')}:00` : ''
 }
 
 function EditorSkeleton() {
@@ -76,6 +91,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
   const [form, setForm] = useState<FormState>(emptyForm)
   const [loaded, setLoaded] = useState(false)
   const [saveError, setSaveError] = useState<ApiError | null>(null)
+  const [accessOpen, setAccessOpen] = useState(false)
   const [grantUsername, setGrantUsername] = useState('')
   const [grantError, setGrantError] = useState<ApiError | null>(null)
 
@@ -92,6 +108,8 @@ export function EditorPage({ slug }: { slug: string | null }) {
         title: page.title,
         status: page.status,
         content_md: page.content_md,
+        created_at: toLocalInput(page.created_at),
+        updated_at: '',
       })
     }
 
@@ -99,16 +117,29 @@ export function EditorPage({ slug }: { slug: string | null }) {
   }, [editing, loaded, pageQuery.data])
 
   const save = useMutation({
-    mutationFn: async (state: FormState) =>
-      editing
+    mutationFn: async (state: FormState) => {
+      const timestamps = {
+        created_at: toDbTime(state.created_at),
+        updated_at: toDbTime(state.updated_at),
+      }
+
+      return editing
         ? pagesApi.update({
             id: pageQuery.data!.id,
             slug: state.slug,
             title: state.title,
             status: state.status,
             content_md: state.content_md,
+            ...timestamps,
           })
-        : pagesApi.create(state),
+        : pagesApi.create({
+            slug: state.slug,
+            title: state.title,
+            status: state.status,
+            content_md: state.content_md,
+            ...timestamps,
+          })
+    },
     onSuccess: (page) => {
       queryClient.invalidateQueries({ queryKey: ['pages'] })
       queryClient.invalidateQueries({ queryKey: ['page', page.slug] })
@@ -227,47 +258,58 @@ export function EditorPage({ slug }: { slug: string | null }) {
 
   const slugError = fieldError(saveError, 'slug')
   const titleError = fieldError(saveError, 'title')
+  const createdAtError = fieldError(saveError, 'created_at')
+  const updatedAtError = fieldError(saveError, 'updated_at')
 
   return (
-    <div className="mx-auto w-full max-w-5xl">
-      <form onSubmit={handleSave} className="space-y-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="space-y-2">
-            <Badge variant={editing ? 'secondary' : 'default'}>
-              {editing ? t('editor.editBadge') : t('editor.newBadge')}
-            </Badge>
-            <h1 className="font-heading text-3xl font-bold tracking-tight">
-              {editing ? t('editor.editTitle') : t('editor.newTitle')}
-            </h1>
-          </div>
-          <div className="flex items-center gap-2">
-            {editing && page !== null && has('pages.delete') && (
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={handleDelete}
-                disabled={remove.isPending}
-              >
-                {remove.isPending ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  <Trash2 />
-                )}
-                {t('editor.delete')}
-              </Button>
-            )}
-            <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? (
-                <Loader2 className="animate-spin" />
-              ) : (
-                <Save />
+    <div className="w-full">
+      <form onSubmit={handleSave} className="w-full">
+        <div className="mx-auto w-full max-w-5xl space-y-6">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="space-y-2">
+              <Badge variant={editing ? 'secondary' : 'default'}>
+                {editing ? t('editor.editBadge') : t('editor.newBadge')}
+              </Badge>
+              <h1 className="font-heading text-3xl font-bold tracking-tight">
+                {editing ? t('editor.editTitle') : t('editor.newTitle')}
+              </h1>
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="flex cursor-pointer items-center gap-2">
+                <Switch
+                  checked={form.status === 'published'}
+                  onCheckedChange={(checked) =>
+                    setForm({
+                      ...form,
+                      status: checked ? 'published' : 'draft',
+                    })
+                  }
+                  aria-label={t('editor.statusField')}
+                />
+                <span className="text-sm font-medium">
+                  {form.status === 'published'
+                    ? t('editor.statusPublished')
+                    : t('editor.statusDraft')}
+                </span>
+              </label>
+              {editing && page !== null && has('pages.delete') && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={remove.isPending}
+                >
+                  {remove.isPending ? <Loader2 className="animate-spin" /> : <Trash2 />}
+                  {t('editor.delete')}
+                </Button>
               )}
-              {t('editor.save')}
-            </Button>
+              <Button type="submit" disabled={save.isPending}>
+                {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
+                {t('editor.save')}
+              </Button>
+            </div>
           </div>
-        </div>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div className="glass-control space-y-4 rounded-2xl p-6">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
@@ -303,29 +345,148 @@ export function EditorPage({ slug }: { slug: string | null }) {
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="editor-status">{t('editor.statusField')}</Label>
-              <select
-                id="editor-status"
-                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                value={form.status}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    status: event.target.value as PageStatus,
-                  })
-                }
-              >
-                <option value="draft">{t('editor.statusDraft')}</option>
-                <option value="published">{t('editor.statusPublished')}</option>
-              </select>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="editor-updated-at">{t('editor.updatedAtField')}</Label>
+                <Input
+                  id="editor-updated-at"
+                  type="datetime-local"
+                  value={form.updated_at}
+                  onChange={(event) =>
+                    setForm({ ...form, updated_at: event.target.value })
+                  }
+                  aria-invalid={updatedAtError !== undefined}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('editor.updatedAtHint')}
+                </p>
+                {updatedAtError !== undefined && (
+                  <p className="text-xs text-destructive">{updatedAtError}</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="editor-created-at">{t('editor.createdAtField')}</Label>
+                <Input
+                  id="editor-created-at"
+                  type="datetime-local"
+                  value={form.created_at}
+                  onChange={(event) =>
+                    setForm({ ...form, created_at: event.target.value })
+                  }
+                  aria-invalid={createdAtError !== undefined}
+                />
+                {createdAtError !== undefined && (
+                  <p className="text-xs text-destructive">{createdAtError}</p>
+                )}
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="editor-content">{t('editor.contentField')}</Label>
+            <div className="h-px w-full bg-border/60" />
+
+            {editing && page !== null && canManageGrants && (
+              <div className="rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setAccessOpen((value) => !value)}
+                  className="flex w-full items-center justify-between gap-3 py-1 text-left"
+                >
+                  <span className="flex items-center gap-2 text-sm font-medium">
+                    <ShieldCheck className="size-4 text-muted-foreground" />
+                    {t('editor.grantsTitle')}
+                  </span>
+                  <ChevronDown
+                    className={`size-4 text-muted-foreground transition-transform ${
+                      accessOpen ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+
+                {accessOpen && (
+                  <div className="mt-3 space-y-3">
+                    <p className="text-xs text-muted-foreground">
+                      {t('editor.grantsDescription')}
+                    </p>
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1 space-y-1.5">
+                        <Label htmlFor="grant-username">
+                          {t('editor.grantUsername')}
+                        </Label>
+                        <Input
+                          id="grant-username"
+                          value={grantUsername}
+                          onChange={(event) => setGrantUsername(event.target.value)}
+                          placeholder={t('editor.grantPlaceholder')}
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => grant.mutate()}
+                        disabled={grant.isPending || grantUsername.trim() === ''}
+                      >
+                        <UserPlus />
+                        {t('editor.grantAdd')}
+                      </Button>
+                    </div>
+                    {grantError !== null && (
+                      <p className="text-sm text-destructive">
+                        {grantError.data.error ?? t('editor.grantError')}
+                      </p>
+                    )}
+                    <ul className="space-y-1.5">
+                      {grantsQuery.data?.map((g) => (
+                        <li
+                          key={g.username}
+                          className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2 text-sm"
+                        >
+                          <span>
+                            <span className="font-medium">{g.username}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {' — '}
+                              {g.name}
+                            </span>
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="xs"
+                            onClick={() => revoke.mutate(g.username)}
+                            disabled={revoke.isPending}
+                          >
+                            {t('editor.grantRevoke')}
+                          </Button>
+                        </li>
+                      ))}
+                      {grantsQuery.data?.length === 0 && (
+                        <li className="text-sm text-muted-foreground">
+                          {t('editor.grantsEmpty')}
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {saveError !== null && (
+            <p className="text-sm text-destructive">
+              {saveError.data.error ?? t('editor.error')}
+            </p>
+          )}
+        </div>
+
+        <div className="relative left-1/2 mt-8 w-[calc(100vw-2rem)] -translate-x-1/2 px-6">
+          <div className="grid gap-4 lg:h-[75vh] lg:grid-cols-2">
+            <div className="glass-control flex h-[50vh] flex-col overflow-hidden rounded-2xl lg:h-full">
+              <div className="flex items-center justify-between border-b border-border/60 px-4 py-2">
+                <span className="text-sm font-medium">
+                  {t('editor.contentField')}
+                </span>
+              </div>
               <textarea
-                id="editor-content"
-                className="w-full min-h-72 rounded-lg border border-input bg-transparent px-2.5 py-2 font-mono text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                aria-label={t('editor.contentField')}
+                className="h-full w-full flex-1 resize-none bg-transparent p-4 font-mono text-sm leading-6 outline-none placeholder:text-muted-foreground"
                 value={form.content_md}
                 onChange={(event) =>
                   setForm({ ...form, content_md: event.target.value })
@@ -335,99 +496,23 @@ export function EditorPage({ slug }: { slug: string | null }) {
               />
             </div>
 
-            {saveError !== null && (
-              <p className="text-sm text-destructive">
-                {saveError.data.error ?? t('editor.error')}
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-6">
-            <div className="glass-control rounded-2xl p-6">
-              <div className="mb-3 flex items-center justify-between">
-                <Label>{t('editor.preview')}</Label>
+            <div className="glass-control flex h-[50vh] flex-col overflow-hidden rounded-2xl lg:h-full">
+              <div className="flex items-center justify-between border-b border-border/60 px-4 py-2">
+                <span className="text-sm font-medium">{t('editor.preview')}</span>
                 <Badge variant="outline">{t('editor.previewLive')}</Badge>
               </div>
-              <div className="prose max-w-none overflow-hidden rounded-xl bg-background/50 p-4 text-[0.9rem] leading-6">
-                {form.content_md.trim() === '' ? (
-                  <p className="text-muted-foreground">
-                    {t('editor.previewEmpty')}
-                  </p>
-                ) : (
-                  <Markdown content={form.content_md} />
-                )}
+              <div className="flex-1 overflow-y-auto">
+                <div className="prose max-w-none p-6 text-[0.9rem] leading-7">
+                  {form.content_md.trim() === '' ? (
+                    <p className="text-muted-foreground">
+                      {t('editor.previewEmpty')}
+                    </p>
+                  ) : (
+                    <Markdown content={form.content_md} />
+                  )}
+                </div>
               </div>
             </div>
-
-            {editing && page !== null && canManageGrants && (
-              <Card size="sm">
-                <CardHeader>
-                  <CardTitle>{t('editor.grantsTitle')}</CardTitle>
-                  <CardDescription>
-                    {t('editor.grantsDescription')}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-end gap-2">
-                    <div className="flex-1 space-y-1.5">
-                      <Label htmlFor="grant-username">
-                        {t('editor.grantUsername')}
-                      </Label>
-                      <Input
-                        id="grant-username"
-                        value={grantUsername}
-                        onChange={(event) => setGrantUsername(event.target.value)}
-                        placeholder={t('editor.grantPlaceholder')}
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => grant.mutate()}
-                      disabled={grant.isPending || grantUsername.trim() === ''}
-                    >
-                      <UserPlus />
-                      {t('editor.grantAdd')}
-                    </Button>
-                  </div>
-                  {grantError !== null && (
-                    <p className="text-sm text-destructive">
-                      {grantError.data.error ?? t('editor.grantError')}
-                    </p>
-                  )}
-                  <ul className="space-y-1.5">
-                    {grantsQuery.data?.map((g) => (
-                      <li
-                        key={g.username}
-                        className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2 text-sm"
-                      >
-                        <span>
-                          <span className="font-medium">{g.username}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {' — '}
-                            {g.name}
-                          </span>
-                        </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="xs"
-                          onClick={() => revoke.mutate(g.username)}
-                          disabled={revoke.isPending}
-                        >
-                          {t('editor.grantRevoke')}
-                        </Button>
-                      </li>
-                    ))}
-                    {grantsQuery.data?.length === 0 && (
-                      <li className="text-sm text-muted-foreground">
-                        {t('editor.grantsEmpty')}
-                      </li>
-                    )}
-                  </ul>
-                </CardContent>
-              </Card>
-            )}
           </div>
         </div>
       </form>

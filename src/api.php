@@ -55,6 +55,38 @@ function validate_password(string $password): array
     return [];
 }
 
+/**
+ * Normalize a client datetime into 'YYYY-MM-DD HH:MM:SS' for storage.
+ * Accepts the HTML datetime-local 'T' separator and an optional
+ * seconds part. Returns '' for missing or invalid input.
+ */
+function normalize_datetime(mixed $value): string
+{
+    if (!is_string($value) || trim($value) === '') {
+        return '';
+    }
+
+    $value = str_replace('T', ' ', trim($value));
+
+    if (!preg_match('/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})(?::(\d{2}))?$/', $value, $m)) {
+        return '';
+    }
+
+    if (!checkdate((int) $m[2], (int) $m[3], (int) $m[1])) {
+        return '';
+    }
+
+    return sprintf(
+        '%04d-%02d-%02d %02d:%02d:%02d',
+        (int) $m[1],
+        (int) $m[2],
+        (int) $m[3],
+        (int) $m[4],
+        (int) $m[5],
+        (int) ($m[6] ?? '00')
+    );
+}
+
 /* ------------------------------------------------------------------ */
 /* Page helpers                                                       */
 /* ------------------------------------------------------------------ */
@@ -455,6 +487,8 @@ function api_pages_create(string $method): never
     $title = trim((string) ($body['title'] ?? ''));
     $content = (string) ($body['content_md'] ?? '');
     $status = (string) ($body['status'] ?? 'draft');
+    $createdAt = normalize_datetime($body['created_at'] ?? '');
+    $updatedAt = normalize_datetime($body['updated_at'] ?? '');
 
     $errors = [];
 
@@ -477,6 +511,20 @@ function api_pages_create(string $method): never
         $errors['status'] = ['must be draft or published'];
     }
 
+    if (array_key_exists('created_at', $body)
+        && is_string($body['created_at'])
+        && trim($body['created_at']) !== ''
+        && $createdAt === '') {
+        $errors['created_at'] = ['must be YYYY-MM-DD HH:MM(:SS)'];
+    }
+
+    if (array_key_exists('updated_at', $body)
+        && is_string($body['updated_at'])
+        && trim($body['updated_at']) !== ''
+        && $updatedAt === '') {
+        $errors['updated_at'] = ['must be YYYY-MM-DD HH:MM(:SS)'];
+    }
+
     if ($errors !== []) {
         json_response(['error' => 'validation failed', 'errors' => $errors], 422);
     }
@@ -488,10 +536,19 @@ function api_pages_create(string $method): never
     }
 
     $stmt = db()->prepare(
-        'INSERT INTO pages (slug, title, content_md, status, created_by, updated_by)
-         VALUES (?, ?, ?, ?, ?, ?)'
+        'INSERT INTO pages (slug, title, content_md, status, created_by, updated_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     );
-    $stmt->execute([$slug, $title, $content, $status, $user['id'], $user['id']]);
+    $stmt->execute([
+        $slug,
+        $title,
+        $content,
+        $status,
+        $user['id'],
+        $user['id'],
+        $createdAt !== '' ? $createdAt : date('Y-m-d H:i:s'),
+        $updatedAt !== '' ? $updatedAt : date('Y-m-d H:i:s'),
+    ]);
 
     json_response(['page' => page_payload(fetch_page((int) db()->lastInsertId()))], 201);
 }
@@ -567,6 +624,32 @@ function api_pages_update(string $method): never
         }
     }
 
+    if (array_key_exists('created_at', $body)) {
+        $createdAt = is_string($body['created_at']) ? normalize_datetime($body['created_at']) : '';
+
+        if ($createdAt === '') {
+            if (is_string($body['created_at']) && trim($body['created_at']) !== '') {
+                $errors['created_at'] = ['must be YYYY-MM-DD HH:MM(:SS)'];
+            }
+        } else {
+            $sets[] = 'created_at = :created_at';
+            $params['created_at'] = $createdAt;
+        }
+    }
+
+    if (array_key_exists('updated_at', $body)) {
+        $updatedAt = is_string($body['updated_at']) ? normalize_datetime($body['updated_at']) : '';
+
+        if ($updatedAt === '') {
+            if (is_string($body['updated_at']) && trim($body['updated_at']) !== '') {
+                $errors['updated_at'] = ['must be YYYY-MM-DD HH:MM(:SS)'];
+            }
+        } else {
+            $sets[] = 'updated_at = :updated_at';
+            $params['updated_at'] = $updatedAt;
+        }
+    }
+
     if ($errors !== []) {
         json_response(['error' => 'validation failed', 'errors' => $errors], 422);
     }
@@ -576,9 +659,12 @@ function api_pages_update(string $method): never
     }
 
     $sets[] = 'updated_by = :uid';
-    $sets[] = 'updated_at = datetime(\'now\')';
     $params['uid'] = current_user()['id'];
     $params['id'] = $id;
+
+    if (!isset($params['updated_at'])) {
+        $sets[] = 'updated_at = datetime(\'now\')';
+    }
 
     $stmt = db()->prepare('UPDATE pages SET ' . implode(', ', $sets) . ' WHERE id = :id');
     $stmt->execute($params);
