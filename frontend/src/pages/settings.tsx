@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
   ChevronDown,
+  Globe,
   Loader2,
   Save,
   ShieldCheck,
@@ -24,8 +25,10 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/lib/auth'
 import { rolesApi, usersApi, type RoleListItem, type UserListItem } from '@/lib/pages'
+import { cn } from '@/lib/utils'
 import { usePageTitle } from '@/hooks/use-page-title'
 
 function ChangePasswordForm() {
@@ -433,47 +436,107 @@ function UsersCard() {
   )
 }
 
+function SystemSettingsCard() {
+  const { i18n, t } = useTranslation()
+  const current = i18n.language?.startsWith('zh') ? 'zh' : 'en'
+
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardAction>
+          <Globe className="size-5 text-muted-foreground" />
+        </CardAction>
+        <CardTitle>{t('settings.systemTitle')}</CardTitle>
+        <CardDescription>{t('settings.systemDescription')}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-1.5">
+          <Label>{t('settings.localeField')}</Label>
+          <div className="flex flex-wrap gap-1.5">
+            {(['en', 'zh'] as const).map((lang) => (
+              <button
+                key={lang}
+                type="button"
+                onClick={() => i18n.changeLanguage(lang)}
+                className={cn(
+                  'rounded-full px-3 py-1 text-xs font-medium transition-colors',
+                  current === lang
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                {lang === 'en' ? 'English' : '中文'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 export function SettingsPage() {
   const { t } = useTranslation()
   const { user } = useAuth()
 
   usePageTitle(t('settings.title'))
 
+  const canManageUsers = user?.permissions.includes('users.manage') ?? false
+
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-6">
+    <div className="mx-auto w-full max-w-5xl space-y-6">
       <header className="space-y-2">
-        <Badge>{t('settings.badge')}</Badge>
         <h1 className="font-heading text-3xl font-bold tracking-tight">
           {t('settings.title')}
         </h1>
         <p className="text-sm text-muted-foreground">{t('settings.description')}</p>
       </header>
 
-      {user !== null && (
-        <Card size="sm">
-          <CardHeader>
-            <CardAction>
-              <UserRound className="size-5 text-muted-foreground" />
-            </CardAction>
-            <CardTitle>{t('settings.profileTitle')}</CardTitle>
-            <CardDescription>
-              {user.username}
-              {user.email ? ` · ${user.email}` : ''}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            {user.roles.map((role) => (
-              <Badge key={role} variant="secondary">
-                {role}
-              </Badge>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+      <Tabs defaultValue="account" className="gap-6 md:flex-row">
+        <TabsList className="w-fit flex-row md:h-auto md:w-44 md:flex-col md:items-stretch md:self-start">
+          <TabsTrigger value="account">{t('settings.tabAccount')}</TabsTrigger>
+          {canManageUsers && (
+            <TabsTrigger value="users">{t('settings.tabUsers')}</TabsTrigger>
+          )}
+          <TabsTrigger value="system">{t('settings.tabSystem')}</TabsTrigger>
+        </TabsList>
 
-      <ChangePasswordForm />
+        <TabsContent value="account" className="space-y-6">
+          {user !== null && (
+            <Card size="sm">
+              <CardHeader>
+                <CardAction>
+                  <UserRound className="size-5 text-muted-foreground" />
+                </CardAction>
+                <CardTitle>{t('settings.profileTitle')}</CardTitle>
+                <CardDescription>
+                  {user.username}
+                  {user.email ? ` · ${user.email}` : ''}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                {user.roles.map((role) => (
+                  <Badge key={role} variant="secondary">
+                    {role}
+                  </Badge>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
-      {user?.permissions.includes('users.manage') && <UsersCard />}
+          <ChangePasswordForm />
+        </TabsContent>
+
+        {canManageUsers && (
+          <TabsContent value="users">
+            <UsersCard />
+          </TabsContent>
+        )}
+
+        <TabsContent value="system">
+          <SystemSettingsCard />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

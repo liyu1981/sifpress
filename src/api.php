@@ -84,6 +84,51 @@ function fetch_page(int $id, ?string $slug = null): ?array
 }
 
 /**
+ * Parse the `tags:` list out of a page's YAML front matter. Mirrors the
+ * subset parsed on the client (lib/front-matter.ts): an inline array
+ * `[a, b]` or a comma/space separated list, quoted items supported.
+ * Returns a deduplicated list of non-empty tag strings.
+ */
+function front_matter_tags(string $content): array
+{
+    if (!preg_match('/^---[ \t]*\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|$)/s', $content, $match)) {
+        return [];
+    }
+
+    foreach (preg_split('/\r?\n/', $match[1]) as $line) {
+        $line = trim($line);
+
+        if (!preg_match('/^tags[ \t]*:[ \t]*(.*)$/i', $line, $m)) {
+            continue;
+        }
+
+        $value = trim($m[1]);
+        $value = preg_split('/[ \t]+#/', $value, 2)[0];
+        $tags = [];
+
+        if (str_starts_with($value, '[') && str_ends_with($value, ']')) {
+            foreach (explode(',', substr($value, 1, -1)) as $item) {
+                $item = trim(trim($item), "\"'");
+                if ($item !== '') {
+                    $tags[] = $item;
+                }
+            }
+        } elseif ($value !== '') {
+            foreach (preg_split('/[,\s]+/', $value) as $item) {
+                $item = trim(trim($item), "\"'");
+                if ($item !== '') {
+                    $tags[] = $item;
+                }
+            }
+        }
+
+        return array_values(array_unique($tags));
+    }
+
+    return [];
+}
+
+/**
  * Public page payload; can_edit reflects the current user's rights.
  */
 function page_payload(array $page): array
@@ -95,6 +140,7 @@ function page_payload(array $page): array
         'slug' => $page['slug'],
         'title' => $page['title'],
         'content_md' => $page['content_md'],
+        'tags' => front_matter_tags($page['content_md']),
         'status' => $page['status'],
         'created_by' => $page['created_by'] !== null ? (int) $page['created_by'] : null,
         'created_by_name' => (string) $page['created_by_name'],
@@ -282,6 +328,46 @@ function api_pages_list(string $method): never
     $status = api_status_param();
     $page = max(1, (int) request_param('page', '1'));
     $perPage = min(100, max(1, (int) request_param('per_page', '20')));
+    $tag = request_param('tag');
+
+    if ($tag !== null && trim($tag) !== '') {
+        $where = '';
+        $params = [];
+
+        if ($status !== null) {
+            $where = 'WHERE p.status = :status';
+            $params['status'] = $status;
+        }
+
+        $stmt = db()->prepare(
+            'SELECT p.*, cu.name AS created_by_name, uu.name AS updated_by_name
+               FROM pages p
+               LEFT JOIN users cu ON cu.id = p.created_by
+               LEFT JOIN users uu ON uu.id = p.updated_by
+               ' . $where . '
+              ORDER BY p.updated_at DESC'
+        );
+        $stmt->execute($params);
+
+        $filtered = array_values(array_filter(
+            $stmt->fetchAll(),
+            static fn (array $row): bool => in_array(
+                $tag,
+                front_matter_tags($row['content_md']),
+                true
+            )
+        ));
+
+        json_response([
+            'items' => array_map(
+                static fn (array $row): array => page_payload($row),
+                array_slice($filtered, ($page - 1) * $perPage, $perPage)
+            ),
+            'total' => count($filtered),
+            'page' => $page,
+            'per_page' => $perPage,
+        ]);
+    }
 
     $where = '';
     $params = [];
@@ -878,6 +964,40 @@ function api_roles_list(string $method): never
     json_response(['roles' => $roles]);
 }
 
+/**
+ * All tags across every page, with usage counts, sorted by count
+ * (descending) then name. Tags are read from each page's front matter.
+ */
+function api_tags_list(string $method): never
+{
+    if ($method !== 'GET') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_permission('pages.read');
+
+    $counts = [];
+
+    foreach (db()->query('SELECT content_md FROM pages')->fetchAll() as $row) {
+        foreach (front_matter_tags($row['content_md']) as $tag) {
+            $counts[$tag] = ($counts[$tag] ?? 0) + 1;
+        }
+    }
+
+    $tags = [];
+
+    foreach ($counts as $name => $count) {
+        $tags[] = ['name' => $name, 'count' => $count];
+    }
+
+    usort(
+        $tags,
+        static fn (array $a, array $b): int => [$b['count'], $a['name']] <=> [$a['count'], $b['name']]
+    );
+
+    json_response(['tags' => $tags]);
+}
+
 /* ------------------------------------------------------------------ */
 /* Shared helpers                                                     */
 /* ------------------------------------------------------------------ */
@@ -953,7 +1073,7 @@ function handle_api(string $action, string $method): never
                     'pages.delete', 'pages.search', 'pages.grants', 'pages.grant',
                     'pages.revokeGrant',
                     'users.list', 'users.create', 'users.update', 'users.setRoles',
-                    'roles.list',
+                    'roles.list', 'tags.list',
                 ],
             ]);
 
@@ -1013,6 +1133,9 @@ function handle_api(string $action, string $method): never
 
         case 'roles.list':
             api_roles_list($method);
+
+        case 'tags.list':
+            api_tags_list($method);
 
         default:
             json_response(['error' => 'Unknown API action'], 404);

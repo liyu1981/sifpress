@@ -105,7 +105,6 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
           <div className="px-6 py-8 sm:px-10 sm:py-10">
             <header className="mb-8 space-y-4">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge>{t('article.badge')}</Badge>
                 {page.status === 'draft' && (
                   <Badge variant="outline">{t('article.draft')}</Badge>
                 )}
@@ -148,12 +147,28 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
         </article>
 
         <aside className="mt-12 hidden lg:block">
-          <div className="sticky top-24">
+          <div className="sticky top-24 space-y-6">
             <TableOfContents
               items={headings}
               activeId={activeId}
               label={t('article.toc')}
             />
+            {page.tags.length > 0 && (
+              <section aria-label={t('article.tagsTitle')} className="text-sm">
+                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  {t('article.tagsTitle')}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {page.tags.map((tag) => (
+                    <Badge key={tag}>
+                      <Link to="/article" search={{ tag }} className="no-underline">
+                        {tag}
+                      </Link>
+                    </Badge>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         </aside>
       </div>

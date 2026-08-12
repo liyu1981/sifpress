@@ -14,7 +14,6 @@ import type { ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { AmbientBackground } from '@/components/ambient-background'
-import { LanguageToggle } from '@/components/language-toggle'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { MigrationScreen } from '@/components/migration-screen'
 import { ArticleDetailPage } from '@/pages/article-detail'
@@ -85,7 +84,6 @@ function AppHeader() {
         )}
       </nav>
       <div className="flex items-center gap-1">
-        <LanguageToggle />
         <ThemeToggle />
         {user !== null && (
           <>
@@ -166,8 +164,16 @@ export const indexRoute = createRoute({
 export const articleIndexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/article',
-  component: ArticleIndexPage,
+  component: ArticleIndexRouteComponent,
+  validateSearch: (search): { tag?: string } => ({
+    ...(typeof search.tag === 'string' && search.tag !== '' ? { tag: search.tag } : {}),
+  }),
 })
+
+function ArticleIndexRouteComponent() {
+  const { tag } = articleIndexRoute.useSearch()
+  return <ArticleIndexPage tag={tag} />
+}
 
 export const articleDetailRoute = createRoute({
   getParentRoute: () => rootRoute,

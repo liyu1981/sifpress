@@ -19,6 +19,7 @@ export interface Page {
   slug: string
   title: string
   content_md: string
+  tags: string[]
   status: PageStatus
   created_by: number | null
   created_by_name: string
@@ -34,6 +35,7 @@ export interface PageListItem {
   slug: string
   title: string
   content_md: string
+  tags: string[]
   status: PageStatus
   created_by_name: string
   updated_at: string
@@ -140,12 +142,15 @@ export const authApi = {
 }
 
 export const pagesApi = {
-  list: (params: { status?: PageStatus; page?: number; per_page?: number } = {}) =>
+  list: (
+    params: { status?: PageStatus; page?: number; per_page?: number; tag?: string } = {},
+  ) =>
     apiRequest<PageListResult>('pages.list', {
       params: {
         ...(params.status ? { status: params.status } : {}),
         ...(params.page ? { page: String(params.page) } : {}),
         ...(params.per_page ? { per_page: String(params.per_page) } : {}),
+        ...(params.tag ? { tag: params.tag } : {}),
       },
     }),
 
@@ -235,6 +240,16 @@ export const usersApi = {
 export const rolesApi = {
   list: () =>
     apiRequest<{ roles: RoleListItem[] }>('roles.list').then((r) => r.roles),
+}
+
+export interface TagCount {
+  name: string
+  count: number
+}
+
+export const tagsApi = {
+  list: () =>
+    apiRequest<{ tags: TagCount[] }>('tags.list').then((r) => r.tags),
 }
 
 export const migrationApi = {

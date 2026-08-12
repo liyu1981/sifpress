@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ArrowRight, Calendar, Clock, FilePenLine, Search } from 'lucide-react'
@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/lib/auth'
-import { pagesApi } from '@/lib/pages'
+import { pagesApi, tagsApi } from '@/lib/pages'
 import type { PageListItem, SearchResult } from '@/lib/pages'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { frontMatterString, parseFrontMatter } from '@/lib/front-matter'
@@ -103,6 +103,17 @@ function ArticleCard({ article, locale }: { article: PageListItem; locale: strin
         <p className="line-clamp-2 text-sm text-muted-foreground">
           {excerptFromMarkdown(frontMatter.content)}
         </p>
+        {article.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {article.tags.map((tag) => (
+              <Badge key={tag} variant="outline">
+                <Link to="/article" search={{ tag }} className="no-underline">
+                  {tag}
+                </Link>
+              </Badge>
+            ))}
+          </div>
+        )}
         <Button asChild size="sm" variant="ghost" className="mt-auto self-start">
           <Link to="/article/$slug" params={{ slug: article.slug }}>
             {t('article.readMore')}
@@ -114,18 +125,19 @@ function ArticleCard({ article, locale }: { article: PageListItem; locale: strin
   )
 }
 
-export function ArticleIndexPage() {
+export function ArticleIndexPage({ tag }: { tag?: string }) {
   const { t, i18n } = useTranslation()
   const { has } = useAuth()
+  const navigate = useNavigate()
 
-  usePageTitle(t('article.indexTitle'))
+  usePageTitle(tag ? `#${tag} — ${t('article.indexTitle')}` : t('article.indexTitle'))
 
   const [query, setQuery] = useState('')
   const q = query.trim()
 
   const list = useQuery({
-    queryKey: ['pages'],
-    queryFn: () => pagesApi.list({ per_page: 50 }),
+    queryKey: ['pages', { tag }],
+    queryFn: () => pagesApi.list({ per_page: 50, tag }),
   })
 
   const search = useQuery({
@@ -134,13 +146,24 @@ export function ArticleIndexPage() {
     enabled: q.length >= 3,
   })
 
+  const allTags = useQuery({
+    queryKey: ['tags'],
+    queryFn: tagsApi.list,
+  })
+
   const searching = q.length >= 3
 
+  function selectTag(next: string | undefined) {
+    navigate({
+      to: '/article',
+      search: next !== undefined ? { tag: next } : {},
+    })
+  }
+
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-6">
+    <div className="mx-auto w-full max-w-5xl space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-2">
-          <Badge>{t('article.badge')}</Badge>
           <h1 className="font-heading text-3xl font-bold tracking-tight">
             {t('article.indexTitle')}
           </h1>
@@ -168,6 +191,37 @@ export function ArticleIndexPage() {
           className="pl-8"
         />
       </div>
+
+      {!searching && allTags.data !== undefined && allTags.data.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => selectTag(undefined)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              tag === undefined
+                ? 'bg-accent text-accent-foreground'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            }`}
+          >
+            {t('article.allTags')}
+          </button>
+          {allTags.data.map((item) => (
+            <button
+              key={item.name}
+              type="button"
+              onClick={() => selectTag(item.name)}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                tag === item.name
+                  ? 'bg-accent text-accent-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              {item.name}
+              <span className="ml-1 text-muted-foreground/70">{item.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {searching ? (
         search.isLoading ? (
