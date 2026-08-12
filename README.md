@@ -1,4 +1,4 @@
-# Single PHP + React SPA — Rewrite‑Free Routing
+# Sifpress — Single‑File PHP + React SPA (Rewrite‑Free Routing)
 
 This project creates a **single `dist/index.php` production artifact**
 containing:

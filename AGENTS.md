@@ -23,7 +23,7 @@
 
 ```bash
 php build.php          # dev build  -> dist/index.php (incl. dev.php)
-php build.php release  # release    -> dist/sfpb.php  (no dev.php)
+php build.php release  # release    -> dist/sifpress.php  (no dev.php)
 ./rel.sh               # shorthand for `php build.php release`
 ```
 
@@ -36,7 +36,7 @@ php build.php release  # release    -> dist/sfpb.php  (no dev.php)
 - **Dev vs release**: dev builds include `src/dev.php`
   (`?module=dev&action=initData`, an admin-gated demo-data seeder).
   Release builds exclude that fragment **and** strip its dispatch region
-  from `router.php`, so `dist/sfpb.php` contains no trace of the dev
+  from `router.php`, so `dist/sifpress.php` contains no trace of the dev
   endpoint. `dev.sh` always makes dev builds; use `rel.sh` for releases.
 - `dist/*.php` are build artifacts and are gitignored. Never edit them
   directly; edit `src/*.php` instead.
@@ -80,7 +80,7 @@ frontend/           React app (pnpm)
   components.json   shadcn config (style "radix-nova", aliases @/*)
   tsconfig.json     strict; paths @/* -> ./src/*
 build.php           assemble src/ + inlined bundle -> dist/*.php (dev/release)
-rel.sh              release build -> dist/sfpb.php
+rel.sh              release build -> dist/sifpress.php
 dev.sh              dev build + serve (watch) -> dist/index.php
 dist/               build artifacts (gitignored)
 ```
@@ -88,8 +88,8 @@ dist/               build artifacts (gitignored)
 ## Backend model
 
 - **SQLite + FTS5, WAL mode**, at `<folder>/sys.db`. Folder precedence:
-  `APP_DB_DIR` env (dev sets `./var/single-php`), else
-  `<DOCUMENT_ROOT>/../single-php`, else `<artifact dir>/var/single-php`.
+  `APP_DB_DIR` env (dev sets `./var/sifpress`), else
+  `<DOCUMENT_ROOT>/../sifpress`, else `<artifact dir>/var/sifpress`.
 - **Migrations**: `migrations/*.sql` are embedded into `dist/index.php` at
   build time. Bootstrap only detects pending migrations; the app serves
   `503 migration_required` (SPA gets an `app-maintenance` meta tag) until
@@ -102,7 +102,7 @@ dist/               build artifacts (gitignored)
 - **Page ownership**: editing needs `pages.write` AND (author OR a
   `page_grants` row OR admin); grants managed via `pages.grant` /
   `pages.revokeGrant`.
-- **First admin**: `admin`/`admin123` (override `ADMIN_PASSWORD`) seeded on
+- **First admin**: `admin`/`admin` (override `ADMIN_PASSWORD`) seeded on
   first migration, flagged `must_change_password` — app locks to
   `auth.changePassword` until changed.
 

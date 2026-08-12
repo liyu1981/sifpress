@@ -18,12 +18,12 @@
  */
 
 const DEMO_PAGE = [
-    'slug' => 'hello-single-php-blog',
-    'title' => 'Hello, single-file blog',
+    'slug' => 'hello-sifpress',
+    'title' => 'Hello, Sifpress',
     'status' => 'published',
     'content_md' => <<<'MD'
 ---
-title: "Hello, single-file blog"
+title: "Hello, Sifpress"
 date: 2026-08-10
 author: "Administrator"
 tags: [announcement, architecture]
@@ -31,7 +31,7 @@ cover: "https://picsum.photos/id/1039/1200/630"
 published: true
 ---
 
-Welcome to the new blog. Every page here is served from a single `index.php` file, yet the writing experience is full-featured: GFM tables, KaTeX math, Mermaid diagrams, and flexible image sizing and positioning.
+Welcome to the new blog. Every page here is served from a single PHP file, yet the writing experience is full-featured: GFM tables, KaTeX math, Mermaid diagrams, and flexible image sizing and positioning.
 
 ## Flexible images
 
@@ -86,7 +86,7 @@ function pick<T>(items: T[], n: number): T[] {
 
 ## Getting started
 
-Drop `dist/index.php` on any static host. That's it — no database, no build step on the server. Writing is just markdown.
+Drop the single PHP file on any static host. That's it — no server build step, no rewrite rules, and the database is created automatically. Writing is just markdown.
 MD,
 ];
 

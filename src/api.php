@@ -1037,7 +1037,17 @@ function assign_roles(int $userId, array $roleIds): void
 
 function handle_api(string $action, string $method): never
 {
-    if (db_needs_migration() && $action !== 'system.status') {
+    /*
+     * While migrations are pending, the schema does not exist yet
+     * (no sessions/users tables), so any auth lookup would fatal.
+     * Serve only system.status and answer everything else with 503,
+     * WITHOUT ever resolving the current user.
+     */
+    if (db_needs_migration()) {
+        if ($action === 'system.status') {
+            api_system_status($method);
+        }
+
         $v = db_version();
         json_response([
             'error' => 'migration_required',

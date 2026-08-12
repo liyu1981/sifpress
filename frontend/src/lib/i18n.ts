@@ -4,7 +4,7 @@ import { initReactI18next } from 'react-i18next'
 const LANGUAGE_KEY = 'language'
 
 const en = {
-  app: 'Single PHP React SPA',
+  app: 'Sifpress',
   nav: {
     home: 'Home',
     article: 'Articles',
@@ -166,7 +166,7 @@ const en = {
 }
 
 const zh = {
-  app: '单文件 PHP React SPA',
+  app: 'Sifpress',
   nav: {
     home: '首页',
     article: '文章',

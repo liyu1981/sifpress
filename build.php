@@ -9,7 +9,7 @@ declare(strict_types=1);
  * Usage:
  *
  *   php build.php                dev build   -> dist/index.php (incl. dev.php)
- *   php build.php release        release     -> dist/sfpb.php  (no dev.php)
+ *   php build.php release        release     -> dist/sifpress.php (no dev.php)
  *
  * The dev build embeds src/dev.php (?module=dev&action=initData, an
  * admin-gated demo-data seeder). The release build excludes the dev
@@ -57,7 +57,7 @@ if ($mode === 'release' || $mode === 'rel') {
     $mode = 'dev';
 }
 
-$output = $outputDir . ($isRelease ? '/sfpb.php' : '/index.php');
+$output = $outputDir . ($isRelease ? '/sifpress.php' : '/index.php');
 
 /**
  * Assembly order of the src/ fragments. dev.php is dev-only and
@@ -455,7 +455,7 @@ if (!rename($tmp, $output)) {
 
 echo PHP_EOL;
 echo "Build complete." . PHP_EOL;
-echo "Artifact: " . ($isRelease ? 'dist/sfpb.php (release, no dev.php)' : 'dist/index.php (dev, dev.php included)') . PHP_EOL;
+echo "Artifact: " . ($isRelease ? 'dist/sifpress.php (release, no dev.php)' : 'dist/index.php (dev, dev.php included)') . PHP_EOL;
 echo PHP_EOL;
 echo "No .htaccess, no rewrite rules are required." . PHP_EOL;
 echo "Routes: /index.php?u=...   API: /index.php?module=api&action=..." . PHP_EOL;

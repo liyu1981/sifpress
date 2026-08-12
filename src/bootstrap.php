@@ -1,5 +1,5 @@
 /**
- * Single-file PHP + React SPA — rewrite-free routing.
+ * Sifpress — single-file PHP + React SPA, rewrite-free routing.
  *
  * The generated dist/index.php is completely portable and requires NO
  * rewrite rules (no .htaccess, no Nginx try_files):
@@ -23,7 +23,7 @@
  * inlined React bundle into the single dist/index.php artifact.
  */
 
-const APP_NAME = 'Single PHP React SPA';
+const APP_NAME = 'Sifpress';
 
 function request_method(): string
 {

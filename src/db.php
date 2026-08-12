@@ -12,9 +12,9 @@
  * The folder holding the SQLite database. Order of precedence:
  *
  *   1. APP_DB_DIR env var (absolute, or relative to the working
- *      directory — dev sets it to ./var/single-php);
- *   2. <DOCUMENT_ROOT>/../single-php  (production default);
- *   3. <artifact dir>/var/single-php  (CLI/fallback when no web root).
+ *      directory — dev sets it to ./var/sifpress);
+ *   2. <DOCUMENT_ROOT>/../sifpress  (production default);
+ *   3. <artifact dir>/var/sifpress  (CLI/fallback when no web root).
  */
 function db_dir(): string
 {
@@ -27,10 +27,10 @@ function db_dir(): string
     $webRoot = (string) ($_SERVER['DOCUMENT_ROOT'] ?? '');
 
     if ($webRoot !== '') {
-        return rtrim($webRoot, '/\\') . '/../single-php';
+        return rtrim($webRoot, '/\\') . '/../sifpress';
     }
 
-    return dirname(__FILE__) . '/var/single-php';
+    return dirname(__FILE__) . '/var/sifpress';
 }
 
 /**
@@ -184,7 +184,7 @@ function seed_rbac(): void
 
 /**
  * Idempotent default-admin bootstrap: only when the users table is empty.
- * Credentials default to admin / admin123 and can be overridden with the
+ * Credentials default to admin / admin and can be overridden with the
  * ADMIN_PASSWORD env var. The account is flagged must_change_password so
  * the app blocks until the operator changes it.
  */
@@ -199,7 +199,7 @@ function seed_default_admin(): void
     $password = getenv('ADMIN_PASSWORD');
 
     if ($password === false || $password === '') {
-        $password = 'admin123';
+        $password = 'admin';
     }
 
     $pdo->beginTransaction();
