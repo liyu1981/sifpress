@@ -493,12 +493,33 @@ export function SettingsPage() {
       </header>
 
       <Tabs defaultValue="account" className="gap-6 md:flex-row">
-        <TabsList className="w-fit flex-row md:h-auto md:w-44 md:flex-col md:items-stretch md:self-start">
-          <TabsTrigger value="account">{t('settings.tabAccount')}</TabsTrigger>
+        <TabsList className="w-fit flex-row gap-1 bg-transparent p-0 dark:bg-transparent md:h-auto md:w-44 md:flex-col md:items-stretch md:self-start">
+          <TabsTrigger
+            value="account"
+            className="group justify-end rounded-full border-transparent px-0 data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent dark:data-[state=active]:shadow-none"
+          >
+            <span className="rounded-full px-3 py-1.5 transition-colors group-data-[state=active]:bg-accent group-data-[state=active]:text-accent-foreground">
+              {t('settings.tabAccount')}
+            </span>
+          </TabsTrigger>
           {canManageUsers && (
-            <TabsTrigger value="users">{t('settings.tabUsers')}</TabsTrigger>
+            <TabsTrigger
+              value="users"
+              className="group justify-end rounded-full border-transparent px-0 data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent dark:data-[state=active]:shadow-none"
+            >
+              <span className="rounded-full px-3 py-1.5 transition-colors group-data-[state=active]:bg-accent group-data-[state=active]:text-accent-foreground">
+                {t('settings.tabUsers')}
+              </span>
+            </TabsTrigger>
           )}
-          <TabsTrigger value="system">{t('settings.tabSystem')}</TabsTrigger>
+          <TabsTrigger
+            value="system"
+            className="group justify-end rounded-full border-transparent px-0 data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent dark:data-[state=active]:shadow-none"
+          >
+            <span className="rounded-full px-3 py-1.5 transition-colors group-data-[state=active]:bg-accent group-data-[state=active]:text-accent-foreground">
+              {t('settings.tabSystem')}
+            </span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="account" className="space-y-6">
