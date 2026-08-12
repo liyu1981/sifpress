@@ -57,7 +57,8 @@ PHP_PID=$!
 cleanup() {
   kill "$PHP_PID" 2>/dev/null || true
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'cleanup; exit 1' INT TERM
 
 echo "==> Serving at http://localhost:$PORT"
 echo "==> Watching src/ and frontend/ for changes (Ctrl-C to stop)"

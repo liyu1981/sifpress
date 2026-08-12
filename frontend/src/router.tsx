@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button'
 import { AmbientBackground } from '@/components/ambient-background'
 import { LanguageToggle } from '@/components/language-toggle'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { EditorPage } from '@/pages/editor'
+import { ArticleDetailPage } from '@/pages/article-detail'
+import { ArticleIndexPage } from '@/pages/article-index'
 import { HomePage } from '@/pages/home'
 import { NotFoundPage } from '@/pages/not-found'
 import { SettingsPage } from '@/pages/settings'
@@ -28,41 +29,46 @@ function normalizeInternalPath(route: string): string {
   return path.replace(/\/+$/, '')
 }
 
-function AppNav() {
+function AppHeader() {
   const { t } = useTranslation()
   const activeClass = 'bg-accent text-accent-foreground'
 
   return (
-    <nav className="apple-panel sticky top-4 z-10 mx-auto flex w-fit items-center gap-1 rounded-full p-1">
-      <Button asChild variant="ghost" size="sm">
-        <Link
-          to="/"
-          activeOptions={{ exact: true }}
-          activeProps={{ className: activeClass }}
-        >
-          {t('nav.home')}
-        </Link>
-      </Button>
-      <Button asChild variant="ghost" size="sm">
-        <Link
-          to="/editor/$id"
-          params={{ id: '123' }}
-          activeOptions={{ exact: true }}
-          activeProps={{ className: activeClass }}
-        >
-          {t('nav.editor')}
-        </Link>
-      </Button>
-      <Button asChild variant="ghost" size="sm">
-        <Link
-          to="/settings"
-          activeOptions={{ exact: true }}
-          activeProps={{ className: activeClass }}
-        >
-          {t('nav.settings')}
-        </Link>
-      </Button>
-    </nav>
+    <header className="apple-panel sticky top-4 z-10 flex flex-wrap items-center justify-between gap-2 rounded-2xl px-2 py-2">
+      <nav className="flex items-center gap-1">
+        <Button asChild variant="ghost" size="sm">
+          <Link
+            to="/"
+            activeOptions={{ exact: true }}
+            activeProps={{ className: activeClass }}
+          >
+            {t('nav.home')}
+          </Link>
+        </Button>
+        <Button asChild variant="ghost" size="sm">
+          <Link
+            to="/article"
+            activeOptions={{ exact: true }}
+            activeProps={{ className: activeClass }}
+          >
+            {t('nav.article')}
+          </Link>
+        </Button>
+        <Button asChild variant="ghost" size="sm">
+          <Link
+            to="/settings"
+            activeOptions={{ exact: true }}
+            activeProps={{ className: activeClass }}
+          >
+            {t('nav.settings')}
+          </Link>
+        </Button>
+      </nav>
+      <div className="flex items-center gap-1">
+        <LanguageToggle />
+        <ThemeToggle />
+      </div>
+    </header>
   )
 }
 
@@ -70,12 +76,8 @@ function RootLayout() {
   return (
     <div className="ambient-bg min-h-screen w-full">
       <AmbientBackground />
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-xl flex-col justify-center gap-6 px-6 py-12">
-        <div className="sticky top-4 z-10 flex items-center justify-end gap-1">
-          <LanguageToggle />
-          <ThemeToggle />
-        </div>
-        <AppNav />
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-6 px-6 py-12">
+        <AppHeader />
         <main className="animate-in slide-in-from-bottom-3 duration-500 ease-out">
           <Outlet />
         </main>
@@ -94,11 +96,21 @@ export const indexRoute = createRoute({
   component: HomePage,
 })
 
-export const editorRoute = createRoute({
+export const articleIndexRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/editor/$id',
-  component: EditorPage,
+  path: '/article',
+  component: ArticleIndexPage,
 })
+
+export const articleDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/article/$slug',
+  component: ArticleDetailRouteComponent,
+})
+
+function ArticleDetailRouteComponent() {
+  return <ArticleDetailPage slug={articleDetailRoute.useParams().slug} />
+}
 
 export const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -114,7 +126,8 @@ export const notFoundRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
-  editorRoute,
+  articleIndexRoute,
+  articleDetailRoute,
   settingsRoute,
   notFoundRoute,
 ])

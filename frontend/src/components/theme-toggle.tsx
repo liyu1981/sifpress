@@ -29,7 +29,7 @@ export function ThemeToggle() {
 
   return (
     <Button
-      variant="glass"
+      variant="ghost"
       size="icon"
       title={`${t('theme.toggle')} — ${label}`}
       aria-label={`${t('theme.toggle')} — ${label}`}

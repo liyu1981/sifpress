@@ -119,6 +119,64 @@ function inline_assets(string $html, string $dist): string
                 return $tag;
             }
 
+            /*
+             * Inline any font/asset referenced via url() so the
+             * artifact stays fully self-contained (fonts are emitted
+             * as separate files by Vite and cannot be fetched after
+             * the HTML is inlined into a single PHP file).
+             */
+            $css = preg_replace_callback(
+                '/url\(\s*(?:"([^"]+)"|\'([^\']+)\'|([^)\s]*?))\s*\)/i',
+                function (array $m) use ($dist, $file): string {
+                    $url = $m[1] !== '' ? $m[1] : ($m[2] !== '' ? $m[2] : trim($m[3]));
+
+                    if ($url === '' || str_starts_with($url, 'data:') || str_starts_with($url, 'http')) {
+                        return $m[0];
+                    }
+
+                    $candidate = null;
+
+                    if (str_starts_with($url, './')) {
+                        $candidate = dirname($file) . '/' . substr($url, 2);
+                    } elseif (str_starts_with($url, 'assets/')) {
+                        $candidate = $dist . '/' . $url;
+                    }
+
+                    $candidate = $candidate !== null ? realpath($candidate) : false;
+
+                    if ($candidate === false || !is_file($candidate)) {
+                        return $m[0];
+                    }
+
+                    $mime = match (pathinfo($candidate, PATHINFO_EXTENSION)) {
+                        'woff2' => 'font/woff2',
+                        'woff' => 'font/woff',
+                        'ttf' => 'font/ttf',
+                        'otf' => 'font/otf',
+                        'eot' => 'application/vnd.ms-fontobject',
+                        'svg' => 'image/svg+xml',
+                        'png' => 'image/png',
+                        'jpg', 'jpeg' => 'image/jpeg',
+                        'gif' => 'image/gif',
+                        'webp' => 'image/webp',
+                        default => 'application/octet-stream',
+                    };
+
+                    $data = file_get_contents($candidate);
+
+                    if ($data === false) {
+                        return $m[0];
+                    }
+
+                    return 'url("data:' . $mime . ';base64,' . base64_encode($data) . '")';
+                },
+                $css
+            );
+
+            if ($css === null) {
+                return $tag;
+            }
+
             return '<style>' . $css . '</style>';
         },
         $html

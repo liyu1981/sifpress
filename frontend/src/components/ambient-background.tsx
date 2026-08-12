@@ -26,7 +26,7 @@ interface Palette {
 }
 
 const LIGHT: Palette = { sat: 95, light: 74, alpha: 0.34, count: 12 }
-const DARK: Palette = { sat: 100, light: 62, alpha: 0.42, count: 12 }
+const DARK: Palette = { sat: 95, light: 56, alpha: 0.32, count: 12 }
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))

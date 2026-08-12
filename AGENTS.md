@@ -103,6 +103,17 @@ dist/index.php      the single production artifact (gitignored)
 
 ## Conventions
 
+- **Never install or attempt to run a browser** (Chromium, Chrome, Playwright,
+  Puppeteer, Firefox, etc.) in this environment — the required system
+  libraries are unavailable and must not be installed. There is no
+  browser-based verification; rely on `pnpm run typecheck`, `php build.php`,
+  curl, and code inspection instead.
+- **Prose typography overrides must be unlayered.** In Tailwind v4 the
+  `@tailwindcss/typography` plugin emits its default `.prose` tokens into the
+  `utilities` layer, which outranks `components`-layer rules no matter their
+  specificity. To override `.prose` colors/variables (e.g. for dark mode),
+  write the override outside any `@layer` block (unlayered CSS always wins).
+  See the `.prose.prose` block in `frontend/src/index.css`.
 - PHP fragments in `src/` have no `<?php` tag or `declare(strict_types=1)`
   — `build.php` adds both at the top of the assembled file.
 - Do not add comments to code unless asked; docblocks in fragments are fine.

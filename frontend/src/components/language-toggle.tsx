@@ -10,7 +10,7 @@ export function LanguageToggle() {
 
   return (
     <Button
-      variant="glass"
+      variant="ghost"
       size="sm"
       title={t('language.toggle')}
       aria-label={t('language.toggle')}

@@ -9,7 +9,7 @@ const resources = {
       app: 'Single PHP React SPA',
       nav: {
         home: 'Home',
-        editor: 'Editor 123',
+        article: 'Articles',
         settings: 'Settings',
       },
       theme: {
@@ -22,22 +22,21 @@ const resources = {
       language: {
         toggle: 'Switch language',
       },
-      home: {
-        badge: 'PHP + React',
-        title: 'Single-file SPA',
-        description:
-          'One index.php that works at the domain root or any subdirectory — no rewrite rules required.',
-        url: 'Current URL',
-        api: 'API response (hello)',
-        time: 'Server time',
-        hint: 'Routes are pure query parameters (u=...). Try the links below.',
-        loading: 'Loading…',
-      },
-      editor: {
-        badge: 'Route → editor',
-        title: 'Editor',
-        description: 'You are editing document {{id}}.',
-        next: 'Next doc',
+      article: {
+        badge: 'Blog',
+        indexTitle: 'Articles',
+        indexDescription:
+          'Notes on a single-file, markdown-powered blog — math, diagrams, and flexible images.',
+        reading: '{{min}} min read',
+        readMore: 'Read more',
+        toc: 'On this page',
+        prev: 'Older',
+        next: 'Newer',
+        backToIndex: 'All articles',
+        loadingTitle: 'Loading…',
+        notFoundBadge: '404',
+        notFoundTitle: 'Article not found',
+        notFoundDescription: 'The article you are looking for does not exist.',
       },
       settings: {
         badge: 'Route → settings / POST API',
@@ -64,7 +63,7 @@ const resources = {
       app: '单文件 PHP React SPA',
       nav: {
         home: '首页',
-        editor: '编辑器 123',
+        article: '文章',
         settings: '设置',
       },
       theme: {
@@ -77,22 +76,21 @@ const resources = {
       language: {
         toggle: '切换语言',
       },
-      home: {
-        badge: 'PHP + React',
-        title: '单文件 SPA',
-        description:
-          '一个 index.php，可在域名根目录或任意子目录运行——无需任何重写规则。',
-        url: '当前 URL',
-        api: 'API 响应 (hello)',
-        time: '服务器时间',
-        hint: '路由完全是查询参数（u=...）。试试下面的链接。',
-        loading: '加载中…',
-      },
-      editor: {
-        badge: '路由 → 编辑器',
-        title: '编辑器',
-        description: '你正在编辑文档 {{id}}。',
+      article: {
+        badge: '博客',
+        indexTitle: '文章',
+        indexDescription:
+          '关于单文件、markdown 驱动的博客的笔记——数学公式、图表和灵活的图像。',
+        reading: '阅读约 {{min}} 分钟',
+        readMore: '阅读全文',
+        toc: '本页目录',
+        prev: '上一篇',
         next: '下一篇',
+        backToIndex: '全部文章',
+        loadingTitle: '加载中…',
+        notFoundBadge: '404',
+        notFoundTitle: '文章未找到',
+        notFoundDescription: '你要找的文章不存在。',
       },
       settings: {
         badge: '路由 → 设置 / POST API',

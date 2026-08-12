@@ -46,40 +46,42 @@ export function SettingsPage() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <Badge className="w-fit">{t('settings.badge')}</Badge>
-        <CardTitle className="text-3xl tracking-tight">
-          {t('settings.title')}
-        </CardTitle>
-        <CardDescription>{t('settings.description')}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <form className="flex items-end gap-3" onSubmit={handleSubmit}>
-          <div className="flex-1 space-y-1.5">
-            <Label htmlFor="project-name">{t('settings.name')}</Label>
-            <Input
-              id="project-name"
-              value={name}
-              placeholder={t('settings.placeholder')}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </div>
-          <Button type="submit" disabled={mutation.isPending}>
-            {mutation.isPending ? t('settings.creating') : t('settings.create')}
-          </Button>
-        </form>
+    <div className="mx-auto w-full max-w-xl">
+      <Card>
+        <CardHeader>
+          <Badge className="w-fit">{t('settings.badge')}</Badge>
+          <CardTitle className="text-3xl tracking-tight">
+            {t('settings.title')}
+          </CardTitle>
+          <CardDescription>{t('settings.description')}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <form className="flex items-end gap-3" onSubmit={handleSubmit}>
+            <div className="flex-1 space-y-1.5">
+              <Label htmlFor="project-name">{t('settings.name')}</Label>
+              <Input
+                id="project-name"
+                value={name}
+                placeholder={t('settings.placeholder')}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </div>
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending ? t('settings.creating') : t('settings.create')}
+            </Button>
+          </form>
 
-        <div className="space-y-1 rounded-lg bg-muted/50 p-4">
-          <p className="text-sm font-medium">{t('settings.lastCreated')}</p>
-          <p className="text-sm text-muted-foreground">
-            {created ? `#${created.id} — ${created.name}` : '—'}
-          </p>
-          {mutation.isError && (
-            <p className="text-sm text-destructive">{t('settings.error')}</p>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+          <div className="space-y-1 rounded-lg bg-muted/50 p-4">
+            <p className="text-sm font-medium">{t('settings.lastCreated')}</p>
+            <p className="text-sm text-muted-foreground">
+              {created ? `#${created.id} — ${created.name}` : '—'}
+            </p>
+            {mutation.isError && (
+              <p className="text-sm text-destructive">{t('settings.error')}</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

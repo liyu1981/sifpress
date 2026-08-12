@@ -20,21 +20,23 @@ export function NotFoundPage() {
   const location = useLocation()
 
   return (
-    <Card>
-      <CardHeader>
-        <Badge className="w-fit">{t('notFound.badge')}</Badge>
-        <CardTitle className="text-3xl tracking-tight">
-          {t('notFound.title')}
-        </CardTitle>
-        <CardDescription>
-          {t('notFound.description', { href: location.href })}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Button asChild size="sm" variant="glass">
-          <Link to="/">{t('notFound.back')}</Link>
-        </Button>
-      </CardContent>
-    </Card>
+    <div className="mx-auto w-full max-w-xl">
+      <Card>
+        <CardHeader>
+          <Badge className="w-fit">{t('notFound.badge')}</Badge>
+          <CardTitle className="text-3xl tracking-tight">
+            {t('notFound.title')}
+          </CardTitle>
+          <CardDescription>
+            {t('notFound.description', { href: location.href })}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild size="sm" variant="glass">
+            <Link to="/">{t('notFound.back')}</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
   )
 }
