@@ -1,59 +1,77 @@
-export interface ApiHello {
-  message: string
-  time: string
-  route: string
+export type ApiMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE'
+
+export interface ApiErrorData {
+  error?: string
+  errors?: Record<string, string[]>
+  reason?: string
 }
 
-export interface ApiTime {
-  unix: number
-  iso: string
-}
+export class ApiError extends Error {
+  readonly status: number
+  readonly data: ApiErrorData
 
-export interface Project {
-  id: number
-  name: string
+  constructor(status: number, data: ApiErrorData) {
+    super(data.error ?? `API error ${status}`)
+    this.name = 'ApiError'
+    this.status = status
+    this.data = data
+  }
 }
 
 export function apiUrl(
+  module: string,
   action: string,
   params: Record<string, string> = {},
 ): string {
-  const query = new URLSearchParams({ module: 'api', action, ...params })
+  const query = new URLSearchParams({ module, action, ...params })
   return `${window.location.pathname}?${query.toString()}`
 }
 
-async function api<T>(action: string): Promise<T> {
-  const response = await fetch(apiUrl(action))
-
-  if (!response.ok) {
-    throw new Error(`API error ${response.status}`)
-  }
-
-  return response.json() as Promise<T>
+interface RequestInitOptions {
+  method?: ApiMethod
+  body?: unknown
+  params?: Record<string, string>
 }
 
-export function fetchHello(): Promise<ApiHello> {
-  return api<ApiHello>('hello')
-}
+/**
+ * Perform a JSON request against the single-file backend. Non-2xx
+ * responses throw an ApiError carrying the parsed `{error, errors}` body.
+ */
+export async function moduleRequest<T>(
+  module: string,
+  action: string,
+  options: RequestInitOptions = {},
+): Promise<T> {
+  const { method = 'GET', body, params } = options
 
-export function fetchTime(): Promise<ApiTime> {
-  return api<ApiTime>('time')
-}
-
-export function fetchProjects(): Promise<Project[]> {
-  return api<Project[]>('projects')
-}
-
-export async function createProject(name: string): Promise<Project> {
-  const response = await fetch(apiUrl('projects'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
+  const response = await fetch(apiUrl(module, action, params), {
+    method,
+    headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
   })
 
+  const data: unknown = await response.json().catch(() => null)
+
   if (!response.ok) {
-    throw new Error(`API error ${response.status}`)
+    throw new ApiError(
+      response.status,
+      (data ?? {}) as ApiErrorData,
+    )
   }
 
-  return response.json() as Promise<Project>
+  return data as T
+}
+
+export async function apiRequest<T>(
+  action: string,
+  options: RequestInitOptions = {},
+): Promise<T> {
+  return moduleRequest<T>('api', action, options)
+}
+
+export async function migrationRequest<T>(
+  action: string,
+  options: RequestInitOptions = {},
+): Promise<T> {
+  return moduleRequest<T>('migration', action, options)
 }

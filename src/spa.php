@@ -60,6 +60,14 @@ function serve_spa(string $route): never
         $meta .= '<title>' . htmlspecialchars(APP_NAME, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '</title>';
     }
 
+    /*
+     * Tell the client when the database needs migrating so it can show
+     * the maintenance screen without an API round trip.
+     */
+    if (db_needs_migration()) {
+        $meta .= '<meta name="app-maintenance" content="1">';
+    }
+
     $html = str_replace(
         '</head>',
         $meta . '</head>',

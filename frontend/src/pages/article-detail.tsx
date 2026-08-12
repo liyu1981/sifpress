@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Calendar, Clock } from 'lucide-react'
+import { ArrowLeft, Calendar, Clock, FilePenLine } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -14,13 +14,13 @@ import {
 } from '@/components/markdown/toc'
 import { ReadingProgress } from '@/components/reading-progress'
 import { usePageTitle } from '@/hooks/use-page-title'
-import { fetchArticle, fetchArticles } from '@/lib/articles'
+import { pagesApi } from '@/lib/pages'
+import { frontMatterString, parseFrontMatter } from '@/lib/front-matter'
 import { estimateReadingMinutes, formatDate } from '@/lib/format'
 
 function ArticleSkeleton() {
   return (
     <div className="glass-control animate-pulse rounded-2xl">
-      <div className="aspect-[21/9] bg-muted" />
       <div className="space-y-4 p-8 sm:p-10">
         <div className="h-3 w-1/4 rounded bg-muted" />
         <div className="h-8 w-3/4 rounded bg-muted" />
@@ -38,8 +38,8 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
   const contentRef = useRef<HTMLDivElement>(null)
 
   const article = useQuery({
-    queryKey: ['article', slug],
-    queryFn: () => fetchArticle(slug),
+    queryKey: ['page', slug],
+    queryFn: () => pagesApi.get({ slug }),
   })
 
   usePageTitle(article.data?.title ?? t('article.loadingTitle'))
@@ -51,11 +51,11 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
   const activeId = useScrollSpy(headings)
 
   const prevNext = useQuery({
-    queryKey: ['articles'],
-    queryFn: fetchArticles,
+    queryKey: ['pages'],
+    queryFn: () => pagesApi.list({ per_page: 50 }),
   })
 
-  const items = prevNext.data ?? []
+  const items = prevNext.data?.items ?? []
   const index = article.data ? items.findIndex((a) => a.slug === article.data?.slug) : -1
   const prev = index > 0 ? items[index - 1] : null
   const next = index >= 0 && index < items.length - 1 ? items[index + 1] : null
@@ -89,45 +89,58 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
     )
   }
 
-  const { title, date, tags, excerpt, cover, content } = article.data
+  const page = article.data
+  const cover = frontMatterString(parseFrontMatter(page.content_md).data, 'cover')
 
   return (
     <div className="mx-auto w-full max-w-5xl">
       <ReadingProgress />
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_14rem]">
         <article className="glass-control overflow-hidden rounded-2xl">
-          <div className="aspect-[21/9] overflow-hidden bg-muted">
-            <img src={cover} alt="" className="size-full object-cover" />
-          </div>
+          {cover !== null && (
+            <div className="aspect-[21/9] overflow-hidden bg-muted">
+              <img src={cover} alt="" className="size-full object-cover" />
+            </div>
+          )}
           <div className="px-6 py-8 sm:px-10 sm:py-10">
             <header className="mb-8 space-y-4">
-              <Badge>{t('article.badge')}</Badge>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge>{t('article.badge')}</Badge>
+                {page.status === 'draft' && (
+                  <Badge variant="outline">{t('article.draft')}</Badge>
+                )}
+                {page.can_edit && (
+                  <Button asChild variant="glass" size="xs" className="ml-auto">
+                    <Link to="/editor/$slug" params={{ slug: page.slug }}>
+                      <FilePenLine />
+                      {t('article.edit')}
+                    </Link>
+                  </Button>
+                )}
+              </div>
               <h1 className="font-heading text-3xl leading-tight font-bold tracking-tight sm:text-4xl">
-                {title}
+                {page.title}
               </h1>
-              <p className="text-base text-muted-foreground">{excerpt}</p>
               <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1.5">
                   <Calendar className="size-3.5" />
-                  {formatDate(date, i18n.language)}
+                  {formatDate(page.updated_at.slice(0, 10), i18n.language)}
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <Clock className="size-3.5" />
-                  {t('article.reading', { min: estimateReadingMinutes(content) })}
+                  {t('article.reading', {
+                    min: estimateReadingMinutes(page.content_md),
+                  })}
                 </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {tags.map((tag) => (
-                    <Badge key={tag} variant="outline">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
+                {page.created_by_name !== '' && (
+                  <span>{page.created_by_name}</span>
+                )}
               </div>
             </header>
 
             <div ref={contentRef}>
               <Markdown
-                content={content}
+                content={page.content_md}
                 className="prose max-w-none text-[0.95rem] leading-7"
               />
             </div>

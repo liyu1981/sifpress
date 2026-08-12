@@ -1,12 +1,22 @@
 import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import {
+  ChevronDown,
+  Loader2,
+  Save,
+  ShieldCheck,
+  UserPlus,
+  UserRound,
+} from 'lucide-react'
 import type { FormEvent } from 'react'
 
+import { ApiError } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -14,74 +24,456 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { createProject } from '@/lib/api'
+import { useAuth } from '@/lib/auth'
+import { rolesApi, usersApi, type RoleListItem, type UserListItem } from '@/lib/pages'
 import { usePageTitle } from '@/hooks/use-page-title'
 
-export function SettingsPage() {
+function ChangePasswordForm() {
   const { t } = useTranslation()
+  const { user, changePassword } = useAuth()
 
-  usePageTitle(t('settings.title'))
+  const [current, setCurrent] = useState('')
+  const [next, setNext] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [pending, setPending] = useState(false)
+  const [done, setDone] = useState(false)
 
-  const queryClient = useQueryClient()
-  const [name, setName] = useState('')
-  const [created, setCreated] = useState<{ id: number; name: string } | null>(
-    null,
-  )
-
-  const mutation = useMutation({
-    mutationFn: createProject,
-    onSuccess: (data) => {
-      setCreated(data)
-      setName('')
-      queryClient.invalidateQueries({ queryKey: ['api', 'projects'] })
-    },
-  })
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (name.trim() !== '') {
-      mutation.mutate(name.trim())
+    if (pending) {
+      return
+    }
+
+    if (next !== confirm) {
+      setError(t('changePassword.mismatch'))
+      return
+    }
+
+    setPending(true)
+    setError(null)
+
+    try {
+      await changePassword(next, current)
+      setDone(true)
+      setCurrent('')
+      setNext('')
+      setConfirm('')
+    } catch (err) {
+      setError(err instanceof ApiError ? (err.data.error ?? t('changePassword.error')) : t('changePassword.error'))
+    } finally {
+      setPending(false)
     }
   }
 
   return (
-    <div className="mx-auto w-full max-w-xl">
-      <Card>
-        <CardHeader>
-          <Badge className="w-fit">{t('settings.badge')}</Badge>
-          <CardTitle className="text-3xl tracking-tight">
-            {t('settings.title')}
-          </CardTitle>
-          <CardDescription>{t('settings.description')}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <form className="flex items-end gap-3" onSubmit={handleSubmit}>
-            <div className="flex-1 space-y-1.5">
-              <Label htmlFor="project-name">{t('settings.name')}</Label>
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>{t('settings.passwordTitle')}</CardTitle>
+        <CardDescription>{t('settings.passwordDescription')}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="settings-current">{t('changePassword.current')}</Label>
+            <Input
+              id="settings-current"
+              type="password"
+              autoComplete="current-password"
+              value={current}
+              onChange={(event) => setCurrent(event.target.value)}
+              required={!user?.must_change_password}
+            />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="settings-new">{t('changePassword.new')}</Label>
               <Input
-                id="project-name"
+                id="settings-new"
+                type="password"
+                autoComplete="new-password"
+                value={next}
+                onChange={(event) => setNext(event.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="settings-confirm">{t('changePassword.confirm')}</Label>
+              <Input
+                id="settings-confirm"
+                type="password"
+                autoComplete="new-password"
+                value={confirm}
+                onChange={(event) => setConfirm(event.target.value)}
+                required
+              />
+            </div>
+          </div>
+          {error !== null && <p className="text-sm text-destructive">{error}</p>}
+          {done && <p className="text-sm text-emerald-600">{t('settings.passwordDone')}</p>}
+          <Button type="submit" disabled={pending}>
+            {pending && <Loader2 className="animate-spin" />}
+            {t('changePassword.save')}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
+
+function RoleCheckboxes({
+  selected,
+  onChange,
+  roles,
+}: {
+  selected: number[]
+  onChange: (ids: number[]) => void
+  roles: RoleListItem[]
+}) {
+  function toggle(id: number) {
+    onChange(
+      selected.includes(id)
+        ? selected.filter((existing) => existing !== id)
+        : [...selected, id],
+    )
+  }
+
+  return (
+    <div className="flex flex-wrap gap-3">
+      {roles.map((role) => (
+        <label key={role.id} className="flex cursor-pointer items-center gap-1.5 text-sm">
+          <input
+            type="checkbox"
+            checked={selected.includes(role.id)}
+            onChange={() => toggle(role.id)}
+            className="size-3.5 rounded border-input accent-primary"
+          />
+          {role.code}
+        </label>
+      ))}
+    </div>
+  )
+}
+
+function UserRow({ user, roles }: { user: UserListItem; roles: RoleListItem[] }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+
+  const [expanded, setExpanded] = useState(false)
+  const [roleIds, setRoleIds] = useState<number[]>([])
+  const [resetPassword, setResetPassword] = useState('')
+  const [rowError, setRowError] = useState<string | null>(null)
+
+  const roleIdByCode = new Map(roles.map((r) => [r.code, r.id]))
+
+  function open() {
+    setRoleIds(
+      user.roles
+        .map((code) => roleIdByCode.get(code))
+        .filter((id): id is number => id !== undefined),
+    )
+    setExpanded((value) => !value)
+  }
+
+  const setRoles = useMutation({
+    mutationFn: () => usersApi.setRoles(user.id, roleIds),
+    onSuccess: () => {
+      setRowError(null)
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+    onError: (err) => {
+      setRowError(err instanceof ApiError ? (err.data.error ?? t('settings.userError')) : t('settings.userError'))
+    },
+  })
+
+  const toggleActive = useMutation({
+    mutationFn: () => usersApi.update({ id: user.id, is_active: !user.is_active }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+  })
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: () =>
+      usersApi.update({ id: user.id, password: resetPassword }),
+    onSuccess: () => {
+      setResetPassword('')
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+    onError: (err) => {
+      setRowError(err instanceof ApiError ? (err.data.error ?? t('settings.userError')) : t('settings.userError'))
+    },
+  })
+
+  return (
+    <li className="rounded-lg bg-muted/50 px-3 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+            <span className="truncate">{user.username}</span>
+            {user.roles.map((role) => (
+              <Badge key={role} variant="secondary">
+                {role}
+              </Badge>
+            ))}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">
+            {user.name}
+            {user.email ? ` · ${user.email}` : ''}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge variant={user.is_active ? 'default' : 'outline'}>
+            {user.is_active ? t('settings.active') : t('settings.inactive')}
+          </Badge>
+          {user.must_change_password && (
+            <Badge variant="destructive">{t('settings.mustChange')}</Badge>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-expanded={expanded}
+            onClick={open}
+          >
+            <ChevronDown
+              className={`transition-transform ${expanded ? 'rotate-180' : ''}`}
+            />
+          </Button>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="mt-3 space-y-3 border-t border-border/60 pt-3">
+          <div className="space-y-1.5">
+            <Label>{t('settings.rolesField')}</Label>
+            <RoleCheckboxes
+              selected={roleIds}
+              onChange={setRoleIds}
+              roles={roles}
+            />
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setRoles.mutate()}
+              disabled={setRoles.isPending}
+            >
+              {setRoles.isPending ? <Loader2 className="animate-spin" /> : <Save />}
+              {t('settings.saveRoles')}
+            </Button>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor={`reset-${user.id}`}>{t('settings.resetPassword')}</Label>
+            <div className="flex items-end gap-2">
+              <Input
+                id={`reset-${user.id}`}
+                type="password"
+                value={resetPassword}
+                onChange={(event) => setResetPassword(event.target.value)}
+                placeholder={t('settings.resetPlaceholder')}
+              />
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => resetPasswordMutation.mutate()}
+                disabled={resetPasswordMutation.isPending || resetPassword === ''}
+              >
+                {t('settings.reset')}
+              </Button>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => toggleActive.mutate()}
+            disabled={toggleActive.isPending}
+          >
+            {user.is_active ? t('settings.deactivate') : t('settings.activate')}
+          </Button>
+
+          {rowError !== null && <p className="text-sm text-destructive">{rowError}</p>}
+        </div>
+      )}
+    </li>
+  )
+}
+
+function UsersCard() {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+
+  const usersQuery = useQuery({
+    queryKey: ['users'],
+    queryFn: usersApi.list,
+  })
+
+  const rolesQuery = useQuery({
+    queryKey: ['roles'],
+    queryFn: rolesApi.list,
+  })
+
+  const [username, setUsername] = useState('')
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [roleIds, setRoleIds] = useState<number[]>([])
+  const [formError, setFormError] = useState<string | null>(null)
+
+  const create = useMutation({
+    mutationFn: () =>
+      usersApi.create({
+        username: username.trim(),
+        password,
+        name: name.trim() || username.trim(),
+        email: email.trim() === '' ? null : email.trim(),
+        role_ids: roleIds,
+      }),
+    onSuccess: () => {
+      setUsername('')
+      setName('')
+      setEmail('')
+      setPassword('')
+      setRoleIds([])
+      setFormError(null)
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+    onError: (err) => {
+      if (err instanceof ApiError) {
+        setFormError(err.data.error ?? err.message)
+      } else {
+        setFormError(t('settings.userError'))
+      }
+    },
+  })
+
+  const roles = rolesQuery.data ?? []
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardAction>
+          <ShieldCheck className="size-5 text-muted-foreground" />
+        </CardAction>
+        <CardTitle>{t('settings.usersTitle')}</CardTitle>
+        <CardDescription>{t('settings.usersDescription')}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            create.mutate()
+          }}
+          className="space-y-3 rounded-xl bg-muted/40 p-4"
+        >
+          <p className="text-sm font-medium">{t('settings.addUser')}</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="new-username">{t('settings.newUsername')}</Label>
+              <Input
+                id="new-username"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="new-name">{t('settings.newName')}</Label>
+              <Input
+                id="new-name"
                 value={name}
-                placeholder={t('settings.placeholder')}
                 onChange={(event) => setName(event.target.value)}
               />
             </div>
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? t('settings.creating') : t('settings.create')}
-            </Button>
-          </form>
-
-          <div className="space-y-1 rounded-lg bg-muted/50 p-4">
-            <p className="text-sm font-medium">{t('settings.lastCreated')}</p>
-            <p className="text-sm text-muted-foreground">
-              {created ? `#${created.id} — ${created.name}` : '—'}
-            </p>
-            {mutation.isError && (
-              <p className="text-sm text-destructive">{t('settings.error')}</p>
-            )}
+            <div className="space-y-1.5">
+              <Label htmlFor="new-email">{t('settings.newEmail')}</Label>
+              <Input
+                id="new-email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="new-password">{t('settings.newPassword')}</Label>
+              <Input
+                id="new-password"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+              />
+            </div>
           </div>
-        </CardContent>
-      </Card>
+          <div className="space-y-1.5">
+            <Label>{t('settings.rolesField')}</Label>
+            <RoleCheckboxes selected={roleIds} onChange={setRoleIds} roles={roles} />
+          </div>
+          {formError !== null && <p className="text-sm text-destructive">{formError}</p>}
+          <Button type="submit" disabled={create.isPending}>
+            {create.isPending ? <Loader2 className="animate-spin" /> : <UserPlus />}
+            {t('settings.createUser')}
+          </Button>
+        </form>
+
+        {usersQuery.isLoading ? (
+          <p className="text-sm text-muted-foreground">{t('settings.loading')}</p>
+        ) : (
+          <ul className="space-y-2">
+            {(usersQuery.data ?? []).map((user) => (
+              <UserRow key={user.id} user={user} roles={roles} />
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+export function SettingsPage() {
+  const { t } = useTranslation()
+  const { user } = useAuth()
+
+  usePageTitle(t('settings.title'))
+
+  return (
+    <div className="mx-auto w-full max-w-2xl space-y-6">
+      <header className="space-y-2">
+        <Badge>{t('settings.badge')}</Badge>
+        <h1 className="font-heading text-3xl font-bold tracking-tight">
+          {t('settings.title')}
+        </h1>
+        <p className="text-sm text-muted-foreground">{t('settings.description')}</p>
+      </header>
+
+      {user !== null && (
+        <Card size="sm">
+          <CardHeader>
+            <CardAction>
+              <UserRound className="size-5 text-muted-foreground" />
+            </CardAction>
+            <CardTitle>{t('settings.profileTitle')}</CardTitle>
+            <CardDescription>
+              {user.username}
+              {user.email ? ` · ${user.email}` : ''}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {user.roles.map((role) => (
+              <Badge key={role} variant="secondary">
+                {role}
+              </Badge>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      <ChangePasswordForm />
+
+      {user?.permissions.includes('users.manage') && <UsersCard />}
     </div>
   )
 }

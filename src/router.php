@@ -4,9 +4,10 @@
  *
  * Strict protocol:
  *
- *   module=api  -> server-side JSON API (action required)
- *   u=...       -> client-side SPA route
- *   anything    -> application parameters (ignored by the router)
+ *   module=api        -> server-side JSON API (action required)
+ *   module=migration  -> schema migration status / run
+ *   u=...             -> client-side SPA route
+ *   anything          -> application parameters (ignored by the router)
  * ------------------------------------------------------------
  */
 
@@ -16,6 +17,16 @@ $module = request_param('module');
 if ($module === 'api') {
     handle_api((string) request_param('action', ''), $method);
 }
+
+if ($module === 'migration') {
+    handle_migration((string) request_param('action', 'status'), $method);
+}
+
+// ___BEGIN_DEV_ROUTE___
+if ($module === 'dev') {
+    handle_dev((string) request_param('action', 'status'), $method);
+}
+// ___END_DEV_ROUTE___
 
 /*
  * Everything else is the React SPA. The route comes from ?u= and
