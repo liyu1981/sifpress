@@ -693,7 +693,20 @@ function api_pages_get(string $method): never
     $slug = request_param('slug');
     $page = fetch_page($id, $slug);
 
-    if ($page === null || !can_view_page(current_user(), $page)) {
+    if ($page === null) {
+        /*
+         * Virtual demo page: when no real page occupies the reserved slug,
+         * serve the shared markdown reference (see demo_page.php) so the
+         * release artifact can show it without a DB row.
+         */
+        if ($slug !== null && $slug === DEMO_PAGE_SLUG) {
+            json_response(['page' => demo_page_payload()]);
+        }
+
+        json_response(['error' => 'page not found'], 404);
+    }
+
+    if (!can_view_page(current_user(), $page)) {
         json_response(['error' => 'page not found'], 404);
     }
 

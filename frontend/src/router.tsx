@@ -26,7 +26,7 @@ import { LoginPage } from '@/pages/login'
 import { NotFoundPage } from '@/pages/not-found'
 import { SettingsPage } from '@/pages/settings'
 import { useAuth } from '@/lib/auth'
-import { systemApi } from '@/lib/pages'
+import { systemApi, DEMO_PAGE_SLUG } from '@/lib/pages'
 
 const basePath = window.location.pathname
 
@@ -186,7 +186,7 @@ function RootLayout() {
           {content}
         </main>
 
-        <footer className="mt-auto flex justify-start border-t border-border/60 pt-6 pb-2 text-sm text-muted-foreground">
+        <footer className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-6 pb-2 text-sm text-muted-foreground">
           <span>
             {t('footer.poweredBy', { version: APP_VERSION })}
             <span aria-hidden="true"> · </span>
@@ -199,6 +199,13 @@ function RootLayout() {
               GitHub
             </a>
           </span>
+          <Link
+            to="/article/$slug"
+            params={{ slug: DEMO_PAGE_SLUG }}
+            className="text-foreground transition-colors hover:text-muted-foreground hover:underline"
+          >
+            {t('footer.demoPage')}
+          </Link>
         </footer>
       </div>
     </div>

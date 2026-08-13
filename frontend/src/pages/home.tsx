@@ -2,8 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
 import { ArticleDetailPage } from '@/pages/article-detail'
-import { Badge } from '@/components/ui/badge'
-import { pagesApi } from '@/lib/pages'
+import { pagesApi, DEMO_PAGE_SLUG } from '@/lib/pages'
 import { usePageTitle } from '@/hooks/use-page-title'
 
 export function HomePage() {
@@ -35,13 +34,12 @@ export function HomePage() {
   const first = latest.data.items[0]
 
   if (first === undefined) {
-    return (
-      <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-3 py-16 text-center">
-        <Badge variant="outline">{t('article.badge')}</Badge>
-        <h1 className="font-heading text-2xl font-bold">{t('home.emptyTitle')}</h1>
-        <p className="text-sm text-muted-foreground">{t('home.emptyDescription')}</p>
-      </div>
-    )
+    /*
+     * No published articles yet — fall back to the virtual markdown
+     * reference page so a fresh install has something meaningful on
+     * the home page.
+     */
+    return <ArticleDetailPage slug={DEMO_PAGE_SLUG} />
   }
 
   return <ArticleDetailPage slug={first.slug} />

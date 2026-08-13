@@ -25,11 +25,10 @@ const en = {
   },
   footer: {
     poweredBy: 'Powered by Sifpress v{{version}}',
+    demoPage: 'Markdown Syntax',
   },
   home: {
     title: 'Latest',
-    emptyTitle: 'No pages yet',
-    emptyDescription: 'Create the first page to get started.',
   },
   article: {
     badge: 'Blog',
@@ -265,11 +264,10 @@ const zh = {
   },
   footer: {
     poweredBy: '由 Sifpress v{{version}} 驱动',
+    demoPage: 'Markdown 语法示例',
   },
   home: {
     title: '最新',
-    emptyTitle: '还没有页面',
-    emptyDescription: '创建第一篇文章开始吧。',
   },
   article: {
     badge: '博客',

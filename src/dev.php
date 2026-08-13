@@ -16,83 +16,19 @@
  *
  * initData requires an authenticated admin and seeds (or refreshes)
  * the demo page that exercises every markdown feature the frontend
- * supports: image sizing/positioning, KaTeX math, Mermaid diagrams,
- * GFM tables and code blocks. The page is created "in the name of"
- * the calling admin.
+ * supports: headings, emphasis, links, image sizing/positioning and the
+ * `|link` escape, video embeds (files/YouTube/Bilibili), GFM lists and
+ * tables, KaTeX math, Mermaid diagrams, and code blocks. Each section
+ * shows the syntax first, then its rendered result. The page is created
+ * "in the name of" the calling admin.
  * ------------------------------------------------------------
  */
 
 const DEMO_PAGE = [
-    'slug' => 'hello-sifpress',
-    'title' => 'Hello, Sifpress',
+    'slug' => DEMO_PAGE_SLUG,
+    'title' => DEMO_PAGE_TITLE,
     'status' => 'published',
-    'content_md' => <<<'MD'
----
-title: "Hello, Sifpress"
-slug: "hello-sifpress"
-date: 2026-08-10
-author: "Administrator"
-tags: [announcement, architecture]
-cover: "https://picsum.photos/id/1039/1200/630"
----
-
-Welcome to the new blog. Every page here is served from a single PHP file, yet the writing experience is full-featured: GFM tables, KaTeX math, Mermaid diagrams, and flexible image sizing and positioning.
-
-## Flexible images
-
-Images accept Obsidian-style directives in the alt text, separated by pipes:
-
-| Directive        | Effect                          |
-| ---------------- | ------------------------------- |
-| `|640`           | width 640px, height auto        |
-| `|400x240`       | width 400px, height 240px       |
-| `|center`        | centered block image            |
-| `|float-left`    | float left, text wraps around   |
-| `|float-right`   | float right, text wraps around  |
-
-A plain sized image:
-
-![Writing notes|720](https://picsum.photos/id/1015/900/600)
-
-A floated one, with a caption:
-
-![The team|float-right|260](https://picsum.photos/id/1039/520/390)
-
-Paragraphs flow around floated figures so you can keep the narrative going while a portrait sits to one side. Floats pair nicely with a fixed pixel width, and on small screens the float naturally drops back into normal flow.
-
-## Math, inline and displayed
-
-Inline math like $x^2 + y^2 = z^2$ renders with KaTeX, as do display equations:
-
-$$
-\sum_{n=1}^{\infty} \frac{1}{n^2} = \frac{\pi^2}{6}
-$$
-
-## Diagrams with Mermaid
-
-Fenced `mermaid` code blocks become interactive-ish SVG diagrams, themed to match light and dark mode:
-
-```mermaid
-flowchart LR
-    A[Markdown] --> B[remark plugins]
-    B --> C[Math + images]
-    B --> D[Mermaid]
-    C --> E[HTML]
-    D --> E
-```
-
-## Code blocks
-
-```ts
-function pick<T>(items: T[], n: number): T[] {
-  return [...items].sort(() => Math.random() - 0.5).slice(0, n)
-}
-```
-
-## Getting started
-
-Drop the single PHP file on any static host. That's it — no server build step, no rewrite rules, and the database is created automatically. Writing is just markdown.
-MD,
+    'content_md' => DEMO_PAGE_CONTENT,
 ];
 
 /**

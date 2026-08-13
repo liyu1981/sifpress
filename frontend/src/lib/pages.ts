@@ -2,6 +2,13 @@ import { apiRequest, migrationRequest, uploadRequest } from '@/lib/api'
 
 export type PageStatus = 'draft' | 'published'
 
+/**
+ * Reserved slug served by the backend as a virtual page (the markdown
+ * syntax reference, see src/demo_page.php). Matches DEMO_PAGE_SLUG in
+ * the PHP fragment.
+ */
+export const DEMO_PAGE_SLUG = 'sifpress-markdown-syntax'
+
 export interface AuthUser {
   id: number
   username: string
