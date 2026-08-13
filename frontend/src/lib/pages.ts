@@ -79,6 +79,7 @@ export interface Grant {
   granted_by_name: string | null
   created_at: string | null
   permission: 'edit' | 'view'
+  note: string | null
   kind: 'owner' | 'admin' | 'grant'
 }
 
@@ -192,10 +193,20 @@ export const pagesApi = {
       params: { page_id: String(page_id) },
     }).then((r) => r.grants),
 
-  grant: (page_id: number, username: string, permission: 'edit' | 'view' = 'edit') =>
+  grant: (
+    page_id: number,
+    username: string,
+    permission: 'edit' | 'view' = 'edit',
+    note?: string,
+  ) =>
     apiRequest<{ ok: true }>('pages.grant', {
       method: 'POST',
-      body: { page_id, username, permission },
+      body: {
+        page_id,
+        username,
+        permission,
+        ...(note !== undefined ? { note } : {}),
+      },
     }),
 
   revokeGrant: (page_id: number, username: string) =>

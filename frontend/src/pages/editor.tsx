@@ -18,7 +18,6 @@ import { ApiError } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Markdown } from '@/components/markdown/markdown'
 import { parseFrontMatter } from '@/lib/front-matter'
@@ -87,17 +86,19 @@ function errorMessages(error: ApiError | null): string[] {
 }
 
 /**
- * One row of the access list: username, a changeable edit/view selector
- * (granted rows only), and a note. A Save button appears on the right
- * once the selected permission differs from the stored one.
+ * One row of the access table: username, a changeable edit/view
+ * selector (granted rows only), the note, and the action cell (Save
+ * once the permission changes, Revoke for removable grants).
  */
 function GrantRow({
   grant,
+  index,
   onSave,
   onRevoke,
   saving,
 }: {
   grant: Grant
+  index: number
   onSave: (permission: 'edit' | 'view') => void
   onRevoke: () => void
   saving: boolean
@@ -110,56 +111,65 @@ function GrantRow({
   }, [grant.permission])
 
   const isFixed = grant.kind !== 'grant'
+  const isGuest = grant.username === '_guest_'
   const changed = !isFixed && permission !== grant.permission
+  const label =
+    grant.username === '_guest_'
+      ? grant.name || t('editor.websiteGuest')
+      : grant.username === 'admin'
+        ? t('editor.websiteAdmin')
+        : grant.username
+  const note = grant.note ?? (grant.granted_by_name ? t('editor.grantBy', { name: grant.granted_by_name }) : '')
 
   return (
-    <li className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm">
-      <span className="flex min-w-0 flex-wrap items-center gap-2">
-        <span className="truncate font-medium">{grant.username}</span>
-        {isFixed ? (
-          <span className="text-xs text-muted-foreground">
-            {t('editor.permissionEdit')}
-          </span>
-        ) : (
-          <select
-            value={permission}
-            onChange={(event) =>
-              setPermission(event.target.value as 'edit' | 'view')
-            }
-            aria-label={t('editor.grantPermissionField')}
-            className="h-7 rounded-md border border-input bg-transparent px-1.5 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
-          >
-            <option value="edit">{t('editor.permissionEdit')}</option>
-            <option value="view">{t('editor.permissionView')}</option>
-          </select>
-        )}
-        {grant.kind === 'owner' && (
-          <Badge variant="secondary">{t('editor.grantRoleOwner')}</Badge>
-        )}
-        {grant.kind === 'admin' && (
-          <Badge variant="secondary">{t('editor.grantRoleAdmin')}</Badge>
-        )}
-        {grant.kind === 'grant' &&
-          grant.granted_by_name !== null &&
-          grant.granted_by_name !== '' && (
-            <span className="text-xs text-muted-foreground">
-              {t('editor.grantBy', { name: grant.granted_by_name })}
-            </span>
+    <tr
+      className={`border-b border-black/25 last:border-b-0 dark:border-border ${
+        index % 2 === 1 ? 'bg-muted/40' : ''
+      }`}
+    >
+      <td className="px-3 py-2">
+        <span className="truncate font-medium">{label}</span>
+      </td>
+      <td className="px-3 py-2">
+        <select
+          value={isFixed ? 'edit' : permission}
+          onChange={(event) =>
+            setPermission(event.target.value as 'edit' | 'view')
+          }
+          disabled={isFixed}
+          aria-label={t('editor.grantPermissionField')}
+          className="h-7 rounded-md border border-input bg-transparent px-1.5 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <option value="edit">{t('editor.permissionEdit')}</option>
+          <option value="view">{t('editor.permissionView')}</option>
+        </select>
+      </td>
+      <td className="px-3 py-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {grant.kind === 'owner' && (
+            <Badge variant="secondary">{t('editor.grantRoleOwner')}</Badge>
           )}
-      </span>
-      <span className="flex items-center gap-1.5">
-        {changed && (
-          <Button type="button" size="xs" onClick={() => onSave(permission)} disabled={saving}>
-            {t('editor.save')}
-          </Button>
-        )}
-        {!isFixed && (
-          <Button type="button" variant="ghost" size="xs" onClick={onRevoke} disabled={saving}>
-            {t('editor.grantRevoke')}
-          </Button>
-        )}
-      </span>
-    </li>
+          {grant.kind === 'admin' && (
+            <Badge variant="secondary">{t('editor.grantRoleAdmin')}</Badge>
+          )}
+          {note !== '' && <span className="text-xs text-muted-foreground">{note}</span>}
+        </div>
+      </td>
+      <td className="px-3 py-2">
+        <div className="flex items-center justify-end gap-1.5">
+          {changed && (
+            <Button type="button" size="xs" onClick={() => onSave(permission)} disabled={saving}>
+              {t('editor.save')}
+            </Button>
+          )}
+          {!isFixed && !isGuest && (
+            <Button type="button" variant="ghost" size="xs" onClick={onRevoke} disabled={saving}>
+              {t('editor.grantRevoke')}
+            </Button>
+          )}
+        </div>
+      </td>
+    </tr>
   )
 }
 
@@ -197,6 +207,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
   const [accessOpen, setAccessOpen] = useState(false)
   const [grantUsername, setGrantUsername] = useState('')
   const [grantPermission, setGrantPermission] = useState<'edit' | 'view'>('edit')
+  const [grantNote, setGrantNote] = useState('')
   const [grantError, setGrantError] = useState<ApiError | null>(null)
 
   useEffect(() => {
@@ -266,8 +277,11 @@ export function EditorPage({ slug }: { slug: string | null }) {
   })
 
   const grant = useMutation({
-    mutationFn: (args: { username: string; permission: 'edit' | 'view' }) =>
-      pagesApi.grant(page!.id, args.username, args.permission),
+    mutationFn: (args: {
+      username: string
+      permission: 'edit' | 'view'
+      note?: string
+    }) => pagesApi.grant(page!.id, args.username, args.permission, args.note),
     onSuccess: () => {
       setGrantError(null)
       queryClient.invalidateQueries({ queryKey: ['page-grants', page?.id] })
@@ -278,9 +292,14 @@ export function EditorPage({ slug }: { slug: string | null }) {
   })
 
   function handleAddGrant() {
-    grant.mutate({ username: grantUsername.trim(), permission: grantPermission })
+    grant.mutate({
+      username: grantUsername.trim(),
+      permission: grantPermission,
+      note: grantNote,
+    })
     setGrantUsername('')
     setGrantPermission('edit')
+    setGrantNote('')
   }
 
   const revoke = useMutation({
@@ -354,9 +373,9 @@ export function EditorPage({ slug }: { slug: string | null }) {
   const messages = errorMessages(saveError)
 
   return (
-    <div className="w-full">
-      <form onSubmit={handleSave} className="w-full">
-        <div className="mx-auto w-full max-w-5xl space-y-4">
+    <div className="flex h-full w-full flex-col">
+      <form onSubmit={handleSave} className="flex h-full flex-col">
+        <div className="mx-auto w-full max-w-5xl shrink-0 space-y-4">
           <h1 className="font-heading text-3xl font-bold tracking-tight">
             {editing ? t('editor.editTitle') : t('editor.newTitle')}
           </h1>
@@ -389,43 +408,94 @@ export function EditorPage({ slug }: { slug: string | null }) {
                     {t('editor.grantsDescription')}
                   </p>
 
-                  <div className="flex flex-wrap items-end gap-2">
-                    <div className="min-w-40 flex-1 space-y-1.5">
-                      <Label htmlFor="grant-username">
-                        {t('editor.grantUsername')}
-                      </Label>
-                      <Input
-                        id="grant-username"
-                        value={grantUsername}
-                        onChange={(event) => setGrantUsername(event.target.value)}
-                        placeholder={t('editor.grantPlaceholder')}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="grant-permission">
-                        {t('editor.grantPermissionField')}
-                      </Label>
-                      <select
-                        id="grant-permission"
-                        value={grantPermission}
-                        onChange={(event) =>
-                          setGrantPermission(event.target.value as 'edit' | 'view')
-                        }
-                        className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                      >
-                        <option value="edit">{t('editor.permissionEdit')}</option>
-                        <option value="view">{t('editor.permissionView')}</option>
-                      </select>
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={handleAddGrant}
-                      disabled={grant.isPending || grantUsername.trim() === ''}
-                    >
-                      <UserPlus />
-                      {t('editor.grantAdd')}
-                    </Button>
+                  <div className="overflow-x-auto rounded-xl border-2 border-black/25 dark:border-border">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b-2 border-black/25 text-left text-xs text-muted-foreground dark:border-border">
+                          <th className="px-3 py-2 font-medium">
+                            {t('editor.grantUsername')}
+                          </th>
+                          <th className="px-3 py-2 font-medium">
+                            {t('editor.grantPermissionField')}
+                          </th>
+                          <th className="px-3 py-2 font-medium">
+                            {t('editor.grantNote')}
+                          </th>
+                          <th className="px-3 py-2 font-medium" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b border-black/25 dark:border-border">
+                          <td className="px-3 py-2">
+                            <Input
+                              value={grantUsername}
+                              onChange={(event) => setGrantUsername(event.target.value)}
+                              placeholder={t('editor.grantPlaceholder')}
+                              className="h-8"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              value={grantPermission}
+                              onChange={(event) =>
+                                setGrantPermission(event.target.value as 'edit' | 'view')
+                              }
+                              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                            >
+                              <option value="edit">{t('editor.permissionEdit')}</option>
+                              <option value="view">{t('editor.permissionView')}</option>
+                            </select>
+                          </td>
+                          <td className="px-3 py-2">
+                            <Input
+                              value={grantNote}
+                              onChange={(event) => setGrantNote(event.target.value)}
+                              placeholder={t('editor.grantNotePlaceholder')}
+                              className="h-8"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex justify-end">
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={handleAddGrant}
+                                disabled={grant.isPending || grantUsername.trim() === ''}
+                              >
+                                <UserPlus />
+                                {t('editor.grantAdd')}
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {grantsQuery.data?.map((g, index) => (
+                          <GrantRow
+                            key={g.username}
+                            grant={g}
+                            index={index}
+                            onSave={(permission) =>
+                              grant.mutate({
+                                username: g.username,
+                                permission,
+                              })
+                            }
+                            onRevoke={() => revoke.mutate(g.username)}
+                            saving={grant.isPending || revoke.isPending}
+                          />
+                        ))}
+                        {grantsQuery.data?.length === 0 && (
+                          <tr>
+                            <td
+                              colSpan={4}
+                              className="py-2 text-sm text-muted-foreground"
+                            >
+                              {t('editor.grantsEmpty')}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
 
                   {grantError !== null && (
@@ -433,28 +503,6 @@ export function EditorPage({ slug }: { slug: string | null }) {
                       {grantError.data.error ?? t('editor.grantError')}
                     </p>
                   )}
-
-                  <div className="h-px w-full bg-border/60" />
-
-                  <p className="text-sm font-medium">{t('editor.grantedLabel')}</p>
-                  <ul className="space-y-1.5">
-                    {grantsQuery.data?.map((g) => (
-                      <GrantRow
-                        key={g.username}
-                        grant={g}
-                        onSave={(permission) =>
-                          grant.mutate({ username: g.username, permission })
-                        }
-                        onRevoke={() => revoke.mutate(g.username)}
-                        saving={grant.isPending || revoke.isPending}
-                      />
-                    ))}
-                    {grantsQuery.data?.length === 0 && (
-                      <li className="text-sm text-muted-foreground">
-                        {t('editor.grantsEmpty')}
-                      </li>
-                    )}
-                  </ul>
                 </div>
               )}
             </div>
@@ -469,10 +517,10 @@ export function EditorPage({ slug }: { slug: string | null }) {
           )}
         </div>
 
-        <div className="relative left-1/2 mt-6 w-[calc(100vw-2rem)] -translate-x-1/2 px-6">
-          <div className="grid gap-4 lg:h-[75vh] lg:grid-cols-2">
-            <div className="glass-control flex h-[50vh] flex-col overflow-hidden rounded-2xl lg:h-full">
-              <div className="flex items-center justify-between gap-2 border-b border-border/60 px-4 py-2">
+        <div className="relative left-1/2 mt-6 w-[calc(100vw-2rem)] min-h-0 flex-1 -translate-x-1/2 px-6">
+          <div className="grid h-full grid-rows-2 gap-4 lg:grid-cols-2 lg:grid-rows-1">
+            <div className="glass-control flex min-h-0 flex-col overflow-hidden rounded-2xl">
+              <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-2">
                 <span className="text-sm font-medium">{t('editor.contentField')}</span>
                 <div className="flex items-center gap-2">
                   <label className="flex cursor-pointer items-center gap-2">
@@ -507,7 +555,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
               </div>
               <textarea
                 aria-label={t('editor.contentField')}
-                className="h-full w-full flex-1 resize-none bg-transparent p-4 font-mono text-sm leading-6 outline-none placeholder:text-muted-foreground"
+                className="w-full min-h-0 flex-1 resize-none bg-transparent p-4 font-mono text-sm leading-6 outline-none placeholder:text-muted-foreground"
                 value={content}
                 onChange={(event) => setContent(event.target.value)}
                 placeholder={t('editor.contentPlaceholder')}
@@ -515,12 +563,12 @@ export function EditorPage({ slug }: { slug: string | null }) {
               />
             </div>
 
-            <div className="glass-control flex h-[50vh] flex-col overflow-hidden rounded-2xl lg:h-full">
-              <div className="flex items-center justify-between border-b border-border/60 px-4 py-2">
+            <div className="glass-control flex min-h-0 flex-col overflow-hidden rounded-2xl">
+              <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-4 py-2">
                 <span className="text-sm font-medium">{t('editor.preview')}</span>
                 <Badge variant="outline">{t('editor.previewLive')}</Badge>
               </div>
-              <div className="flex-1 overflow-y-auto">
+              <div className="min-h-0 flex-1 overflow-y-auto">
                 <div className="prose max-w-none p-6 text-[0.9rem] leading-7">
                   {content.trim() === '' ? (
                     <p className="text-muted-foreground">

@@ -792,7 +792,7 @@ function api_pages_grants(string $method): never
     }
 
     $stmt = db()->prepare(
-        'SELECT u.username, u.name, gu.name AS granted_by_name, g.created_at, g.permission
+        'SELECT u.username, u.name, gu.name AS granted_by_name, g.created_at, g.permission, g.note
            FROM page_grants g
            JOIN users u ON u.id = g.user_id
            LEFT JOIN users gu ON gu.id = g.granted_by
@@ -822,6 +822,7 @@ function api_pages_grants(string $method): never
                 'granted_by_name' => null,
                 'created_at' => null,
                 'permission' => 'edit',
+                'note' => null,
                 'kind' => 'owner',
             ];
             $seen[$owner['username']] = true;
@@ -847,6 +848,7 @@ function api_pages_grants(string $method): never
             'granted_by_name' => null,
             'created_at' => null,
             'permission' => 'edit',
+            'note' => null,
             'kind' => 'admin',
         ];
         $seen[$admin['username']] = true;
@@ -862,6 +864,7 @@ function api_pages_grants(string $method): never
             'granted_by_name' => (string) $grant['granted_by_name'],
             'created_at' => $grant['created_at'],
             'permission' => $grant['permission'],
+            'note' => $grant['note'] !== null && $grant['note'] !== '' ? $grant['note'] : null,
             'kind' => 'grant',
         ];
     }
@@ -915,21 +918,32 @@ function api_pages_grant(string $method): never
         json_response(['error' => 'permission must be edit or view'], 422);
     }
 
-    if ($permission === 'edit' && !can((int) $targetId, 'pages.write')) {
+    $note = array_key_exists('note', $body) && $body['note'] !== null
+        ? trim((string) $body['note'])
+        : null;
+
+    if ($note !== null && mb_strlen($note) > 200) {
+        json_response(['error' => 'note is too long (max 200 characters)'], 422);
+    }
+
+    if ($permission === 'edit' && $username !== '_guest_' && !can((int) $targetId, 'pages.write')) {
         json_response(['error' => 'user lacks pages.write permission'], 422);
     }
 
     /*
      * Upsert: granting again with a different permission updates the
-     * existing grant (used by the editor's edit/view toggle).
+     * existing grant (used by the editor's edit/view toggle). The note is
+     * only touched when the client sends it, so a permission-only change
+     * keeps the existing note.
      */
     $stmt = db()->prepare(
-        'INSERT INTO page_grants (page_id, user_id, granted_by, permission)
-         VALUES (?, ?, ?, ?)
+        'INSERT INTO page_grants (page_id, user_id, granted_by, permission, note)
+         VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(page_id, user_id)
-         DO UPDATE SET granted_by = excluded.granted_by, permission = excluded.permission'
+         DO UPDATE SET granted_by = excluded.granted_by, permission = excluded.permission,
+                       note = COALESCE(excluded.note, page_grants.note)'
     );
-    $stmt->execute([$page['id'], (int) $targetId, $user['id'], $permission]);
+    $stmt->execute([$page['id'], (int) $targetId, $user['id'], $permission, $note]);
 
     json_response(['ok' => true]);
 }
@@ -959,6 +973,10 @@ function api_pages_revoke_grant(string $method): never
 
     if ($username === '') {
         json_response(['error' => 'username is required'], 422);
+    }
+
+    if ($username === '_guest_') {
+        json_response(['error' => 'the guest grant cannot be removed'], 422);
     }
 
     $stmt = db()->prepare('SELECT id FROM users WHERE username = ?');
