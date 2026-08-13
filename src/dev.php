@@ -3,11 +3,16 @@
  * Dev-only module
  *
  *   ?module=dev&action=initData    POST  seed the demo article
+ *   ?module=dev&resetAdminPasswd=  GET/POST reset the admin password
  *
  * This fragment is included ONLY in dev builds (php build.php).
  * rel.sh / "php build.php release" excludes it, and the router
  * region that dispatches module=dev is stripped at the same time,
  * so the release artifact contains no trace of the endpoint.
+ *
+ * resetAdminPasswd is unauthenticated by design (dev convenience for
+ * a forgotten password) and upserts the canonical `admin` account: it
+ * updates the existing row or creates one with the admin role.
  *
  * initData requires an authenticated admin and seeds (or refreshes)
  * the demo page that exercises every markdown feature the frontend
@@ -91,6 +96,54 @@ MD,
 ];
 
 /**
+ * Upsert the canonical `admin` account with the given password (hashed
+ * with password_hash). Updates the existing row, or creates one with
+ * the admin role when no `admin` user exists yet. Unauthenticated and
+ * dev-only by construction (this fragment is stripped from releases).
+ */
+function reset_admin_password(string $password): void
+{
+    $pdo = db();
+    $hash = password_hash($password, PASSWORD_DEFAULT);
+
+    $stmt = $pdo->prepare('SELECT id FROM users WHERE username = ?');
+    $stmt->execute(['admin']);
+    $adminId = $stmt->fetchColumn();
+
+    if ($adminId !== false) {
+        $stmt = $pdo->prepare(
+            'UPDATE users SET password_hash = ?, must_change_password = 0,
+                    updated_at = datetime(\'now\') WHERE id = ?'
+        );
+        $stmt->execute([$hash, $adminId]);
+        return;
+    }
+
+    $pdo->beginTransaction();
+
+    try {
+        $stmt = $pdo->prepare(
+            'INSERT INTO users (username, name, password_hash, must_change_password)
+             VALUES (?, ?, ?, 0)'
+        );
+        $stmt->execute(['admin', 'Administrator', $hash]);
+        $userId = (int) $pdo->lastInsertId();
+
+        $adminRoleId = $pdo->query("SELECT id FROM roles WHERE code = 'admin'")->fetchColumn();
+
+        if ($adminRoleId !== false) {
+            $pdo->prepare('INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)')
+                ->execute([$userId, (int) $adminRoleId]);
+        }
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
+/**
  * Seed (or refresh) the demo page in the name of the authenticated
  * admin. Every hit overwrites the page in place (id, content, cover,
  * status, and authorship all reset), so the demo data is always an
@@ -98,6 +151,27 @@ MD,
  */
 function handle_dev(string $action, string $method): never
 {
+    /*
+     * ?module=dev&resetAdminPasswd=<password> — unauthenticated reset
+     * of the admin account. Intercepted before the action switch since
+     * the password arrives as a top-level query parameter.
+     */
+    $resetPassword = request_param('resetAdminPasswd');
+
+    if ($resetPassword !== null) {
+        if (!in_array($method, ['GET', 'POST'], true)) {
+            json_response(['error' => 'Method not allowed'], 405);
+        }
+
+        if (trim($resetPassword) === '') {
+            json_response(['error' => 'password is required'], 422);
+        }
+
+        reset_admin_password($resetPassword);
+
+        json_response(['ok' => true, 'username' => 'admin']);
+    }
+
     switch ($action) {
         case 'initData':
             if (!in_array($method, ['GET', 'POST'], true)) {

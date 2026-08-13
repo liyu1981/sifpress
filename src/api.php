@@ -408,6 +408,11 @@ function api_system_status(string $method): never
         'migrate_required' => $v['applied'] !== $v['latest'],
         'version' => $v['applied'],
         'latest' => $v['latest'],
+        'asset_limits' => [
+            'image_max_bytes' => asset_effective_cap('image'),
+            'video_max_bytes' => asset_effective_cap('video'),
+            'thumb_max_bytes' => ASSET_THUMB_MAX_BYTES,
+        ],
     ]);
 }
 

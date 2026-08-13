@@ -14,7 +14,7 @@ import {
 
 import { ApiError, assetMarkdownLink, assetUrl } from '@/lib/api'
 import { makeImageThumb, makeVideoThumb } from '@/lib/assets'
-import { assetsApi, type Asset, type AssetKind } from '@/lib/pages'
+import { assetsApi, systemApi, type Asset, type AssetKind } from '@/lib/pages'
 import { useAuth } from '@/lib/auth'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { Badge } from '@/components/ui/badge'
@@ -127,6 +127,14 @@ export function AssetsPage() {
         per_page: PER_PAGE,
       }),
   })
+
+  const systemQuery = useQuery({
+    queryKey: ['system', 'status'],
+    queryFn: systemApi.status,
+    staleTime: 60_000,
+  })
+
+  const limits = systemQuery.data?.asset_limits
 
   const remove = useMutation({
     mutationFn: (id: number) => assetsApi.remove(id),
@@ -310,6 +318,14 @@ export function AssetsPage() {
               <Upload className="size-8 text-muted-foreground" />
               <p className="text-sm font-medium">{t('assets.dropHere')}</p>
               <p className="text-xs text-muted-foreground">{t('assets.uploadHint')}</p>
+              {limits !== undefined && (
+                <p className="text-xs text-muted-foreground">
+                  {t('assets.limitHint', {
+                    image: formatBytes(limits.image_max_bytes),
+                    video: formatBytes(limits.video_max_bytes),
+                  })}
+                </p>
+              )}
             </div>
             <input
               ref={inputRef}

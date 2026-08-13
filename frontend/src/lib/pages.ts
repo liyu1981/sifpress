@@ -89,6 +89,11 @@ export interface SystemStatus {
   migrate_required: boolean
   version: string[]
   latest: string[]
+  asset_limits: {
+    image_max_bytes: number
+    video_max_bytes: number
+    thumb_max_bytes: number
+  }
 }
 
 export interface MigrationStatus {
