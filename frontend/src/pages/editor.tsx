@@ -28,6 +28,29 @@ import { usePageTitle } from '@/hooks/use-page-title'
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
+/**
+ * Front-matter template for a brand-new page, so every required meta
+ * field is visible in the editor instead of starting from an empty
+ * document (which would fail save validation with missing title/slug).
+ */
+function newPageTemplate(): string {
+  const now = new Date()
+  const date = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-')
+
+  return `---
+title: ""
+slug: ""
+date: ${date}
+tags: []
+---
+
+`
+}
+
 interface ParsedMeta {
   slug: string
   title: string
@@ -200,7 +223,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
     enabled: editing,
   })
 
-  const [content, setContent] = useState('')
+  const [content, setContent] = useState(editing ? '' : newPageTemplate())
   const [published, setPublished] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [saveError, setSaveError] = useState<ApiError | null>(null)

@@ -12,7 +12,7 @@ import {
   X,
 } from 'lucide-react'
 
-import { ApiError, assetMarkdownLink, assetUrl } from '@/lib/api'
+import { ApiError, assetMarkdownLink, assetUrl, copyText } from '@/lib/api'
 import { makeImageThumb, makeVideoThumb } from '@/lib/assets'
 import { assetsApi, systemApi, type Asset, type AssetKind } from '@/lib/pages'
 import { useAuth } from '@/lib/auth'
@@ -243,13 +243,14 @@ export function AssetsPage() {
   }
 
   async function copyLink(asset: Asset) {
-    try {
-      await navigator.clipboard.writeText(assetMarkdownLink(asset.name, asset.id, asset.kind))
-      setCopiedId(asset.id)
-      window.setTimeout(() => setCopiedId(null), 1500)
-    } catch {
-      setCopiedId(-1)
+    const text = assetMarkdownLink(asset.name, asset.id, asset.kind)
+
+    if (!(await copyText(text))) {
+      window.prompt(t('assets.copyManual'), text)
     }
+
+    setCopiedId(asset.id)
+    window.setTimeout(() => setCopiedId(null), 1500)
   }
 
   function handleDelete(asset: Asset) {

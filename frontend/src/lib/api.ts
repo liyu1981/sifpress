@@ -109,9 +109,47 @@ export function assetUrl(id: number, thumb = false): string {
   return `${window.location.pathname}?${params.toString()}`
 }
 
+function escapeMarkdownText(name: string): string {
+  return name.replace(/[\\[\]()]/g, (ch) => `\\${ch}`)
+}
+
 export function assetMarkdownLink(name: string, id: number, kind: string): string {
   const url = assetUrl(id)
-  return kind === 'image' ? `![${name}](${url})` : `[${name}](${url})`
+  return kind === 'image' ? `![${escapeMarkdownText(name)}](${url})` : `[${escapeMarkdownText(name)}](${url})`
+}
+
+/**
+ * Copy text to the clipboard with a legacy fallback. navigator.clipboard
+ * only exists in secure contexts (HTTPS or localhost), so serving over a
+ * plain-http LAN address throws and silently fails — fall back to the
+ * hidden-textarea execCommand path which works everywhere.
+ */
+export async function copyText(text: string): Promise<boolean> {
+  if (window.isSecureContext && navigator.clipboard) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch {
+      // fall through to the legacy path
+    }
+  }
+
+  try {
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.setAttribute('readonly', '')
+    textarea.style.position = 'fixed'
+    textarea.style.top = '-9999px'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    textarea.setSelectionRange(0, text.length)
+    const ok = document.execCommand('copy')
+    document.body.removeChild(textarea)
+    return ok
+  } catch {
+    return false
+  }
 }
 
 export async function migrationRequest<T>(

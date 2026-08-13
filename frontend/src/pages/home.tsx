@@ -13,7 +13,7 @@ export function HomePage() {
 
   const latest = useQuery({
     queryKey: ['pages'],
-    queryFn: () => pagesApi.list({ per_page: 1 }),
+    queryFn: () => pagesApi.list({ status: 'published', per_page: 1 }),
   })
 
   if (latest.isLoading || latest.data === undefined) {

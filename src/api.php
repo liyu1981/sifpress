@@ -516,15 +516,35 @@ function api_status_param(): ?string
 {
     $status = request_param('status');
 
-    if ($status === null) {
-        return null;
-    }
-
-    if (!in_array($status, ['draft', 'published'], true)) {
+    if ($status !== null && !in_array($status, ['draft', 'published'], true)) {
         json_response(['error' => 'invalid status'], 422);
     }
 
-    return $status;
+    if ($status !== null && $status === 'draft') {
+        /*
+         * Drafts are only visible to users who may write pages; a draft
+         * listing never leaks to anonymous visitors or viewers.
+         */
+        $user = current_user();
+
+        if ($user === null || !can((int) $user['id'], 'pages.write')) {
+            $status = 'published';
+        }
+    }
+
+    if ($status !== null) {
+        return $status;
+    }
+
+    /*
+     * No explicit status: users who may write pages get drafts alongside
+     * published ones; everyone else sees published only. Public surfaces
+     * (e.g. the home page) pass status=published explicitly so they stay
+     * public even for editors.
+     */
+    $user = current_user();
+
+    return $user !== null && can((int) $user['id'], 'pages.write') ? null : 'published';
 }
 
 function api_pages_get(string $method): never
@@ -538,6 +558,18 @@ function api_pages_get(string $method): never
     $page = fetch_page($id, $slug);
 
     if ($page === null || !can_view_page(current_user(), $page)) {
+        json_response(['error' => 'page not found'], 404);
+    }
+
+    /*
+     * Drafts are never public: only users who may edit the page (author,
+     * edit grant, or admin) can fetch one. Everyone else gets 404 so a
+     * draft slug cannot be read by guessing its URL.
+     */
+    $user = current_user();
+
+    if ($page['status'] === 'draft'
+        && ($user === null || !can_edit_page($user, (int) $page['id']))) {
         json_response(['error' => 'page not found'], 404);
     }
 

@@ -114,12 +114,22 @@ function ArticleCard({ article, locale }: { article: PageListItem; locale: strin
             ))}
           </div>
         )}
-        <Button asChild size="sm" variant="ghost" className="mt-auto self-start">
-          <Link to="/article/$slug" params={{ slug: article.slug }}>
-            {t('article.readMore')}
-            <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
-          </Link>
-        </Button>
+        <div className="mt-auto flex flex-wrap items-center gap-2 self-start">
+          <Button asChild size="sm" variant="ghost">
+            <Link to="/article/$slug" params={{ slug: article.slug }}>
+              {t('article.readMore')}
+              <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+            </Link>
+          </Button>
+          {article.can_edit && (
+            <Button asChild size="sm" variant="outline">
+              <Link to="/editor/$slug" params={{ slug: article.slug }}>
+                <FilePenLine />
+                {t('article.edit')}
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
     </article>
   )
@@ -127,7 +137,7 @@ function ArticleCard({ article, locale }: { article: PageListItem; locale: strin
 
 export function ArticleIndexPage({ tag }: { tag?: string }) {
   const { t, i18n } = useTranslation()
-  const { has } = useAuth()
+  const { has, user } = useAuth()
   const navigate = useNavigate()
 
   usePageTitle(tag ? `#${tag} — ${t('article.indexTitle')}` : t('article.indexTitle'))
@@ -135,13 +145,28 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
   const [query, setQuery] = useState('')
   const q = query.trim()
 
+  type StatusFilter = 'all' | 'published' | 'draft'
+  const [filter, setFilter] = useState<StatusFilter>('all')
+  const canSeeDrafts = has('pages.write')
+
+  const statusOptions: { value: StatusFilter; label: string }[] = [
+    { value: 'all', label: t('article.filterAll') },
+    { value: 'published', label: t('article.filterPublished') },
+    { value: 'draft', label: t('article.filterDraft') },
+  ]
+
   const list = useQuery({
-    queryKey: ['pages', { tag }],
-    queryFn: () => pagesApi.list({ per_page: 50, tag }),
+    queryKey: ['pages', { tag, filter, user: user?.id ?? null }],
+    queryFn: () =>
+      pagesApi.list({
+        per_page: 50,
+        tag,
+        ...(filter !== 'all' ? { status: filter } : {}),
+      }),
   })
 
   const search = useQuery({
-    queryKey: ['pages', 'search', q],
+    queryKey: ['pages', 'search', q, user?.id ?? null],
     queryFn: () => pagesApi.search(q),
     enabled: q.length >= 3,
   })
@@ -192,8 +217,33 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
         />
       </div>
 
+      {!searching && canSeeDrafts && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">
+            {t('article.visibilityField')}
+          </span>
+          {statusOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setFilter(option.value)}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                filter === option.value
+                  ? 'bg-accent text-accent-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {!searching && allTags.data !== undefined && allTags.data.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">
+            {t('article.tagField')}
+          </span>
           <button
             type="button"
             onClick={() => selectTag(undefined)}
