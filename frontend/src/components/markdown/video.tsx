@@ -15,6 +15,10 @@
  * markdown link tags them explicitly: `![clip](?module=asset&id=3&filetype=mp4)`.
  * The backend ignores the extra `filetype` param; the renderer uses it to
  * choose `<video>` over `<img>`.
+ *
+ * An `|autoplay` directive in the alt text enables autoplay on bilibili
+ * embeds: `![Bilibili|autoplay](https://www.bilibili.com/…)`. Without it
+ * the player URL carries `autoplay=0`, so the video never starts on its own.
  */
 
 import { cn } from '@/lib/utils'
@@ -133,13 +137,17 @@ export function VideoEmbed({
   const maxWidth = toCssSize(width)
   const maxHeight = toCssSize(height)
 
+  const parts = (alt ?? '').split('|')
+  const autoplay = parts.includes('autoplay')
+  const label = parts.filter((part) => part !== 'autoplay').join('|')
+
   if (video.kind === 'file') {
     return (
       <video
         controls
         preload="metadata"
         src={video.src}
-        title={alt}
+        title={label}
         className={cn('my-6 mx-auto block max-h-[75vh] w-full rounded-xl bg-black', className)}
         style={{
           ...(maxWidth !== undefined ? { maxWidth } : {}),
@@ -149,10 +157,15 @@ export function VideoEmbed({
     )
   }
 
+  const iframeSrc =
+    video.kind === 'bilibili'
+      ? `${video.src}&autoplay=${autoplay ? '1' : '0'}`
+      : video.src
+
   return (
     <iframe
-      src={video.src}
-      title={alt || 'Embedded video'}
+      src={iframeSrc}
+      title={label || 'Embedded video'}
       className={cn(EMBED_IFRAME_CLASS, className)}
       style={maxWidth !== undefined ? { maxWidth } : undefined}
       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
