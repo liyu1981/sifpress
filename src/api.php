@@ -1263,6 +1263,337 @@ function api_tags_list(string $method): never
 }
 
 /* ------------------------------------------------------------------ */
+/* Assets                                                             */
+/* ------------------------------------------------------------------ */
+
+function api_assets_list(string $method): never
+{
+    if ($method !== 'GET') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_auth();
+
+    $kind = request_param('kind');
+
+    if ($kind !== null && !in_array($kind, ['image', 'video'], true)) {
+        json_response(['error' => 'invalid kind'], 422);
+    }
+
+    $q = request_param('q');
+    $page = max(1, (int) request_param('page', '1'));
+    $perPage = min(100, max(1, (int) request_param('per_page', '20')));
+
+    $where = [];
+    $params = [];
+
+    if ($kind !== null) {
+        $where[] = 'a.kind = :kind';
+        $params['kind'] = $kind;
+    }
+
+    if ($q !== null && trim($q) !== '') {
+        $where[] = 'a.name LIKE :q';
+        $params['q'] = '%' . trim($q) . '%';
+    }
+
+    $whereSql = $where === [] ? '' : 'WHERE ' . implode(' AND ', $where);
+
+    $stmt = db()->prepare('SELECT COUNT(*) FROM assets a ' . $whereSql);
+    $stmt->execute($params);
+    $total = (int) $stmt->fetchColumn();
+
+    $sql = 'SELECT a.*, u.name AS uploaded_by_name
+              FROM assets a
+              LEFT JOIN users u ON u.id = a.uploaded_by
+              ' . $whereSql . '
+             ORDER BY a.created_at DESC, a.id DESC
+             LIMIT :limit OFFSET :offset';
+
+    $stmt = db()->prepare($sql);
+    foreach ($params as $k => $v) {
+        $stmt->bindValue($k, $v);
+    }
+    $stmt->bindValue('limit', $perPage, PDO::PARAM_INT);
+    $stmt->bindValue('offset', ($page - 1) * $perPage, PDO::PARAM_INT);
+    $stmt->execute();
+
+    $items = array_map('asset_payload', $stmt->fetchAll());
+
+    json_response([
+        'items' => $items,
+        'total' => $total,
+        'page' => $page,
+        'per_page' => $perPage,
+    ]);
+}
+
+function api_assets_get(string $method): never
+{
+    if ($method !== 'GET') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_auth();
+
+    $row = fetch_asset_meta((int) request_param('id', '0'));
+
+    if ($row === null) {
+        json_response(['error' => 'asset not found'], 404);
+    }
+
+    json_response(['asset' => asset_payload($row)]);
+}
+
+function api_assets_create(string $method): never
+{
+    if ($method !== 'POST') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_permission('assets.upload');
+
+    /*
+     * Reject oversized requests up front from the declared length when
+     * PHP has not already capped them (post_max_size truncates before
+     * any app code runs, so this is defense-in-depth for honest clients).
+     */
+    $declared = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+
+    if ($declared > 0 && $declared > asset_effective_cap('video') + 1024 * 1024) {
+        json_response([
+            'error' => 'file too large',
+            'max_bytes' => asset_effective_cap('video'),
+        ], 413);
+    }
+
+    if (!isset($_FILES['file']) || $_FILES['file']['error'] === UPLOAD_ERR_NO_FILE) {
+        json_response(['error' => 'file is required'], 422);
+    }
+
+    $file = $_FILES['file'];
+
+    if ($file['error'] === UPLOAD_ERR_INI_SIZE || $file['error'] === UPLOAD_ERR_FORM_SIZE) {
+        json_response([
+            'error' => 'file too large',
+            'max_bytes' => asset_php_upload_limit(),
+            'reason' => 'php_upload_limit',
+        ], 413);
+    }
+
+    if ($file['error'] !== UPLOAD_ERR_OK) {
+        json_response(['error' => 'upload failed'], 400);
+    }
+
+    $size = (int) filesize($file['tmp_name']);
+
+    /*
+     * MIME is sniffed from magic bytes, never trusted from the client.
+     * The client-declared type is only a tie-breaker when fileinfo is
+     * unavailable.
+     */
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = $finfo !== false ? (string) finfo_file($finfo, $file['tmp_name']) : '';
+    if ($finfo !== false) {
+        finfo_close($finfo);
+    }
+    if ($mime === '' || $mime === 'application/octet-stream') {
+        $mime = (string) ($file['type'] ?? '');
+    }
+
+    $kind = asset_kind_for_mime($mime);
+
+    if ($kind === null) {
+        json_response(['error' => 'unsupported file type', 'mime' => $mime], 415);
+    }
+
+    $cap = asset_effective_cap($kind);
+
+    if ($size > $cap) {
+        json_response(['error' => 'file too large', 'max_bytes' => $cap], 413);
+    }
+
+    $name = trim((string) ($_POST['name'] ?? $file['name'] ?? ''));
+    $name = (string) preg_replace('/[\x00-\x1F\/\\\\]/', '_', $name);
+    $name = trim($name);
+
+    if ($name === '') {
+        $name = 'asset';
+    }
+
+    if (strlen($name) > ASSET_MAX_NAME_BYTES) {
+        $name = substr($name, 0, ASSET_MAX_NAME_BYTES);
+    }
+
+    $width = isset($_POST['width']) && $_POST['width'] !== '' ? (int) $_POST['width'] : null;
+    $height = isset($_POST['height']) && $_POST['height'] !== '' ? (int) $_POST['height'] : null;
+    $duration = isset($_POST['duration']) && $_POST['duration'] !== '' ? (float) $_POST['duration'] : null;
+
+    if ($width !== null && $width <= 0) {
+        $width = null;
+    }
+    if ($height !== null && $height <= 0) {
+        $height = null;
+    }
+    if ($duration !== null && $duration <= 0) {
+        $duration = null;
+    }
+
+    /*
+     * Content-addressed dedupe: an identical file returns the existing
+     * row instead of inserting a duplicate.
+     */
+    $md5 = md5_file($file['tmp_name']);
+    $stmt = db()->prepare('SELECT id FROM assets WHERE md5 = ?');
+    $stmt->execute([$md5]);
+    $existingId = $stmt->fetchColumn();
+
+    if ($existingId !== false) {
+        json_response([
+            'asset' => asset_payload(fetch_asset_meta((int) $existingId)),
+            'duplicate' => true,
+        ], 200);
+    }
+
+    /*
+     * The optional thumbnail (generated client-side) is stored beside the
+     * original. It is tiny (<= ASSET_THUMB_MAX_BYTES), so buffering it is
+     * fine; the original is bound as a stream to keep PHP memory bounded.
+     */
+    $thumb = null;
+    $thumbMime = null;
+
+    if (isset($_FILES['thumb']) && $_FILES['thumb']['error'] === UPLOAD_ERR_OK) {
+        $thumbSize = (int) filesize($_FILES['thumb']['tmp_name']);
+
+        if ($thumbSize > 0 && $thumbSize <= ASSET_THUMB_MAX_BYTES) {
+            $thumb = file_get_contents($_FILES['thumb']['tmp_name']);
+            $thumbMime = (string) ($_FILES['thumb']['type'] ?? '');
+
+            if ($thumbMime === '' || !str_starts_with($thumbMime, 'image/')) {
+                $tfinfo = finfo_open(FILEINFO_MIME_TYPE);
+                if ($tfinfo !== false) {
+                    $thumbMime = (string) finfo_file($tfinfo, $_FILES['thumb']['tmp_name']);
+                    finfo_close($tfinfo);
+                }
+            }
+
+            if (!str_starts_with($thumbMime, 'image/')) {
+                $thumbMime = 'image/webp';
+            }
+        }
+    }
+
+    $user = current_user();
+
+    $stmt = db()->prepare(
+        'INSERT INTO assets (name, mime, kind, size_bytes, width, height, duration,
+                             md5, data, thumb, thumb_mime, uploaded_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    $stmt->bindValue(1, $name);
+    $stmt->bindValue(2, $mime);
+    $stmt->bindValue(3, $kind);
+    $stmt->bindValue(4, $size, PDO::PARAM_INT);
+    $stmt->bindValue(5, $width, PDO::PARAM_INT);
+    $stmt->bindValue(6, $height, PDO::PARAM_INT);
+    $stmt->bindValue(7, $duration);
+    $stmt->bindValue(8, $md5);
+    $stmt->bindValue(9, fopen($file['tmp_name'], 'rb'), PDO::PARAM_LOB);
+    $stmt->bindValue(10, $thumb, $thumb !== null ? PDO::PARAM_LOB : PDO::PARAM_NULL);
+    $stmt->bindValue(11, $thumbMime);
+    $stmt->bindValue(12, $user['id'], PDO::PARAM_INT);
+    $stmt->execute();
+
+    $id = (int) db()->lastInsertId();
+
+    json_response(['asset' => asset_payload(fetch_asset_meta($id))], 201);
+}
+
+function api_assets_update(string $method): never
+{
+    if ($method !== 'PATCH') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_auth();
+
+    $body = read_json_body();
+    $row = fetch_asset_meta((int) ($body['id'] ?? request_param('id', '0')));
+
+    if ($row === null) {
+        json_response(['error' => 'asset not found'], 404);
+    }
+
+    $user = current_user();
+
+    if (!is_admin($user) && (int) $row['uploaded_by'] !== (int) $user['id']) {
+        json_response(['error' => 'forbidden'], 403);
+    }
+
+    $sets = [];
+    $params = [];
+    $errors = [];
+
+    if (array_key_exists('name', $body)) {
+        $name = trim((string) $body['name']);
+
+        if ($name === '') {
+            $errors['name'] = ['required'];
+        } elseif (strlen($name) > ASSET_MAX_NAME_BYTES) {
+            $errors['name'] = ['must be at most ' . ASSET_MAX_NAME_BYTES . ' characters'];
+        } else {
+            $sets[] = 'name = :name';
+            $params['name'] = $name;
+        }
+    }
+
+    if (array_key_exists('is_public', $body)) {
+        $sets[] = 'is_public = :is_public';
+        $params['is_public'] = (int) (bool) $body['is_public'];
+    }
+
+    if ($errors !== []) {
+        json_response(['error' => 'validation failed', 'errors' => $errors], 422);
+    }
+
+    if ($sets !== []) {
+        $params['id'] = (int) $row['id'];
+        db()->prepare('UPDATE assets SET ' . implode(', ', $sets) . ' WHERE id = :id')
+            ->execute($params);
+    }
+
+    json_response(['asset' => asset_payload(fetch_asset_meta((int) $row['id']))]);
+}
+
+function api_assets_delete(string $method): never
+{
+    if ($method !== 'DELETE') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_auth();
+
+    $row = fetch_asset_meta((int) request_param('id', '0'));
+
+    if ($row === null) {
+        json_response(['error' => 'asset not found'], 404);
+    }
+
+    $user = current_user();
+
+    if (!is_admin($user)
+        && !can((int) $user['id'], 'assets.upload')
+        && (int) $row['uploaded_by'] !== (int) $user['id']) {
+        json_response(['error' => 'forbidden'], 403);
+    }
+
+    db()->prepare('DELETE FROM assets WHERE id = ?')->execute([(int) $row['id']]);
+
+    json_response(['ok' => true]);
+}
+
+/* ------------------------------------------------------------------ */
 /* Shared helpers                                                     */
 /* ------------------------------------------------------------------ */
 
@@ -1357,6 +1688,8 @@ function handle_api(string $action, string $method): never
                     'pages.revokeGrant',
                     'users.list', 'users.create', 'users.update', 'users.setRoles',
                     'roles.list', 'tags.list',
+                    'assets.list', 'assets.get', 'assets.create', 'assets.update',
+                    'assets.delete',
                 ],
             ]);
 
@@ -1419,6 +1752,21 @@ function handle_api(string $action, string $method): never
 
         case 'tags.list':
             api_tags_list($method);
+
+        case 'assets.list':
+            api_assets_list($method);
+
+        case 'assets.get':
+            api_assets_get($method);
+
+        case 'assets.create':
+            api_assets_create($method);
+
+        case 'assets.update':
+            api_assets_update($method);
+
+        case 'assets.delete':
+            api_assets_delete($method);
 
         default:
             json_response(['error' => 'Unknown API action'], 404);

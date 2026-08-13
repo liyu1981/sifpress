@@ -69,6 +69,51 @@ export async function apiRequest<T>(
   return moduleRequest<T>('api', action, options)
 }
 
+/**
+ * Perform a multipart upload against the backend. Unlike moduleRequest,
+ * the body is a FormData (no JSON Content-Type) so files stream through
+ * PHP's temp-file machinery.
+ */
+export async function uploadRequest<T>(
+  module: string,
+  action: string,
+  formData: FormData,
+): Promise<T> {
+  const response = await fetch(apiUrl(module, action), {
+    method: 'POST',
+    body: formData,
+  })
+
+  const data: unknown = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    throw new ApiError(
+      response.status,
+      (data ?? {}) as ApiErrorData,
+    )
+  }
+
+  return data as T
+}
+
+/**
+ * Absolute URL for an asset blob (or its thumbnail). Relative URLs in
+ * asset payloads are combined with the current mount path so the single
+ * file works at any depth.
+ */
+export function assetUrl(id: number, thumb = false): string {
+  const params = new URLSearchParams({ module: 'asset', id: String(id) })
+  if (thumb) {
+    params.set('thumb', '1')
+  }
+  return `${window.location.pathname}?${params.toString()}`
+}
+
+export function assetMarkdownLink(name: string, id: number, kind: string): string {
+  const url = assetUrl(id)
+  return kind === 'image' ? `![${name}](${url})` : `[${name}](${url})`
+}
+
 export async function migrationRequest<T>(
   action: string,
   options: RequestInitOptions = {},

@@ -18,6 +18,7 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import { MigrationScreen } from '@/components/migration-screen'
 import { ArticleDetailPage } from '@/pages/article-detail'
 import { ArticleIndexPage } from '@/pages/article-index'
+import { AssetsPage } from '@/pages/assets'
 import { ChangePasswordPage } from '@/pages/change-password'
 import { EditorPage } from '@/pages/editor'
 import { HomePage } from '@/pages/home'
@@ -75,6 +76,17 @@ function AppHeader() {
             {t('nav.article')}
           </Link>
         </Button>
+        {user !== null && (
+          <Button asChild variant="ghost" size="sm">
+            <Link
+              to="/assets"
+              activeOptions={{ exact: true }}
+              activeProps={{ className: activeClass }}
+            >
+              {t('nav.assets')}
+            </Link>
+          </Button>
+        )}
         {user !== null && (
           <Button asChild variant="ghost" size="sm">
             <Link
@@ -137,7 +149,7 @@ function RootLayout() {
     )
   }
 
-  const needsAuth = pathname === '/settings' || pathname.startsWith('/editor')
+  const needsAuth = pathname === '/settings' || pathname === '/assets' || pathname.startsWith('/editor')
   const isEditor = pathname.startsWith('/editor')
 
   let content: ReactNode
@@ -258,6 +270,12 @@ export const settingsRoute = createRoute({
   component: SettingsPage,
 })
 
+export const assetsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/assets',
+  component: AssetsPage,
+})
+
 export const notFoundRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '$',
@@ -272,6 +290,7 @@ const routeTree = rootRoute.addChildren([
   editorRoute,
   loginRoute,
   settingsRoute,
+  assetsRoute,
   notFoundRoute,
 ])
 

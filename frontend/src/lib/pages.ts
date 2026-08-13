@@ -1,4 +1,4 @@
-import { apiRequest, migrationRequest } from '@/lib/api'
+import { apiRequest, migrationRequest, uploadRequest } from '@/lib/api'
 
 export type PageStatus = 'draft' | 'published'
 
@@ -265,6 +265,73 @@ export interface TagCount {
 export const tagsApi = {
   list: () =>
     apiRequest<{ tags: TagCount[] }>('tags.list').then((r) => r.tags),
+}
+
+export type AssetKind = 'image' | 'video'
+
+export interface Asset {
+  id: number
+  name: string
+  mime: string
+  kind: AssetKind
+  size_bytes: number
+  width: number | null
+  height: number | null
+  duration: number | null
+  md5: string | null
+  has_thumb: boolean
+  is_public: boolean
+  uploaded_by: number | null
+  uploaded_by_name: string
+  created_at: string
+  url: string
+  thumb_url: string
+}
+
+export interface AssetListResult {
+  items: Asset[]
+  total: number
+  page: number
+  per_page: number
+}
+
+export interface AssetCreateResult {
+  asset: Asset
+  duplicate?: boolean
+}
+
+export const assetsApi = {
+  list: (
+    params: { kind?: AssetKind; page?: number; per_page?: number; q?: string } = {},
+  ) =>
+    apiRequest<AssetListResult>('assets.list', {
+      params: {
+        ...(params.kind ? { kind: params.kind } : {}),
+        ...(params.page ? { page: String(params.page) } : {}),
+        ...(params.per_page ? { per_page: String(params.per_page) } : {}),
+        ...(params.q ? { q: params.q } : {}),
+      },
+    }),
+
+  get: (id: number) =>
+    apiRequest<{ asset: Asset }>('assets.get', {
+      params: { id: String(id) },
+    }).then((r) => r.asset),
+
+  create: (formData: FormData) =>
+    uploadRequest<AssetCreateResult>('api', 'assets.create', formData),
+
+  update: (id: number, input: { name?: string; is_public?: boolean }) =>
+    apiRequest<{ asset: Asset }>('assets.update', {
+      method: 'PATCH',
+      body: { id, ...input },
+    }).then((r) => r.asset),
+
+  remove: (id: number) =>
+    apiRequest<{ ok: true }>('assets.delete', {
+      method: 'DELETE',
+      params: { id: String(id) },
+    }),
 }
 
 export const migrationApi = {

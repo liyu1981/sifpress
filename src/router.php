@@ -22,6 +22,10 @@ if ($module === 'migration') {
     handle_migration((string) request_param('action', 'status'), $method);
 }
 
+if ($module === 'asset') {
+    handle_asset($method);
+}
+
 // ___BEGIN_DEV_ROUTE___
 if ($module === 'dev') {
     handle_dev((string) request_param('action', 'status'), $method);

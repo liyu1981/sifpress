@@ -69,6 +69,7 @@ $parts = [
     'migration.php',
     'auth.php',
     'api.php',
+    'asset.php',
     'spa.php',
     'embed.php',
     'migrations.php',

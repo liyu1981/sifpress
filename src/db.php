@@ -138,11 +138,21 @@ function db_migrate(): array
 function seed_rbac(): void
 {
     $pdo = db();
-    $permissions = ['pages.read', 'pages.write', 'pages.delete', 'users.manage', 'roles.manage'];
+    $permissions = [
+        'pages.read',
+        'pages.write',
+        'pages.delete',
+        'users.manage',
+        'roles.manage',
+        'assets.upload',
+    ];
 
     $roles = [
         'admin'  => ['name' => 'Admin',  'permissions' => null],
-        'editor' => ['name' => 'Editor', 'permissions' => ['pages.read', 'pages.write', 'pages.delete']],
+        'editor' => [
+            'name' => 'Editor',
+            'permissions' => ['pages.read', 'pages.write', 'pages.delete', 'assets.upload'],
+        ],
         'viewer' => ['name' => 'Viewer', 'permissions' => ['pages.read']],
     ];
 
