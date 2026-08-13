@@ -115,7 +115,11 @@ function escapeMarkdownText(name: string): string {
 
 export function assetMarkdownLink(name: string, id: number, kind: string): string {
   const url = assetUrl(id)
-  return kind === 'image' ? `![${escapeMarkdownText(name)}](${url})` : `[${escapeMarkdownText(name)}](${url})`
+  if (kind === 'video') {
+    const ext = /\.([a-z0-9]{2,5})$/i.exec(name)?.[1]?.toLowerCase() ?? 'mp4'
+    return `![${escapeMarkdownText(name)}](${url}&filetype=${ext})`
+  }
+  return `![${escapeMarkdownText(name)}](${url})`
 }
 
 /**

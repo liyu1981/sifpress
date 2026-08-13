@@ -15,6 +15,7 @@ import { parseFrontMatter } from '@/lib/front-matter'
 import 'katex/dist/katex.min.css'
 
 import { Mermaid } from './mermaid'
+import { VideoEmbed, isVideoSource } from './video'
 import { Check, Copy } from 'lucide-react'
 
 /**
@@ -125,9 +126,23 @@ function extractText(node: ReactNode): string {
 }
 
 function ImageComponent(props: React.ComponentProps<'img'> & ExtraProps) {
+  const src = props.src
+
+  if (typeof src === 'string' && isVideoSource(src)) {
+    return (
+      <VideoEmbed
+        src={src}
+        alt={props.alt}
+        width={props.width}
+        height={props.height}
+        className={props.className}
+      />
+    )
+  }
+
   return (
     <img
-      src={props.src}
+      src={src}
       alt={props.alt ?? ''}
       width={props.width}
       height={props.height}
