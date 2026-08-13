@@ -7,6 +7,8 @@ export interface AuthUser {
   username: string
   email: string | null
   name: string
+  has_avatar: boolean
+  avatar_url: string
   must_change_password: boolean
   created_at: string
   updated_at: string
@@ -149,6 +151,18 @@ export const authApi = {
       method: 'POST',
       body: { new_password, ...(current_password ? { current_password } : {}) },
     }),
+
+  profile: (input: { name?: string; email?: string | null }) =>
+    apiRequest<{ user: AuthUser }>('auth.profile', {
+      method: 'PATCH',
+      body: input,
+    }).then((r) => r.user),
+
+  avatar: (formData: FormData) =>
+    uploadRequest<{ user: AuthUser }>('api', 'auth.avatar', formData).then((r) => r.user),
+
+  removeAvatar: () =>
+    apiRequest<{ user: AuthUser }>('auth.avatar', { method: 'DELETE' }).then((r) => r.user),
 }
 
 export const pagesApi = {

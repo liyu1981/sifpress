@@ -21,6 +21,7 @@ const ASSET_MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 const ASSET_MAX_VIDEO_BYTES = 200 * 1024 * 1024;
 const ASSET_THUMB_MAX_BYTES = 512 * 1024;
 const ASSET_MAX_NAME_BYTES = 255;
+const ASSET_MAX_AVATAR_BYTES = 1024 * 1024;
 
 /**
  * SQLITE_MAX_LENGTH compile-time default (1 GiB). It is not queryable
@@ -152,6 +153,84 @@ function asset_payload(array $row): array
 }
 
 /* ------------------------------------------------------------------ */
+/* Avatars                                                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Deterministic generated avatar: a circular SVG with the first letter of
+ * the display name (falling back to the email) on a hue derived from the
+ * email. Pure text with the initial html-escaped, so it is safe to serve
+ * inline and requires zero PHP image footprint (no GD/Imagick).
+ */
+function user_avatar_svg(string $name, string $email): string
+{
+    $seed = strtolower(trim($email !== '' ? $email : $name));
+    $hue = ((crc32($seed) % 360) + 360) % 360;
+    $bg = sprintf('hsl(%d 62%% 45%%)', $hue);
+
+    $initial = $name !== '' ? mb_substr(trim($name), 0, 1) : '';
+
+    if ($initial === '' && $email !== '') {
+        $initial = mb_substr(trim($email), 0, 1);
+    }
+
+    if ($initial === '') {
+        $initial = '?';
+    }
+
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">'
+        . '<rect width="128" height="128" rx="64" fill="' . $bg . '"/>'
+        . '<text x="64" y="64" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="56" fill="#ffffff" text-anchor="middle" dominant-baseline="central">'
+        . htmlspecialchars(mb_strtoupper($initial), ENT_XML1 | ENT_QUOTES, 'UTF-8')
+        . '</text></svg>';
+}
+
+/**
+ * Data URI for the generated avatar, embedded directly in user payloads
+ * so clients never need an extra request when no avatar is stored.
+ */
+function generated_avatar_data_uri(string $name, string $email): string
+{
+    return 'data:image/svg+xml;base64,' . base64_encode(user_avatar_svg($name, $email));
+}
+
+/**
+ * Stream a user's avatar: the stored image blob when one exists, otherwise
+ * the generated SVG. Public (avatars appear in articles) and immutable per
+ * user, so it is cacheable.
+ */
+function serve_user_avatar(int $userId): never
+{
+    $stmt = db()->prepare(
+        'SELECT name, email, avatar, avatar_mime FROM users WHERE id = ? AND is_active = 1'
+    );
+    $stmt->execute([$userId]);
+    $row = $stmt->fetch();
+
+    if ($row === false) {
+        json_response(['error' => 'user not found'], 404);
+    }
+
+    header('Cache-Control: private, max-age=3600');
+    header('X-Content-Type-Options: nosniff');
+
+    if ($row['avatar'] !== null) {
+        $mime = $row['avatar_mime'] !== '' && $row['avatar_mime'] !== null
+            ? (string) $row['avatar_mime']
+            : 'image/png';
+
+        header('Content-Type: ' . $mime);
+        header('Content-Length: ' . strlen($row['avatar']));
+        echo $row['avatar'];
+        exit;
+    }
+
+    header('Content-Type: image/svg+xml');
+    echo user_avatar_svg((string) $row['name'], (string) $row['email']);
+    exit;
+}
+
+/* ------------------------------------------------------------------ */
 /* Serving                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -163,6 +242,12 @@ function handle_asset(string $method): never
 
     if (db_needs_migration()) {
         json_response(['error' => 'migration_required'], 503);
+    }
+
+    $userId = request_param('user');
+
+    if ($userId !== null) {
+        serve_user_avatar((int) $userId);
     }
 
     $id = (int) request_param('id', '0');

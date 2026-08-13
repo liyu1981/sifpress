@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
@@ -7,12 +7,14 @@ import {
   Loader2,
   Save,
   ShieldCheck,
+  Upload,
   UserPlus,
   UserRound,
 } from 'lucide-react'
-import type { FormEvent } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 
 import { ApiError } from '@/lib/api'
+import { makeAvatarThumb } from '@/lib/assets'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -27,9 +29,196 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/lib/auth'
-import { rolesApi, usersApi, type RoleListItem, type UserListItem } from '@/lib/pages'
+import {
+  authApi,
+  rolesApi,
+  usersApi,
+  type RoleListItem,
+  type UserListItem,
+} from '@/lib/pages'
 import { cn } from '@/lib/utils'
 import { usePageTitle } from '@/hooks/use-page-title'
+
+function ProfileCard() {
+  const { t } = useTranslation()
+  const { user, refresh } = useAuth()
+
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState(false)
+  const [avatarBusy, setAvatarBusy] = useState(false)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (user !== null) {
+      setName(user.name)
+      setEmail(user.email ?? '')
+    }
+  }, [user?.name, user?.email, user?.id])
+
+  const save = useMutation({
+    mutationFn: () =>
+      authApi.profile({
+        name: name.trim(),
+        email: email.trim() === '' ? null : email.trim(),
+      }),
+    onSuccess: () => {
+      setError(null)
+      setDone(true)
+      refresh()
+    },
+    onError: (err) => {
+      setDone(false)
+      setError(
+        err instanceof ApiError
+          ? (err.data.error ?? t('settings.profileError'))
+          : t('settings.profileError'),
+      )
+    },
+  })
+
+  async function handleAvatarChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (file === undefined) {
+      return
+    }
+
+    setAvatarBusy(true)
+    setError(null)
+    setDone(false)
+
+    try {
+      const blob = await makeAvatarThumb(file)
+      if (blob === null) {
+        throw new Error('thumbnail failed')
+      }
+      const formData = new FormData()
+      formData.append('avatar', blob, 'avatar.webp')
+      await authApi.avatar(formData)
+      setDone(true)
+      refresh()
+    } catch {
+      setError(t('settings.avatarError'))
+    } finally {
+      setAvatarBusy(false)
+    }
+  }
+
+  async function handleRemoveAvatar() {
+    setAvatarBusy(true)
+    setError(null)
+    setDone(false)
+
+    try {
+      await authApi.removeAvatar()
+      setDone(true)
+      refresh()
+    } catch {
+      setError(t('settings.avatarError'))
+    } finally {
+      setAvatarBusy(false)
+    }
+  }
+
+  if (user === null) {
+    return null
+  }
+
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardAction>
+          <UserRound className="size-5 text-muted-foreground" />
+        </CardAction>
+        <CardTitle>{t('settings.editProfileTitle')}</CardTitle>
+        <CardDescription>{user.username}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center gap-4">
+          <img
+            src={user.avatar_url}
+            alt=""
+            className="size-16 shrink-0 rounded-full bg-muted object-cover"
+          />
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarChange}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={avatarBusy}
+                onClick={() => avatarInputRef.current?.click()}
+              >
+                {avatarBusy ? <Loader2 className="animate-spin" /> : <Upload />}
+                {t('settings.profileUploadAvatar')}
+              </Button>
+              {user.has_avatar && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={avatarBusy}
+                  onClick={handleRemoveAvatar}
+                >
+                  {t('settings.profileRemoveAvatar')}
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">{t('settings.profileAvatarHint')}</p>
+          </div>
+        </div>
+
+        <form
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault()
+            save.mutate()
+          }}
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="profile-name">{t('settings.profileName')}</Label>
+              <Input
+                id="profile-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="profile-email">{t('settings.profileEmail')}</Label>
+              <Input
+                id="profile-email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
+              />
+              <p className="text-xs text-muted-foreground">{t('settings.profileEmailHint')}</p>
+            </div>
+          </div>
+
+          {error !== null && <p className="text-sm text-destructive">{error}</p>}
+          {done && <p className="text-sm text-emerald-600">{t('settings.profileSaved')}</p>}
+
+          <Button type="submit" disabled={save.isPending}>
+            {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
+            {t('settings.profileSave')}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
 
 function ChangePasswordForm() {
   const { t } = useTranslation()
@@ -544,6 +733,8 @@ export function SettingsPage() {
               </CardContent>
             </Card>
           )}
+
+          <ProfileCard />
 
           <ChangePasswordForm />
         </TabsContent>

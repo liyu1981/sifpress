@@ -320,7 +320,14 @@ function api_auth_login(string $method): never
         json_response(['error' => 'username and password are required'], 422);
     }
 
-    $stmt = db()->prepare('SELECT * FROM users WHERE username = :u AND is_active = 1');
+    /*
+     * Username or email both sign in; the address can be used as the
+     * login credential. Collisions between the two namespaces are
+     * prevented at create/update time.
+     */
+    $stmt = db()->prepare(
+        'SELECT * FROM users WHERE (username = :u OR email = :u) AND is_active = 1'
+    );
     $stmt->execute(['u' => $username]);
     $row = $stmt->fetch();
 
@@ -392,6 +399,135 @@ function api_auth_change_password(string $method): never
     $stmt->execute([password_hash($newPassword, PASSWORD_DEFAULT), $user['id']]);
 
     json_response(['ok' => true]);
+}
+
+/**
+ * Self-service profile edit: display name and/or email. Only the current
+ * user's own row; email may be cleared (null) and doubles as a login
+ * credential, so collisions against other usernames/emails are rejected.
+ */
+function api_auth_profile(string $method): never
+{
+    if ($method !== 'PATCH') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $user = require_auth();
+    $body = read_json_body();
+
+    $sets = [];
+    $params = [];
+    $errors = [];
+
+    if (array_key_exists('name', $body)) {
+        $name = trim((string) $body['name']);
+
+        if ($name === '') {
+            $errors['name'] = ['required'];
+        } elseif (mb_strlen($name) > 100) {
+            $errors['name'] = ['must be at most 100 characters'];
+        } else {
+            $sets[] = 'name = :name';
+            $params['name'] = $name;
+        }
+    }
+
+    if (array_key_exists('email', $body)) {
+        $email = $body['email'] === '' || $body['email'] === null
+            ? null
+            : trim((string) $body['email']);
+
+        if ($email !== null && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors['email'] = ['invalid email'];
+        } elseif ($email !== $user['email'] && email_in_use($email, (int) $user['id'])) {
+            $errors['email'] = ['already in use'];
+        } elseif ($email !== $user['email']) {
+            $sets[] = 'email = :email';
+            $params['email'] = $email;
+        }
+    }
+
+    if ($errors !== []) {
+        json_response(['error' => 'validation failed', 'errors' => $errors], 422);
+    }
+
+    if ($sets !== []) {
+        $sets[] = 'updated_at = datetime(\'now\')';
+        $params['id'] = $user['id'];
+        db()->prepare('UPDATE users SET ' . implode(', ', $sets) . ' WHERE id = :id')
+            ->execute($params);
+    }
+
+    json_response(['user' => user_payload((int) $user['id'])]);
+}
+
+/**
+ * Avatar management for the current user.
+ *
+ *   POST   multipart ?module=api&action=auth.avatar  (field: avatar)
+ *   DELETE ?module=api&action=auth.avatar            clears the avatar
+ *
+ * The image is validated by magic bytes (raster images only; SVG is
+ * rejected) and capped at ASSET_MAX_AVATAR_BYTES. Clients downscale to a
+ * small square before upload, so blobs stay tiny.
+ */
+function api_auth_avatar(string $method): never
+{
+    $user = require_auth();
+
+    if ($method === 'DELETE') {
+        db()->prepare(
+            'UPDATE users SET avatar = NULL, avatar_mime = NULL, updated_at = datetime(\'now\')
+              WHERE id = ?'
+        )->execute([$user['id']]);
+
+        json_response(['user' => user_payload((int) $user['id'])]);
+    }
+
+    if ($method !== 'POST') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    if (!isset($_FILES['avatar']) || $_FILES['avatar']['error'] === UPLOAD_ERR_NO_FILE) {
+        json_response(['error' => 'avatar is required'], 422);
+    }
+
+    $file = $_FILES['avatar'];
+
+    if ($file['error'] === UPLOAD_ERR_INI_SIZE || $file['error'] === UPLOAD_ERR_FORM_SIZE) {
+        json_response(['error' => 'avatar too large'], 413);
+    }
+
+    if ($file['error'] !== UPLOAD_ERR_OK) {
+        json_response(['error' => 'upload failed'], 400);
+    }
+
+    if ((int) filesize($file['tmp_name']) > ASSET_MAX_AVATAR_BYTES) {
+        json_response([
+            'error' => 'avatar too large',
+            'max_bytes' => ASSET_MAX_AVATAR_BYTES,
+        ], 413);
+    }
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = $finfo !== false ? (string) finfo_file($finfo, $file['tmp_name']) : '';
+    if ($finfo !== false) {
+        finfo_close($finfo);
+    }
+
+    if (!str_starts_with($mime, 'image/') || $mime === 'image/svg+xml') {
+        json_response(['error' => 'unsupported image type'], 415);
+    }
+
+    $stmt = db()->prepare(
+        'UPDATE users SET avatar = ?, avatar_mime = ?, updated_at = datetime(\'now\') WHERE id = ?'
+    );
+    $stmt->bindValue(1, file_get_contents($file['tmp_name']), PDO::PARAM_LOB);
+    $stmt->bindValue(2, $mime);
+    $stmt->bindValue(3, $user['id'], PDO::PARAM_INT);
+    $stmt->execute();
+
+    json_response(['user' => user_payload((int) $user['id'])]);
 }
 
 function api_system_status(string $method): never
@@ -1091,6 +1227,14 @@ function api_users_create(string $method): never
         $errors['email'] = ['invalid email'];
     }
 
+    if ($username !== '_guest_' && username_in_use_as_email($username, 0)) {
+        $errors['username'] = ['already used as an email'];
+    }
+
+    if ($email !== null && email_in_use($email, 0)) {
+        $errors['email'] = ['already in use'];
+    }
+
     $passwordErrors = validate_password($password);
     if ($passwordErrors !== []) {
         $errors['password'] = $passwordErrors;
@@ -1164,15 +1308,11 @@ function api_users_update(string $method): never
 
         if ($email !== null && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $errors['email'] = ['invalid email'];
+        } elseif (email_in_use($email, $id)) {
+            $errors['email'] = ['already in use'];
         } else {
-            $stmt = db()->prepare('SELECT 1 FROM users WHERE email = ? AND id <> ?');
-            $stmt->execute([$email, $id]);
-            if ($stmt->fetch() !== false) {
-                $errors['email'] = ['already exists'];
-            } else {
-                $sets[] = 'email = :email';
-                $params['email'] = $email;
-            }
+            $sets[] = 'email = :email';
+            $params['email'] = $email;
         }
     }
 
@@ -1635,6 +1775,37 @@ function api_assets_delete(string $method): never
 /* ------------------------------------------------------------------ */
 
 /**
+ * Whether the given email (or null) collides with another user's username
+ * or email. Email doubles as a login credential, so both namespaces must
+ * stay disjoint to keep sign-in unambiguous.
+ */
+function email_in_use(?string $email, int $exceptId): bool
+{
+    if ($email === null || trim($email) === '') {
+        return false;
+    }
+
+    $stmt = db()->prepare(
+        'SELECT 1 FROM users WHERE (username = :e OR email = :e) AND id <> :id'
+    );
+    $stmt->execute(['e' => trim($email), 'id' => $exceptId]);
+
+    return $stmt->fetch() !== false;
+}
+
+/**
+ * Whether the given username is taken as another user's email (the
+ * username/email namespaces must not overlap).
+ */
+function username_in_use_as_email(string $username, int $exceptId): bool
+{
+    $stmt = db()->prepare('SELECT 1 FROM users WHERE email = :u AND id <> :id');
+    $stmt->execute(['u' => $username, 'id' => $exceptId]);
+
+    return $stmt->fetch() !== false;
+}
+
+/**
  * Number of existing roles among the given ids (used to validate role_ids).
  */
 function countRoleIds(array $roleIds): int
@@ -1719,6 +1890,7 @@ function handle_api(string $action, string $method): never
                 'api' => true,
                 'actions' => [
                     'auth.login', 'auth.logout', 'auth.me', 'auth.changePassword',
+                    'auth.profile', 'auth.avatar',
                     'system.status',
                     'pages.list', 'pages.get', 'pages.create', 'pages.update',
                     'pages.delete', 'pages.search', 'pages.grants', 'pages.grant',
@@ -1741,6 +1913,12 @@ function handle_api(string $action, string $method): never
 
         case 'auth.changePassword':
             api_auth_change_password($method);
+
+        case 'auth.profile':
+            api_auth_profile($method);
+
+        case 'auth.avatar':
+            api_auth_avatar($method);
 
         case 'system.status':
             api_system_status($method);

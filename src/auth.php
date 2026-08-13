@@ -305,13 +305,14 @@ function require_page_edit(array $page): void
 }
 
 /**
- * Public user payload: identity fields, roles, and permission codes.
- * Never includes the password hash.
+ * Public user payload: identity fields, avatar, roles, and permission
+ * codes. Never includes the password hash or the avatar blob.
  */
 function user_payload(int $userId): array
 {
     $stmt = db()->prepare(
-        'SELECT id, username, email, name, must_change_password, created_at, updated_at
+        'SELECT id, username, email, name, must_change_password,
+                avatar IS NOT NULL AS has_avatar, created_at, updated_at
            FROM users WHERE id = ?'
     );
     $stmt->execute([$userId]);
@@ -320,6 +321,11 @@ function user_payload(int $userId): array
     if ($row === false) {
         json_response(['error' => 'user not found'], 404);
     }
+
+    $row['has_avatar'] = (bool) (int) $row['has_avatar'];
+    $row['avatar_url'] = $row['has_avatar']
+        ? '?module=asset&user=' . $userId
+        : generated_avatar_data_uri((string) $row['name'], (string) $row['email']);
 
     $row['roles'] = user_roles_codes($userId);
     $row['permissions'] = user_permission_codes($userId);

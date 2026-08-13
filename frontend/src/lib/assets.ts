@@ -72,6 +72,38 @@ export async function makeImageThumb(file: File): Promise<ImageThumbResult> {
   return { thumb, width, height }
 }
 
+/**
+ * Center-crop an image to a small square avatar and export it as WebP.
+ * Returns null when the image cannot be decoded or canvas is unavailable.
+ */
+export async function makeAvatarThumb(file: File): Promise<Blob | null> {
+  const img = await loadImage(file)
+  const size = Math.min(img.naturalWidth, img.naturalHeight)
+
+  if (size <= 0) {
+    return null
+  }
+
+  const out = 256
+  const canvas = document.createElement('canvas')
+  canvas.width = out
+  canvas.height = out
+
+  const ctx = canvas.getContext('2d')
+
+  if (ctx === null) {
+    return null
+  }
+
+  const sx = (img.naturalWidth - size) / 2
+  const sy = (img.naturalHeight - size) / 2
+  ctx.drawImage(img, sx, sy, size, size, 0, 0, out, out)
+
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), 'image/webp', 0.85)
+  })
+}
+
 export interface VideoThumbResult {
   thumb: Blob | null
   width: number

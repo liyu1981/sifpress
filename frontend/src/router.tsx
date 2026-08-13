@@ -103,6 +103,11 @@ function AppHeader() {
         <ThemeToggle />
         {user !== null ? (
           <>
+            <img
+              src={user.avatar_url}
+              alt=""
+              className="size-7 shrink-0 rounded-full bg-muted object-cover"
+            />
             <span className="hidden max-w-32 truncate px-2 text-sm text-muted-foreground sm:inline">
               {user.name || user.username}
             </span>
