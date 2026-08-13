@@ -57,8 +57,8 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
 
   const items = prevNext.data?.items ?? []
   const index = article.data ? items.findIndex((a) => a.slug === article.data?.slug) : -1
-  const prev = index > 0 ? items[index - 1] : null
-  const next = index >= 0 && index < items.length - 1 ? items[index + 1] : null
+  const newer = index > 0 ? items[index - 1] : null
+  const older = index >= 0 && index < items.length - 1 ? items[index + 1] : null
 
   if (article.isLoading || article.data === undefined) {
     return (
@@ -174,33 +174,33 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
       </div>
 
       <nav className="mt-8 grid gap-4 sm:grid-cols-2">
-        {prev ? (
+        {newer ? (
           <Link
             to="/article/$slug"
-            params={{ slug: prev.slug }}
+            params={{ slug: newer.slug }}
             className="glass-control group flex flex-col gap-1 rounded-2xl p-5 transition-shadow hover:shadow-lg"
           >
             <span className="text-xs text-muted-foreground">
-              {t('article.prev')}
+              {t('article.newer')}
             </span>
             <span className="font-medium group-hover:text-muted-foreground">
-              {prev.title}
+              {newer.title}
             </span>
           </Link>
         ) : (
           <div />
         )}
-        {next ? (
+        {older ? (
           <Link
             to="/article/$slug"
-            params={{ slug: next.slug }}
+            params={{ slug: older.slug }}
             className="glass-control group flex flex-col items-end gap-1 rounded-2xl p-5 text-right transition-shadow hover:shadow-lg"
           >
             <span className="text-xs text-muted-foreground">
-              {t('article.next')}
+              {t('article.older')}
             </span>
             <span className="font-medium group-hover:text-muted-foreground">
-              {next.title}
+              {older.title}
             </span>
           </Link>
         ) : null}
