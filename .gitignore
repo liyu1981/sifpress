@@ -72,3 +72,6 @@ frontend/dist/
 
 # Node
 frontend/node_modules/
+
+# Local code intelligence index
+.codegraph/
