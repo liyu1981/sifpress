@@ -21,36 +21,146 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Markdown } from '@/components/markdown/markdown'
+import { parseFrontMatter } from '@/lib/front-matter'
 import { useAuth } from '@/lib/auth'
-import { pagesApi, type PageStatus } from '@/lib/pages'
+import { pagesApi, type Grant } from '@/lib/pages'
 import { usePageTitle } from '@/hooks/use-page-title'
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
-interface FormState {
+interface ParsedMeta {
   slug: string
   title: string
-  status: PageStatus
+  date: string
   content_md: string
-  created_at: string
-  updated_at: string
 }
 
-const emptyForm: FormState = {
-  slug: '',
-  title: '',
-  status: 'draft',
-  content_md: '',
-  created_at: '',
-  updated_at: '',
+function parseMeta(
+  markdown: string,
+  t: (key: string) => string,
+): { meta: ParsedMeta | null; errors: Record<string, string> } {
+  const fm = parseFrontMatter(markdown)
+  const errors: Record<string, string> = {}
+
+  const title = typeof fm.data.title === 'string' ? fm.data.title.trim() : ''
+  const slug = typeof fm.data.slug === 'string' ? fm.data.slug.trim() : ''
+  const date = typeof fm.data.date === 'string' ? fm.data.date.trim() : ''
+
+  if (title === '') {
+    errors.title = t('editor.metaTitleRequired')
+  }
+
+  if (slug === '') {
+    errors.slug = t('editor.metaSlugRequired')
+  } else if (!SLUG_RE.test(slug)) {
+    errors.slug = t('editor.slugInvalid')
+  }
+
+  if (date !== '' && !DATE_RE.test(date)) {
+    errors.date = t('editor.metaDateInvalid')
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return { meta: null, errors }
+  }
+
+  return {
+    meta: {
+      slug,
+      title,
+      date,
+      content_md: markdown,
+    },
+    errors: {},
+  }
 }
 
-function toLocalInput(dbTime: string): string {
-  return dbTime ? dbTime.slice(0, 16).replace(' ', 'T') : ''
+function errorMessages(error: ApiError | null): string[] {
+  if (error === null) {
+    return []
+  }
+
+  const messages = Object.values(error.data.errors ?? {}).flat()
+
+  return messages.length > 0 ? messages : error.data.error ? [error.data.error] : []
 }
 
-function toDbTime(local: string): string {
-  return local ? `${local.replace('T', ' ')}:00` : ''
+/**
+ * One row of the access list: username, a changeable edit/view selector
+ * (granted rows only), and a note. A Save button appears on the right
+ * once the selected permission differs from the stored one.
+ */
+function GrantRow({
+  grant,
+  onSave,
+  onRevoke,
+  saving,
+}: {
+  grant: Grant
+  onSave: (permission: 'edit' | 'view') => void
+  onRevoke: () => void
+  saving: boolean
+}) {
+  const { t } = useTranslation()
+  const [permission, setPermission] = useState<'edit' | 'view'>(grant.permission)
+
+  useEffect(() => {
+    setPermission(grant.permission)
+  }, [grant.permission])
+
+  const isFixed = grant.kind !== 'grant'
+  const changed = !isFixed && permission !== grant.permission
+
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm">
+      <span className="flex min-w-0 flex-wrap items-center gap-2">
+        <span className="truncate font-medium">{grant.username}</span>
+        {isFixed ? (
+          <span className="text-xs text-muted-foreground">
+            {t('editor.permissionEdit')}
+          </span>
+        ) : (
+          <select
+            value={permission}
+            onChange={(event) =>
+              setPermission(event.target.value as 'edit' | 'view')
+            }
+            aria-label={t('editor.grantPermissionField')}
+            className="h-7 rounded-md border border-input bg-transparent px-1.5 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            <option value="edit">{t('editor.permissionEdit')}</option>
+            <option value="view">{t('editor.permissionView')}</option>
+          </select>
+        )}
+        {grant.kind === 'owner' && (
+          <Badge variant="secondary">{t('editor.grantRoleOwner')}</Badge>
+        )}
+        {grant.kind === 'admin' && (
+          <Badge variant="secondary">{t('editor.grantRoleAdmin')}</Badge>
+        )}
+        {grant.kind === 'grant' &&
+          grant.granted_by_name !== null &&
+          grant.granted_by_name !== '' && (
+            <span className="text-xs text-muted-foreground">
+              {t('editor.grantBy', { name: grant.granted_by_name })}
+            </span>
+          )}
+      </span>
+      <span className="flex items-center gap-1.5">
+        {changed && (
+          <Button type="button" size="xs" onClick={() => onSave(permission)} disabled={saving}>
+            {t('editor.save')}
+          </Button>
+        )}
+        {!isFixed && (
+          <Button type="button" variant="ghost" size="xs" onClick={onRevoke} disabled={saving}>
+            {t('editor.grantRevoke')}
+          </Button>
+        )}
+      </span>
+    </li>
+  )
 }
 
 function EditorSkeleton() {
@@ -59,18 +169,10 @@ function EditorSkeleton() {
       <div className="space-y-4 p-8">
         <div className="h-3 w-1/4 rounded bg-muted" />
         <div className="h-8 w-2/3 rounded bg-muted" />
-        <div className="h-3 w-1/3 rounded bg-muted" />
         <div className="h-40 w-full rounded bg-muted" />
       </div>
     </div>
   )
-}
-
-function fieldError(
-  error: ApiError | null,
-  field: string,
-): string | undefined {
-  return error?.data.errors?.[field]?.[0]
 }
 
 export function EditorPage({ slug }: { slug: string | null }) {
@@ -88,11 +190,13 @@ export function EditorPage({ slug }: { slug: string | null }) {
     enabled: editing,
   })
 
-  const [form, setForm] = useState<FormState>(emptyForm)
+  const [content, setContent] = useState('')
+  const [published, setPublished] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [saveError, setSaveError] = useState<ApiError | null>(null)
   const [accessOpen, setAccessOpen] = useState(false)
   const [grantUsername, setGrantUsername] = useState('')
+  const [grantPermission, setGrantPermission] = useState<'edit' | 'view'>('edit')
   const [grantError, setGrantError] = useState<ApiError | null>(null)
 
   useEffect(() => {
@@ -103,42 +207,27 @@ export function EditorPage({ slug }: { slug: string | null }) {
     const page = pageQuery.data
 
     if (page !== null) {
-      setForm({
-        slug: page.slug,
-        title: page.title,
-        status: page.status,
-        content_md: page.content_md,
-        created_at: toLocalInput(page.created_at),
-        updated_at: '',
-      })
+      setContent(page.content_md)
+      setPublished(page.status === 'published')
     }
 
     setLoaded(true)
   }, [editing, loaded, pageQuery.data])
 
   const save = useMutation({
-    mutationFn: async (state: FormState) => {
-      const timestamps = {
-        created_at: toDbTime(state.created_at),
-        updated_at: toDbTime(state.updated_at),
+    mutationFn: async (meta: ParsedMeta & { status: 'published' | 'draft' }) => {
+      const base = {
+        slug: meta.slug,
+        title: meta.title,
+        status: meta.status,
+        content_md: meta.content_md,
+        created_at: meta.date !== '' ? `${meta.date} 00:00:00` : '',
+        updated_at: '',
       }
 
       return editing
-        ? pagesApi.update({
-            id: pageQuery.data!.id,
-            slug: state.slug,
-            title: state.title,
-            status: state.status,
-            content_md: state.content_md,
-            ...timestamps,
-          })
-        : pagesApi.create({
-            slug: state.slug,
-            title: state.title,
-            status: state.status,
-            content_md: state.content_md,
-            ...timestamps,
-          })
+        ? pagesApi.update({ id: pageQuery.data!.id, ...base })
+        : pagesApi.create(base)
     },
     onSuccess: (page) => {
       queryClient.invalidateQueries({ queryKey: ['pages'] })
@@ -154,17 +243,17 @@ export function EditorPage({ slug }: { slug: string | null }) {
     event.preventDefault()
     setSaveError(null)
 
-    if (!SLUG_RE.test(form.slug)) {
-      setSaveError(
-        new ApiError(422, {
-          error: t('editor.slugInvalid'),
-          errors: { slug: [t('editor.slugInvalid')] },
-        }),
+    const { meta, errors } = parseMeta(content, t)
+
+    if (meta === null) {
+      const fieldErrors = Object.fromEntries(
+        Object.entries(errors).map(([field, message]) => [field, [message]]),
       )
+      setSaveError(new ApiError(422, { error: t('editor.metaInvalid'), errors: fieldErrors }))
       return
     }
 
-    save.mutate(form)
+    save.mutate({ ...meta, status: published ? 'published' : 'draft' })
   }
 
   const page = pageQuery.data ?? null
@@ -177,9 +266,9 @@ export function EditorPage({ slug }: { slug: string | null }) {
   })
 
   const grant = useMutation({
-    mutationFn: () => pagesApi.grant(page!.id, grantUsername.trim()),
+    mutationFn: (args: { username: string; permission: 'edit' | 'view' }) =>
+      pagesApi.grant(page!.id, args.username, args.permission),
     onSuccess: () => {
-      setGrantUsername('')
       setGrantError(null)
       queryClient.invalidateQueries({ queryKey: ['page-grants', page?.id] })
     },
@@ -187,6 +276,12 @@ export function EditorPage({ slug }: { slug: string | null }) {
       setGrantError(err instanceof ApiError ? err : null)
     },
   })
+
+  function handleAddGrant() {
+    grant.mutate({ username: grantUsername.trim(), permission: grantPermission })
+    setGrantUsername('')
+    setGrantPermission('edit')
+  }
 
   const revoke = useMutation({
     mutationFn: (username: string) => pagesApi.revokeGrant(page!.id, username),
@@ -256,241 +351,165 @@ export function EditorPage({ slug }: { slug: string | null }) {
     )
   }
 
-  const slugError = fieldError(saveError, 'slug')
-  const titleError = fieldError(saveError, 'title')
-  const createdAtError = fieldError(saveError, 'created_at')
-  const updatedAtError = fieldError(saveError, 'updated_at')
+  const messages = errorMessages(saveError)
 
   return (
     <div className="w-full">
       <form onSubmit={handleSave} className="w-full">
-        <div className="mx-auto w-full max-w-5xl space-y-6">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="space-y-2">
-              <Badge variant={editing ? 'secondary' : 'default'}>
-                {editing ? t('editor.editBadge') : t('editor.newBadge')}
-              </Badge>
-              <h1 className="font-heading text-3xl font-bold tracking-tight">
-                {editing ? t('editor.editTitle') : t('editor.newTitle')}
-              </h1>
-            </div>
-            <div className="flex items-center gap-3">
-              <label className="flex cursor-pointer items-center gap-2">
-                <Switch
-                  checked={form.status === 'published'}
-                  onCheckedChange={(checked) =>
-                    setForm({
-                      ...form,
-                      status: checked ? 'published' : 'draft',
-                    })
-                  }
-                  aria-label={t('editor.statusField')}
-                />
-                <span className="text-sm font-medium">
-                  {form.status === 'published'
-                    ? t('editor.statusPublished')
-                    : t('editor.statusDraft')}
+        <div className="mx-auto w-full max-w-5xl space-y-4">
+          <h1 className="font-heading text-3xl font-bold tracking-tight">
+            {editing ? t('editor.editTitle') : t('editor.newTitle')}
+          </h1>
+
+          {!editing && (
+            <p className="text-sm text-muted-foreground">{t('editor.newHint')}</p>
+          )}
+
+          {editing && page !== null && canManageGrants && (
+            <div className="glass-control rounded-2xl">
+              <button
+                type="button"
+                onClick={() => setAccessOpen((value) => !value)}
+                className="flex w-full items-center justify-between gap-3 p-4 text-left"
+              >
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <ShieldCheck className="size-4 text-muted-foreground" />
+                  {t('editor.grantsTitle')}
                 </span>
-              </label>
-              {editing && page !== null && has('pages.delete') && (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={handleDelete}
-                  disabled={remove.isPending}
-                >
-                  {remove.isPending ? <Loader2 className="animate-spin" /> : <Trash2 />}
-                  {t('editor.delete')}
-                </Button>
-              )}
-              <Button type="submit" disabled={save.isPending}>
-                {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
-                {t('editor.save')}
-              </Button>
-            </div>
-          </div>
-
-          <div className="glass-control space-y-4 rounded-2xl p-6">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="editor-title">{t('editor.titleField')}</Label>
-                <Input
-                  id="editor-title"
-                  value={form.title}
-                  onChange={(event) =>
-                    setForm({ ...form, title: event.target.value })
-                  }
-                  aria-invalid={titleError !== undefined}
-                  required
+                <ChevronDown
+                  className={`size-4 text-muted-foreground transition-transform ${
+                    accessOpen ? 'rotate-180' : ''
+                  }`}
                 />
-                {titleError !== undefined && (
-                  <p className="text-xs text-destructive">{titleError}</p>
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="editor-slug">{t('editor.slugField')}</Label>
-                <Input
-                  id="editor-slug"
-                  value={form.slug}
-                  onChange={(event) =>
-                    setForm({ ...form, slug: event.target.value })
-                  }
-                  aria-invalid={slugError !== undefined}
-                  placeholder="my-page"
-                  required
-                />
-                {slugError !== undefined && (
-                  <p className="text-xs text-destructive">{slugError}</p>
-                )}
-              </div>
-            </div>
+              </button>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="editor-updated-at">{t('editor.updatedAtField')}</Label>
-                <Input
-                  id="editor-updated-at"
-                  type="datetime-local"
-                  value={form.updated_at}
-                  onChange={(event) =>
-                    setForm({ ...form, updated_at: event.target.value })
-                  }
-                  aria-invalid={updatedAtError !== undefined}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {t('editor.updatedAtHint')}
-                </p>
-                {updatedAtError !== undefined && (
-                  <p className="text-xs text-destructive">{updatedAtError}</p>
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="editor-created-at">{t('editor.createdAtField')}</Label>
-                <Input
-                  id="editor-created-at"
-                  type="datetime-local"
-                  value={form.created_at}
-                  onChange={(event) =>
-                    setForm({ ...form, created_at: event.target.value })
-                  }
-                  aria-invalid={createdAtError !== undefined}
-                />
-                {createdAtError !== undefined && (
-                  <p className="text-xs text-destructive">{createdAtError}</p>
-                )}
-              </div>
-            </div>
+              {accessOpen && (
+                <div className="space-y-3 border-t border-border/60 p-4">
+                  <p className="text-xs text-muted-foreground">
+                    {t('editor.grantsDescription')}
+                  </p>
 
-            <div className="h-px w-full bg-border/60" />
-
-            {editing && page !== null && canManageGrants && (
-              <div className="rounded-xl">
-                <button
-                  type="button"
-                  onClick={() => setAccessOpen((value) => !value)}
-                  className="flex w-full items-center justify-between gap-3 py-1 text-left"
-                >
-                  <span className="flex items-center gap-2 text-sm font-medium">
-                    <ShieldCheck className="size-4 text-muted-foreground" />
-                    {t('editor.grantsTitle')}
-                  </span>
-                  <ChevronDown
-                    className={`size-4 text-muted-foreground transition-transform ${
-                      accessOpen ? 'rotate-180' : ''
-                    }`}
-                  />
-                </button>
-
-                {accessOpen && (
-                  <div className="mt-3 space-y-3">
-                    <p className="text-xs text-muted-foreground">
-                      {t('editor.grantsDescription')}
-                    </p>
-                    <div className="flex items-end gap-2">
-                      <div className="flex-1 space-y-1.5">
-                        <Label htmlFor="grant-username">
-                          {t('editor.grantUsername')}
-                        </Label>
-                        <Input
-                          id="grant-username"
-                          value={grantUsername}
-                          onChange={(event) => setGrantUsername(event.target.value)}
-                          placeholder={t('editor.grantPlaceholder')}
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={() => grant.mutate()}
-                        disabled={grant.isPending || grantUsername.trim() === ''}
-                      >
-                        <UserPlus />
-                        {t('editor.grantAdd')}
-                      </Button>
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="min-w-40 flex-1 space-y-1.5">
+                      <Label htmlFor="grant-username">
+                        {t('editor.grantUsername')}
+                      </Label>
+                      <Input
+                        id="grant-username"
+                        value={grantUsername}
+                        onChange={(event) => setGrantUsername(event.target.value)}
+                        placeholder={t('editor.grantPlaceholder')}
+                      />
                     </div>
-                    {grantError !== null && (
-                      <p className="text-sm text-destructive">
-                        {grantError.data.error ?? t('editor.grantError')}
-                      </p>
-                    )}
-                    <ul className="space-y-1.5">
-                      {grantsQuery.data?.map((g) => (
-                        <li
-                          key={g.username}
-                          className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2 text-sm"
-                        >
-                          <span>
-                            <span className="font-medium">{g.username}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {' — '}
-                              {g.name}
-                            </span>
-                          </span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => revoke.mutate(g.username)}
-                            disabled={revoke.isPending}
-                          >
-                            {t('editor.grantRevoke')}
-                          </Button>
-                        </li>
-                      ))}
-                      {grantsQuery.data?.length === 0 && (
-                        <li className="text-sm text-muted-foreground">
-                          {t('editor.grantsEmpty')}
-                        </li>
-                      )}
-                    </ul>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="grant-permission">
+                        {t('editor.grantPermissionField')}
+                      </Label>
+                      <select
+                        id="grant-permission"
+                        value={grantPermission}
+                        onChange={(event) =>
+                          setGrantPermission(event.target.value as 'edit' | 'view')
+                        }
+                        className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                      >
+                        <option value="edit">{t('editor.permissionEdit')}</option>
+                        <option value="view">{t('editor.permissionView')}</option>
+                      </select>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleAddGrant}
+                      disabled={grant.isPending || grantUsername.trim() === ''}
+                    >
+                      <UserPlus />
+                      {t('editor.grantAdd')}
+                    </Button>
                   </div>
-                )}
-              </div>
-            )}
-          </div>
 
-          {saveError !== null && (
-            <p className="text-sm text-destructive">
-              {saveError.data.error ?? t('editor.error')}
-            </p>
+                  {grantError !== null && (
+                    <p className="text-sm text-destructive">
+                      {grantError.data.error ?? t('editor.grantError')}
+                    </p>
+                  )}
+
+                  <div className="h-px w-full bg-border/60" />
+
+                  <p className="text-sm font-medium">{t('editor.grantedLabel')}</p>
+                  <ul className="space-y-1.5">
+                    {grantsQuery.data?.map((g) => (
+                      <GrantRow
+                        key={g.username}
+                        grant={g}
+                        onSave={(permission) =>
+                          grant.mutate({ username: g.username, permission })
+                        }
+                        onRevoke={() => revoke.mutate(g.username)}
+                        saving={grant.isPending || revoke.isPending}
+                      />
+                    ))}
+                    {grantsQuery.data?.length === 0 && (
+                      <li className="text-sm text-muted-foreground">
+                        {t('editor.grantsEmpty')}
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {messages.length > 0 && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+              {messages.map((message) => (
+                <p key={message}>{message}</p>
+              ))}
+            </div>
           )}
         </div>
 
-        <div className="relative left-1/2 mt-8 w-[calc(100vw-2rem)] -translate-x-1/2 px-6">
+        <div className="relative left-1/2 mt-6 w-[calc(100vw-2rem)] -translate-x-1/2 px-6">
           <div className="grid gap-4 lg:h-[75vh] lg:grid-cols-2">
             <div className="glass-control flex h-[50vh] flex-col overflow-hidden rounded-2xl lg:h-full">
-              <div className="flex items-center justify-between border-b border-border/60 px-4 py-2">
-                <span className="text-sm font-medium">
-                  {t('editor.contentField')}
-                </span>
+              <div className="flex items-center justify-between gap-2 border-b border-border/60 px-4 py-2">
+                <span className="text-sm font-medium">{t('editor.contentField')}</span>
+                <div className="flex items-center gap-2">
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <Switch
+                      checked={published}
+                      onCheckedChange={setPublished}
+                      aria-label={t('editor.statusField')}
+                    />
+                    <span className="text-sm font-medium">
+                      {published
+                        ? t('editor.statusPublished')
+                        : t('editor.statusDraft')}
+                    </span>
+                  </label>
+                  {editing && page !== null && has('pages.delete') && (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleDelete}
+                      disabled={remove.isPending}
+                    >
+                      {remove.isPending ? <Loader2 className="animate-spin" /> : <Trash2 />}
+                      {t('editor.delete')}
+                    </Button>
+                  )}
+                  <Button type="submit" size="sm" disabled={save.isPending}>
+                    {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
+                    {t('editor.save')}
+                  </Button>
+                </div>
               </div>
               <textarea
                 aria-label={t('editor.contentField')}
                 className="h-full w-full flex-1 resize-none bg-transparent p-4 font-mono text-sm leading-6 outline-none placeholder:text-muted-foreground"
-                value={form.content_md}
-                onChange={(event) =>
-                  setForm({ ...form, content_md: event.target.value })
-                }
+                value={content}
+                onChange={(event) => setContent(event.target.value)}
                 placeholder={t('editor.contentPlaceholder')}
                 spellCheck={false}
               />
@@ -503,12 +522,12 @@ export function EditorPage({ slug }: { slug: string | null }) {
               </div>
               <div className="flex-1 overflow-y-auto">
                 <div className="prose max-w-none p-6 text-[0.9rem] leading-7">
-                  {form.content_md.trim() === '' ? (
+                  {content.trim() === '' ? (
                     <p className="text-muted-foreground">
                       {t('editor.previewEmpty')}
                     </p>
                   ) : (
-                    <Markdown content={form.content_md} />
+                    <Markdown content={content} />
                   )}
                 </div>
               </div>

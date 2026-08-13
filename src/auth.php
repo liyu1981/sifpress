@@ -200,9 +200,68 @@ function require_permission(string $permission): void
 }
 
 /**
+ * The id of the special `_guest_` user (anonymous visitors), or null if
+ * it has not been seeded yet. Cached per request.
+ */
+function guest_user_id(): ?int
+{
+    static $id = false;
+
+    if ($id === false) {
+        $stmt = db()->prepare('SELECT id FROM users WHERE username = ?');
+        $stmt->execute(['_guest_']);
+        $id = $stmt->fetchColumn();
+        $id = $id === false ? null : (int) $id;
+    }
+
+    return $id;
+}
+
+/**
+ * Whether a page is visible to the given user (or null for the guest /
+ * anonymous visitor). Admins and the owner always see it; otherwise the
+ * user — or the _guest_ user, making the page public — must hold a
+ * grant on the page.
+ */
+function can_view_page(?array $user, array $page): bool
+{
+    if ($user !== null && is_admin($user)) {
+        return true;
+    }
+
+    if ($user !== null
+        && $page['created_by'] !== null
+        && (int) $user['id'] === (int) $page['created_by']) {
+        return true;
+    }
+
+    $guestId = guest_user_id();
+    $ids = $guestId !== null ? [$guestId] : [];
+
+    if ($user !== null) {
+        $ids[] = (int) $user['id'];
+    }
+
+    $ids = array_values(array_unique($ids));
+
+    if ($ids === []) {
+        return false;
+    }
+
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = db()->prepare(
+        'SELECT COUNT(*) FROM page_grants
+          WHERE page_id = ? AND user_id IN (' . $placeholders . ')'
+    );
+    $stmt->execute(array_merge([(int) $page['id']], $ids));
+
+    return (int) $stmt->fetchColumn() > 0;
+}
+
+/**
  * Ownership-aware edit check. Admin always wins; otherwise the user needs
  * the pages.write role AND must be the page author or hold an explicit
- * grant on the page.
+ * edit grant on the page.
  */
 function can_edit_page(array $user, int $pageId): bool
 {
@@ -219,7 +278,7 @@ function can_edit_page(array $user, int $pageId): bool
            FROM pages p
            LEFT JOIN page_grants g ON g.page_id = p.id AND g.user_id = :uid
           WHERE p.id = :pid
-            AND (p.created_by = :uid2 OR g.user_id IS NOT NULL)'
+            AND (p.created_by = :uid2 OR (g.user_id IS NOT NULL AND g.permission = \'edit\'))'
     );
     $stmt->execute([
         'uid' => (int) $user['id'],

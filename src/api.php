@@ -116,6 +116,65 @@ function fetch_page(int $id, ?string $slug = null): ?array
 }
 
 /**
+ * SQL clause (with named params) that restricts a pages query to rows the
+ * current user may view: the owner, anyone the user has a grant on the
+ * page for, and any page carrying a _guest_ grant (i.e. public). Admins
+ * see everything. Returns an empty clause for admins.
+ */
+function view_filter_sql(): array
+{
+    $user = current_user();
+
+    if ($user !== null && is_admin($user)) {
+        return ['clause' => '', 'params' => []];
+    }
+
+    $uid = $user !== null ? (int) $user['id'] : -1;
+    $guestId = guest_user_id();
+    $ids = $guestId !== null ? [$guestId] : [];
+
+    if ($uid > 0) {
+        $ids[] = $uid;
+    }
+
+    $ids = array_values(array_unique($ids));
+    $inParams = [];
+
+    foreach ($ids as $i => $id) {
+        $inParams[':vf' . $i] = $id;
+    }
+
+    $placeholders = implode(',', array_keys($inParams));
+    $clause = '(p.created_by = :vfu OR EXISTS (
+        SELECT 1 FROM page_grants vg
+         WHERE vg.page_id = p.id AND vg.user_id IN (' . $placeholders . ')
+    ))';
+
+    return [
+        'clause' => $clause,
+        'params' => array_merge([':vfu' => $uid], $inParams),
+    ];
+}
+
+/**
+ * Give the _guest_ user a view grant on a page (the default for newly
+ * created pages). No-op when the guest user is not seeded yet.
+ */
+function grant_default_guest_view(int $pageId, int $grantedBy): void
+{
+    $guestId = guest_user_id();
+
+    if ($guestId === null) {
+        return;
+    }
+
+    db()->prepare(
+        'INSERT OR IGNORE INTO page_grants (page_id, user_id, granted_by, permission)
+         VALUES (?, ?, ?, ?)'
+    )->execute([$pageId, $guestId, $grantedBy, 'view']);
+}
+
+/**
  * Parse the `tags:` list out of a page's YAML front matter. Mirrors the
  * subset parsed on the client (lib/front-matter.ts): an inline array
  * `[a, b]` or a comma/space separated list, quoted items supported.
@@ -213,6 +272,13 @@ function search_pages(string $q, ?string $status): array
         $params['status'] = $status;
     }
 
+    $view = view_filter_sql();
+
+    if ($view['clause'] !== '') {
+        $sql .= ' AND ' . $view['clause'];
+        $params = array_merge($params, $view['params']);
+    }
+
     $sql .= ' ORDER BY rank LIMIT 50';
 
     $stmt = db()->prepare($sql);
@@ -258,7 +324,9 @@ function api_auth_login(string $method): never
     $stmt->execute(['u' => $username]);
     $row = $stmt->fetch();
 
-    if ($row === false || !password_verify($password, $row['password_hash'])) {
+    if ($row === false
+        || $row['username'] === '_guest_'
+        || !password_verify($password, $row['password_hash'])) {
         json_response(['error' => 'invalid credentials'], 401);
     }
 
@@ -349,8 +417,6 @@ function api_pages_list(string $method): never
         json_response(['error' => 'Method not allowed'], 405);
     }
 
-    require_permission('pages.read');
-
     $q = request_param('q');
 
     if ($q !== null && trim($q) !== '') {
@@ -362,14 +428,24 @@ function api_pages_list(string $method): never
     $perPage = min(100, max(1, (int) request_param('per_page', '20')));
     $tag = request_param('tag');
 
-    if ($tag !== null && trim($tag) !== '') {
-        $where = '';
-        $params = [];
+    $view = view_filter_sql();
+    $whereParts = [];
+    $params = [];
 
-        if ($status !== null) {
-            $where = 'WHERE p.status = :status';
-            $params['status'] = $status;
-        }
+    if ($status !== null) {
+        $whereParts[] = 'p.status = :status';
+        $params['status'] = $status;
+    }
+
+    if ($view['clause'] !== '') {
+        $whereParts[] = $view['clause'];
+    }
+
+    $where = $whereParts === [] ? '' : 'WHERE ' . implode(' AND ', $whereParts);
+    $params = array_merge($params, $view['params']);
+
+    if ($tag !== null && trim($tag) !== '') {
+        $tag = trim($tag);
 
         $stmt = db()->prepare(
             'SELECT p.*, cu.name AS created_by_name, uu.name AS updated_by_name
@@ -399,14 +475,6 @@ function api_pages_list(string $method): never
             'page' => $page,
             'per_page' => $perPage,
         ]);
-    }
-
-    $where = '';
-    $params = [];
-
-    if ($status !== null) {
-        $where = 'WHERE p.status = :status';
-        $params['status'] = $status;
     }
 
     $stmt = db()->prepare('SELECT COUNT(*) FROM pages p ' . $where);
@@ -460,13 +528,11 @@ function api_pages_get(string $method): never
         json_response(['error' => 'Method not allowed'], 405);
     }
 
-    require_permission('pages.read');
-
     $id = (int) request_param('id', '0');
     $slug = request_param('slug');
     $page = fetch_page($id, $slug);
 
-    if ($page === null) {
+    if ($page === null || !can_view_page(current_user(), $page)) {
         json_response(['error' => 'page not found'], 404);
     }
 
@@ -550,7 +616,10 @@ function api_pages_create(string $method): never
         $updatedAt !== '' ? $updatedAt : date('Y-m-d H:i:s'),
     ]);
 
-    json_response(['page' => page_payload(fetch_page((int) db()->lastInsertId()))], 201);
+    $pageId = (int) db()->lastInsertId();
+    grant_default_guest_view($pageId, $user['id']);
+
+    json_response(['page' => page_payload(fetch_page($pageId))], 201);
 }
 
 function api_pages_update(string $method): never
@@ -699,7 +768,6 @@ function api_pages_search(string $method): never
         json_response(['error' => 'Method not allowed'], 405);
     }
 
-    require_permission('pages.read');
     json_response(search_pages(trim((string) request_param('q', '')), api_status_param()));
 }
 
@@ -724,7 +792,7 @@ function api_pages_grants(string $method): never
     }
 
     $stmt = db()->prepare(
-        'SELECT u.username, u.name, gu.name AS granted_by_name, g.created_at
+        'SELECT u.username, u.name, gu.name AS granted_by_name, g.created_at, g.permission
            FROM page_grants g
            JOIN users u ON u.id = g.user_id
            LEFT JOIN users gu ON gu.id = g.granted_by
@@ -732,8 +800,78 @@ function api_pages_grants(string $method): never
           ORDER BY u.username'
     );
     $stmt->execute([$page['id']]);
+    $grantRows = $stmt->fetchAll();
 
-    json_response(['grants' => $stmt->fetchAll()]);
+    /*
+     * The effective access list always includes the page owner and every
+     * admin (they can edit by policy, with or without an explicit grant).
+     * Explicit grants are appended; users already listed are skipped.
+     */
+    $items = [];
+    $seen = [];
+
+    if ($page['created_by'] !== null) {
+        $stmt = db()->prepare('SELECT username, name FROM users WHERE id = ?');
+        $stmt->execute([(int) $page['created_by']]);
+        $owner = $stmt->fetch();
+
+        if ($owner !== false) {
+            $items[] = [
+                'username' => $owner['username'],
+                'name' => $owner['name'],
+                'granted_by_name' => null,
+                'created_at' => null,
+                'permission' => 'edit',
+                'kind' => 'owner',
+            ];
+            $seen[$owner['username']] = true;
+        }
+    }
+
+    $admins = db()->query(
+        'SELECT DISTINCT u.username, u.name
+           FROM users u
+           JOIN user_roles ur ON ur.user_id = u.id
+           JOIN roles r ON r.id = ur.role_id
+          WHERE r.code = \'admin\' AND u.is_active = 1
+          ORDER BY u.username'
+    )->fetchAll();
+
+    foreach ($admins as $admin) {
+        if (isset($seen[$admin['username']])) {
+            continue;
+        }
+        $items[] = [
+            'username' => $admin['username'],
+            'name' => $admin['name'],
+            'granted_by_name' => null,
+            'created_at' => null,
+            'permission' => 'edit',
+            'kind' => 'admin',
+        ];
+        $seen[$admin['username']] = true;
+    }
+
+    foreach ($grantRows as $grant) {
+        if (isset($seen[$grant['username']])) {
+            continue;
+        }
+        $items[] = [
+            'username' => $grant['username'],
+            'name' => $grant['name'],
+            'granted_by_name' => (string) $grant['granted_by_name'],
+            'created_at' => $grant['created_at'],
+            'permission' => $grant['permission'],
+            'kind' => 'grant',
+        ];
+    }
+
+    usort(
+        $items,
+        static fn (array $a, array $b): int => strcasecmp($a['username'], $b['username'])
+    );
+
+    json_response(['grants' => $items]);
 }
 
 function api_pages_grant(string $method): never
@@ -771,12 +909,27 @@ function api_pages_grant(string $method): never
         json_response(['error' => 'user not found'], 404);
     }
 
-    if (!can((int) $targetId, 'pages.write')) {
+    $permission = (string) ($body['permission'] ?? 'edit');
+
+    if (!in_array($permission, ['edit', 'view'], true)) {
+        json_response(['error' => 'permission must be edit or view'], 422);
+    }
+
+    if ($permission === 'edit' && !can((int) $targetId, 'pages.write')) {
         json_response(['error' => 'user lacks pages.write permission'], 422);
     }
 
-    $stmt = db()->prepare('INSERT OR IGNORE INTO page_grants (page_id, user_id, granted_by) VALUES (?, ?, ?)');
-    $stmt->execute([$page['id'], (int) $targetId, $user['id']]);
+    /*
+     * Upsert: granting again with a different permission updates the
+     * existing grant (used by the editor's edit/view toggle).
+     */
+    $stmt = db()->prepare(
+        'INSERT INTO page_grants (page_id, user_id, granted_by, permission)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(page_id, user_id)
+         DO UPDATE SET granted_by = excluded.granted_by, permission = excluded.permission'
+    );
+    $stmt->execute([$page['id'], (int) $targetId, $user['id'], $permission]);
 
     json_response(['ok' => true]);
 }
@@ -832,7 +985,7 @@ function api_users_list(string $method): never
 
     $users = db()->query(
         'SELECT id, username, email, name, is_active, must_change_password, created_at, updated_at
-           FROM users ORDER BY id'
+           FROM users WHERE username <> \'_guest_\' ORDER BY id'
     )->fetchAll();
 
     $roles = db()->query(
@@ -873,6 +1026,10 @@ function api_users_create(string $method): never
     $usernameErrors = validate_username($username);
     if ($usernameErrors !== []) {
         $errors['username'] = $usernameErrors;
+    }
+
+    if ($username === '_guest_') {
+        $errors['username'] = ['reserved username'];
     }
 
     if ($email !== null && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -1060,11 +1217,14 @@ function api_tags_list(string $method): never
         json_response(['error' => 'Method not allowed'], 405);
     }
 
-    require_permission('pages.read');
+    $view = view_filter_sql();
+    $where = $view['clause'] !== '' ? 'WHERE ' . $view['clause'] : '';
+    $stmt = db()->prepare('SELECT content_md FROM pages p ' . $where);
+    $stmt->execute($view['params']);
 
     $counts = [];
 
-    foreach (db()->query('SELECT content_md FROM pages')->fetchAll() as $row) {
+    foreach ($stmt->fetchAll() as $row) {
         foreach (front_matter_tags($row['content_md']) as $tag) {
             $counts[$tag] = ($counts[$tag] ?? 0) + 1;
         }
@@ -1142,7 +1302,16 @@ function handle_api(string $action, string $method): never
         ], 503);
     }
 
-    $public = ['index', 'auth.login', 'auth.me', 'system.status'];
+    $public = [
+        'index',
+        'auth.login',
+        'auth.me',
+        'system.status',
+        'pages.list',
+        'pages.get',
+        'pages.search',
+        'tags.list',
+    ];
 
     if (!in_array($action, $public, true)) {
         require_auth();

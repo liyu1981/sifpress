@@ -24,6 +24,7 @@
  */
 
 const APP_NAME = 'Sifpress';
+const APP_VERSION = '0.1.0';
 
 function request_method(): string
 {

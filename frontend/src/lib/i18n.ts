@@ -9,6 +9,7 @@ const en = {
     home: 'Home',
     article: 'Articles',
     settings: 'Settings',
+    login: 'Sign in',
     logout: 'Sign out',
   },
   theme: {
@@ -20,6 +21,9 @@ const en = {
   },
   language: {
     toggle: 'Switch language',
+  },
+  footer: {
+    poweredBy: 'Powered by Sifpress v{{version}}',
   },
   home: {
     title: 'Latest',
@@ -104,15 +108,28 @@ const en = {
     deleteConfirm: 'Delete this page permanently?',
     error: 'Could not save the page.',
     slugInvalid: 'Lowercase letters, digits, and hyphens only.',
-    grantsTitle: 'Edit access',
+    grantsTitle: 'Access permissions',
     grantsDescription:
       'Grant or revoke edit access for users with the pages.write permission.',
     grantUsername: 'Username',
+    grantPermissionField: 'Permission',
+    permissionEdit: 'Edit',
+    permissionView: 'View',
     grantPlaceholder: 'username',
     grantAdd: 'Grant',
     grantError: 'Could not grant access.',
     grantRevoke: 'Revoke',
+    grantedLabel: 'Granted',
+    grantBy: 'by {{name}}',
+    grantRoleOwner: 'Owner',
+    grantRoleAdmin: 'Administrator',
     grantsEmpty: 'No grants yet.',
+    metaInvalid: 'The front matter block is missing or has invalid required fields.',
+    metaTitleRequired: 'Missing required field "title" in front matter.',
+    metaSlugRequired: 'Missing required field "slug" in front matter.',
+    metaDateInvalid: 'Front matter "date" must be in YYYY-MM-DD format.',
+    newHint:
+      'Title, slug, date and status come from the YAML front matter block at the top of the document.',
   },
   settings: {
     badge: 'Settings',
@@ -174,6 +191,7 @@ const zh = {
     home: '首页',
     article: '文章',
     settings: '设置',
+    login: '登录',
     logout: '退出登录',
   },
   theme: {
@@ -185,6 +203,9 @@ const zh = {
   },
   language: {
     toggle: '切换语言',
+  },
+  footer: {
+    poweredBy: '由 Sifpress v{{version}} 驱动',
   },
   home: {
     title: '最新',
@@ -267,14 +288,26 @@ const zh = {
     deleteConfirm: '确定永久删除此页面吗？',
     error: '无法保存页面。',
     slugInvalid: '仅支持小写字母、数字和连字符。',
-    grantsTitle: '编辑权限',
+    grantsTitle: '访问权限',
     grantsDescription: '为拥有 pages.write 权限的用户授予或撤销编辑权限。',
     grantUsername: '用户名',
+    grantPermissionField: '权限',
+    permissionEdit: '编辑',
+    permissionView: '查看',
     grantPlaceholder: '用户名',
     grantAdd: '授权',
     grantError: '无法授予权限。',
     grantRevoke: '撤销',
+    grantedLabel: '已授权',
+    grantBy: '由 {{name}} 授权',
+    grantRoleOwner: '所有者',
+    grantRoleAdmin: '管理员',
     grantsEmpty: '还没有授权。',
+    metaInvalid: 'front matter 块缺少必要字段或字段无效。',
+    metaTitleRequired: 'front matter 缺少必填字段 "title"。',
+    metaSlugRequired: 'front matter 缺少必填字段 "slug"。',
+    metaDateInvalid: 'front matter 的 "date" 必须是 YYYY-MM-DD 格式。',
+    newHint: '标题、slug、日期和状态来自文档顶部的 YAML front matter 块。',
   },
   settings: {
     badge: '设置',

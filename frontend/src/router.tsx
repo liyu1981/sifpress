@@ -29,6 +29,10 @@ import { systemApi } from '@/lib/pages'
 
 const basePath = window.location.pathname
 
+const APP_VERSION =
+  document.querySelector('meta[name="app-version"]')?.getAttribute('content') ??
+  '0.1.0'
+
 function normalizeInternalPath(route: string): string {
   const path = route.startsWith('/') ? route : `/${route}`
 
@@ -85,7 +89,7 @@ function AppHeader() {
       </nav>
       <div className="flex items-center gap-1">
         <ThemeToggle />
-        {user !== null && (
+        {user !== null ? (
           <>
             <span className="hidden max-w-32 truncate px-2 text-sm text-muted-foreground sm:inline">
               {user.name || user.username}
@@ -95,6 +99,10 @@ function AppHeader() {
               {t('nav.logout')}
             </Button>
           </>
+        ) : (
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/login">{t('nav.login')}</Link>
+          </Button>
         )}
       </div>
     </header>
@@ -102,6 +110,7 @@ function AppHeader() {
 }
 
 function RootLayout() {
+  const { t } = useTranslation()
   const { status, user } = useAuth()
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
@@ -128,11 +137,13 @@ function RootLayout() {
     )
   }
 
+  const needsAuth = pathname === '/settings' || pathname.startsWith('/editor')
+
   let content: ReactNode
 
   if (user !== null && user.must_change_password) {
     content = <ChangePasswordPage />
-  } else if (user === null && pathname !== '/login') {
+  } else if (user === null && needsAuth && pathname !== '/login') {
     content = <LoginPage next={pathname} />
   } else {
     content = <Outlet />
@@ -146,6 +157,21 @@ function RootLayout() {
         <main className="animate-in slide-in-from-bottom-3 duration-500 ease-out">
           {content}
         </main>
+
+        <footer className="mt-auto flex justify-start border-t border-border/60 pt-6 pb-2 text-sm text-muted-foreground">
+          <span>
+            {t('footer.poweredBy', { version: APP_VERSION })}
+            <span aria-hidden="true"> · </span>
+            <a
+              href="https://github.com/liyu1981/sifpress"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-foreground transition-colors hover:text-muted-foreground hover:underline"
+            >
+              GitHub
+            </a>
+          </span>
+        </footer>
       </div>
     </div>
   )

@@ -192,7 +192,13 @@ function seed_default_admin(): void
 {
     $pdo = db();
 
-    if ((int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() > 0) {
+    // The _guest_ user is seeded by a migration, so "no users" must mean
+    // no real (login-capable) user.
+    $count = (int) $pdo->query(
+        "SELECT COUNT(*) FROM users WHERE username <> '_guest_'"
+    )->fetchColumn();
+
+    if ($count > 0) {
         return;
     }
 

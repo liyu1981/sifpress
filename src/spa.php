@@ -49,6 +49,9 @@ function serve_spa(string $route): never
     $meta = '<meta name="app-route" content="' .
         htmlspecialchars($route, ENT_QUOTES | ENT_HTML5, 'UTF-8') .
         '">';
+    $meta .= '<meta name="app-version" content="' .
+        htmlspecialchars(APP_VERSION, ENT_QUOTES | ENT_HTML5, 'UTF-8') .
+        '">';
 
     if ($key !== '') {
         $displayName = APP_NAME . ' — ' . ucfirst($key);

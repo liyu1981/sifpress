@@ -24,11 +24,11 @@ const DEMO_PAGE = [
     'content_md' => <<<'MD'
 ---
 title: "Hello, Sifpress"
+slug: "hello-sifpress"
 date: 2026-08-10
 author: "Administrator"
 tags: [announcement, architecture]
 cover: "https://picsum.photos/id/1039/1200/630"
-published: true
 ---
 
 Welcome to the new blog. Every page here is served from a single PHP file, yet the writing experience is full-featured: GFM tables, KaTeX math, Mermaid diagrams, and flexible image sizing and positioning.
@@ -144,6 +144,8 @@ function handle_dev(string $action, string $method): never
                     $id,
                 ]);
             }
+
+            grant_default_guest_view($id, $user['id']);
 
             json_response(['page' => page_payload(fetch_page($id))]);
 
