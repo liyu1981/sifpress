@@ -1,4 +1,4 @@
-import type { Root, Image } from 'mdast'
+import type { Root, Image, Link } from 'mdast'
 import type { Plugin } from 'unified'
 import { visit } from 'unist-util-visit'
 
@@ -10,8 +10,11 @@ import { visit } from 'unist-util-visit'
  *   ![Alt|x200](url)         height only
  *   ![Alt|center](url)       centered block image
  *   ![Alt|float-left|240](url)  float + size, in any order
+ *   ![Alt|link](url)         escape hatch: plain hyperlink, no embed/figure
  *
- * Directives are pipe-separated; unknown segments stay in the caption.
+ * Directives are pipe-separated; unknown segments stay in the caption. The
+ * `link` directive converts the image into a normal link node so video or
+ * image URLs render as a simple `<a>` instead of a player or <img>.
  */
 
 const SIZE_PATTERN = /^(\d*)x(\d*)$|^(\d+)$/
@@ -24,6 +27,8 @@ const POSITION_CLASS: Record<string, string> = {
   'float-right': 'md-img-float-right',
 }
 
+const LINK_DIRECTIVES = new Set(['link', 'noembed'])
+
 export const remarkImageDirectives: Plugin<[], Root> = () => {
   return (tree) => {
     visit(tree, 'image', (node: Image) => {
@@ -32,6 +37,7 @@ export const remarkImageDirectives: Plugin<[], Root> = () => {
       let width: number | undefined
       let height: number | undefined
       let position: string | undefined
+      let asLink = false
 
       for (const part of parts) {
         const size = SIZE_PATTERN.exec(part)
@@ -53,7 +59,23 @@ export const remarkImageDirectives: Plugin<[], Root> = () => {
           continue
         }
 
+        if (LINK_DIRECTIVES.has(part)) {
+          asLink = true
+          continue
+        }
+
         caption.push(part)
+      }
+
+      if (asLink) {
+        const link = node as unknown as Link & Record<string, unknown>
+        const label = caption.join('|')
+        const text = label !== '' ? label : node.url
+        link.type = 'link'
+        link.children = [{ type: 'text', value: text }]
+        delete link.alt
+        delete link.data
+        return
       }
 
       if (width === undefined && height === undefined && position === undefined) {
