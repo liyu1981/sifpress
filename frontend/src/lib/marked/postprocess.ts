@@ -107,21 +107,9 @@ function liftLoneImageFigures(body: HTMLElement): void {
       continue
     }
 
-    const className = media.getAttribute('class') ?? ''
-    const positionClass = className
-      .split(/\s+/)
-      .filter((c) => c.startsWith('md-img-'))
-      .join(' ')
-
-    media.className = className.replace(/\bmd-img-\S+/g, '').trim()
-
     const caption = media instanceof HTMLImageElement ? media.getAttribute('alt') : null
 
     const figure = document.createElement('figure')
-    if (positionClass !== '') {
-      figure.className = positionClass
-    }
-
     p.replaceWith(figure)
     figure.appendChild(media)
 

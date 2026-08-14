@@ -311,39 +311,6 @@
     color: var(--tw-prose-captions);
   }
 
-  /*
-   * Image size + position directives (src/lib/marked/plugins/image-directives.ts).
-   * The position class is lifted onto the <figure> by the renderer.
-   */
-  .md-img-center {
-    display: block;
-    margin-inline: auto;
-  }
-
-  .md-img-left {
-    display: block;
-    margin-right: auto;
-  }
-
-  .md-img-right {
-    display: block;
-    margin-left: auto;
-  }
-
-  .md-img-float-left {
-    float: left;
-    margin-right: 1rem;
-    margin-bottom: 0.5rem;
-    max-width: 45%;
-  }
-
-  .md-img-float-right {
-    float: right;
-    margin-left: 1rem;
-    margin-bottom: 0.5rem;
-    max-width: 45%;
-  }
-
   /* Syntax highlighting (rehype-highlight) token colors. */
   .md-codeblock .hljs {
     color: var(--foreground);
@@ -407,6 +374,41 @@
   .md-codeblock .hljs-strong {
     font-weight: 600;
   }
+}
+
+/*
+ * Image size + position directives (src/lib/marked/plugins/image-directives.ts).
+ * Unlayered so they win over crepe's `.milkdown * { margin: 0 }` reset in the
+ * editor and the typography plugin's utilities layer in the article. The class
+ * stays on the <img> (the renderer no longer lifts it onto the <figure>).
+ */
+.md-img-center {
+  display: block;
+  margin-inline: auto;
+}
+
+.md-img-left {
+  display: block;
+  margin-right: auto;
+}
+
+.md-img-right {
+  display: block;
+  margin-left: auto;
+}
+
+.md-img-float-left {
+  float: left;
+  margin-right: 1rem;
+  margin-bottom: 0.5rem;
+  max-width: 45%;
+}
+
+.md-img-float-right {
+  float: right;
+  margin-left: 1rem;
+  margin-bottom: 0.5rem;
+  max-width: 45%;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -478,10 +480,36 @@
   border-radius: calc(var(--radius-sm));
 }
 
-/* Floating image-directive editor (src/lib/marked/plugins/image-directives-tooltip.tsx) */
+/* Editor image node view (src/lib/marked/plugins/image-directives-view.ts).
+ * Mirrors the article render: a positioned (block) lone image gets rounded
+ * corners and a centered caption; inline images stay inline with no caption.
+ * The `md-img-*` position class stays on the <img> so its margin rules work.
+ */
+.milkdown-editor .milkdown .ProseMirror .md-image-view-lone {
+  display: block;
+}
+
+.milkdown-editor .milkdown .ProseMirror .md-image-view-lone > img {
+  display: block;
+  border-radius: var(--radius-lg);
+}
+
+.milkdown-editor .milkdown .ProseMirror .md-image-view-lone .md-image-caption {
+  display: block;
+  margin-top: 0.5rem;
+  text-align: center;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+}
+
+/* Floating image-directive editor (src/lib/marked/plugins/image-directives-tooltip.tsx).
+ * Portaled to <body> with fixed positioning so crepe's `.milkdown *` reset
+ * (margin/padding/border/background) can't override the popup's own styles.
+ */
 .md-image-directives-tooltip {
-  position: absolute;
-  z-index: 30;
+  position: fixed;
+  z-index: 50;
 }
 
 .md-image-directives-tooltip[data-show='false'] {

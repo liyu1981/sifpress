@@ -17,6 +17,7 @@ import {
   insertDiagramInputRule,
   remarkMermaidPlugin,
 } from './plugins/mermaid'
+import { imageDirectivesView } from './plugins/image-directives-view'
 import {
   configureImageDirectiveTooltip,
   imageDirectiveTooltip,
@@ -86,6 +87,7 @@ export function createMarkdownEditor(config: MarkdownEditorConfig): CrepeBuilder
 
   if (mode === 'edit') {
     builder.editor
+      .use(imageDirectivesView)
       .config(configureImageDirectiveTooltip(onUpload))
       .use(imageDirectiveTooltip)
   }

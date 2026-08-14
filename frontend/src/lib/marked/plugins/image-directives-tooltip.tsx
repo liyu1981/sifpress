@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
+import { bestEffortPositionMiddleware } from './image-directives-position'
 import { rebuildImageAlt, type ImageDirectiveAttrs } from './image-directives'
 
 export const imageDirectiveTooltip = tooltipFactory('IMAGE_DIRECTIVES')
@@ -239,6 +240,9 @@ class ImageDirectiveTooltipView implements PluginView {
       content: this.#content,
       debounce: 20,
       offset: 12,
+      root: document.body,
+      floatingUIOptions: { strategy: 'fixed' },
+      middleware: [bestEffortPositionMiddleware],
       shouldShow: (v) => this.#isImageSelection(v),
     })
 
@@ -271,14 +275,21 @@ class ImageDirectiveTooltipView implements PluginView {
   }
 
   readonly #commit = (patch: Partial<ImageDirectiveAttrs>): void => {
-    const { selection } = this.#view.state
+    const { selection, tr } = this.#view.state
     if (!(selection instanceof NodeSelection)) {
       return
     }
 
+    const { from } = selection
     const nextAttrs = { ...selection.node.attrs, ...patch } as unknown as Record<string, unknown>
+
+    // setNodeMarkup collapses the NodeSelection into a TextSelection, which
+    // would make the tooltip's shouldShow return false and hide the popup
+    // after the first keystroke. Restore the selection in the same transaction.
     this.#view.dispatch(
-      this.#view.state.tr.setNodeMarkup(selection.from, undefined, nextAttrs),
+      tr
+        .setNodeMarkup(from, undefined, nextAttrs)
+        .setSelection(NodeSelection.create(tr.doc, from)),
     )
   }
 
