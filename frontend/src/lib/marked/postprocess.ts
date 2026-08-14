@@ -113,9 +113,7 @@ function liftLoneImageFigures(body: HTMLElement): void {
       .filter((c) => c.startsWith('md-img-'))
       .join(' ')
 
-    media.className = className
-      .replace(/\bmd-img-(?:float-left|float-right|center)\b/g, '')
-      .trim()
+    media.className = className.replace(/\bmd-img-\S+/g, '').trim()
 
     const caption = media instanceof HTMLImageElement ? media.getAttribute('alt') : null
 

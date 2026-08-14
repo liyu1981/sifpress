@@ -20,6 +20,13 @@ import { ApiError, assetUrl } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { DeletePageMenu } from '@/components/delete-page-menu'
 import {
@@ -169,18 +176,23 @@ function GrantRow({
         <span className="truncate font-medium">{label}</span>
       </td>
       <td className="px-3 py-2">
-        <select
+        <Select
           value={isFixed ? 'edit' : permission}
-          onChange={(event) =>
-            setPermission(event.target.value as 'edit' | 'view')
-          }
+          onValueChange={(value) => setPermission(value as 'edit' | 'view')}
           disabled={isFixed}
-          aria-label={t('editor.grantPermissionField')}
-          className="h-7 rounded-md border border-input bg-transparent px-1.5 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <option value="edit">{t('editor.permissionEdit')}</option>
-          <option value="view">{t('editor.permissionView')}</option>
-        </select>
+          <SelectTrigger
+            size="sm"
+            className="h-7 w-full min-w-[6.5rem] text-xs"
+            aria-label={t('editor.grantPermissionField')}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="edit">{t('editor.permissionEdit')}</SelectItem>
+            <SelectItem value="view">{t('editor.permissionView')}</SelectItem>
+          </SelectContent>
+        </Select>
       </td>
       <td className="px-3 py-2">
         <div className="flex flex-wrap items-center gap-1.5">
@@ -671,16 +683,23 @@ export function EditorPage({ slug }: { slug: string | null }) {
                           />
                         </td>
                         <td className="px-3 py-2">
-                          <select
-                            value={grantPermission}
-                            onChange={(event) =>
-                              setGrantPermission(event.target.value as 'edit' | 'view')
-                            }
-                            className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                          <Select
+                          value={grantPermission}
+                          onValueChange={(value) =>
+                            setGrantPermission(value as 'edit' | 'view')
+                          }
+                        >
+                          <SelectTrigger
+                            className="h-8 w-full min-w-[6.5rem]"
+                            aria-label={t('editor.grantPermissionField')}
                           >
-                            <option value="edit">{t('editor.permissionEdit')}</option>
-                            <option value="view">{t('editor.permissionView')}</option>
-                          </select>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="edit">{t('editor.permissionEdit')}</SelectItem>
+                            <SelectItem value="view">{t('editor.permissionView')}</SelectItem>
+                          </SelectContent>
+                        </Select>
                         </td>
                         <td className="px-3 py-2">
                           <Input

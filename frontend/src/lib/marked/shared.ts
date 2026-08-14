@@ -4,7 +4,6 @@ import { CrepeBuilder } from '@milkdown/crepe/builder'
 import { blockEdit } from '@milkdown/crepe/feature/block-edit'
 import { codeMirror } from '@milkdown/crepe/feature/code-mirror'
 import { cursor } from '@milkdown/crepe/feature/cursor'
-import { imageBlock } from '@milkdown/crepe/feature/image-block'
 import { latex } from '@milkdown/crepe/feature/latex'
 import { linkTooltip } from '@milkdown/crepe/feature/link-tooltip'
 import { listItem } from '@milkdown/crepe/feature/list-item'
@@ -18,6 +17,10 @@ import {
   insertDiagramInputRule,
   remarkMermaidPlugin,
 } from './plugins/mermaid'
+import {
+  configureImageDirectiveTooltip,
+  imageDirectiveTooltip,
+} from './plugins/image-directives-tooltip'
 
 export interface MarkdownEditorConfig {
   root?: Node | string | null
@@ -63,7 +66,6 @@ export function createMarkdownEditor(config: MarkdownEditorConfig): CrepeBuilder
     builder.addFeature(table)
     builder.addFeature(toolbar)
     builder.addFeature(blockEdit)
-    builder.addFeature(imageBlock, onUpload !== undefined ? { onUpload } : undefined)
   }
 
   builder.addFeature(latex)
@@ -81,6 +83,12 @@ export function createMarkdownEditor(config: MarkdownEditorConfig): CrepeBuilder
     .use(diagramNodeView)
     .use(insertDiagramInputRule)
     .use(imageDirectivesSchema)
+
+  if (mode === 'edit') {
+    builder.editor
+      .config(configureImageDirectiveTooltip(onUpload))
+      .use(imageDirectiveTooltip)
+  }
 
   return builder
 }

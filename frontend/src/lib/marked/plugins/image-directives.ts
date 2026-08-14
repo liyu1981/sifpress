@@ -59,11 +59,22 @@ function parseImageDirectives(alt: string): ParsedImageDirectives {
   return { caption: caption.join('|'), width, height, position, asLink }
 }
 
-function rebuildImageAlt(attrs: {
+export interface ImageDirectiveAttrs {
+  src: string
+  alt: string
+  title: string
+  width: number | null
+  height: number | null
+  position: string | null
+  asLink: boolean
+}
+
+export function rebuildImageAlt(attrs: {
   alt: string
   width: number | null
   height: number | null
   position: string | null
+  asLink: boolean
 }): string {
   const parts: string[] = []
 
@@ -81,6 +92,10 @@ function rebuildImageAlt(attrs: {
 
   if (attrs.position !== null) {
     parts.push(attrs.position)
+  }
+
+  if (attrs.asLink) {
+    parts.push('link')
   }
 
   return parts.join('|')
@@ -125,6 +140,7 @@ export const imageDirectivesSchema = imageSchema.extendSchema((prev) => (ctx) =>
               width: number | null
               height: number | null
               position: string | null
+              asLink: boolean
             },
           ),
         })

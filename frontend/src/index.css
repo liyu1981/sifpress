@@ -320,6 +320,16 @@
     margin-inline: auto;
   }
 
+  .md-img-left {
+    display: block;
+    margin-right: auto;
+  }
+
+  .md-img-right {
+    display: block;
+    margin-left: auto;
+  }
+
   .md-img-float-left {
     float: left;
     margin-right: 1rem;
@@ -429,9 +439,12 @@
 }
 
 .milkdown-editor .milkdown {
-  padding: 1.25rem 1.5rem;
+  padding: 0;
   color: var(--foreground);
-  background: color-mix(in oklch, var(--background) 5%, transparent);
+  background: color-mix(in oklch, var(--background) 95%, transparent);
+  --crepe-font-default: 'Geist Variable', sans-serif;
+  --crepe-font-title: 'Geist Variable', sans-serif;
+  --crepe-font-code: var(--font-mono);
   --crepe-color-background: var(--background);
   --crepe-color-on-background: var(--foreground);
   --crepe-color-surface: var(--popover);
@@ -456,12 +469,23 @@
 }
 
 .milkdown-editor .milkdown .ProseMirror {
+  padding: 40px 90px;
   outline: none;
 }
 
 .milkdown-editor .milkdown .ProseMirror-selectednode {
   outline: 2px solid color-mix(in oklch, var(--ring) 60%, transparent);
   border-radius: calc(var(--radius-sm));
+}
+
+/* Floating image-directive editor (src/lib/marked/plugins/image-directives-tooltip.tsx) */
+.md-image-directives-tooltip {
+  position: absolute;
+  z-index: 30;
+}
+
+.md-image-directives-tooltip[data-show='false'] {
+  display: none;
 }
 
 /* Mermaid diagram node (editable, in-editor) */

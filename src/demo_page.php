@@ -80,6 +80,8 @@ Images accept Obsidian-style directives in the alt text, separated by pipes:
 | `|640`           | width 640px, height auto       |
 | `|400x240`       | width 400px, height 240px      |
 | `|center`        | centered block image           |
+| `|left`          | left-aligned block image       |
+| `|right`         | right-aligned block image      |
 | `|float-left`    | float left, text wraps around  |
 | `|float-right`   | float right, text wraps around |
 
