@@ -43,6 +43,90 @@ export function frontMatterString(
   return typeof value === 'string' && value !== '' ? value : null
 }
 
+export interface BuildFrontMatterInput {
+  title: string
+  slug: string
+  date?: string
+  tags?: string[]
+  extra?: Array<{ key: string; value: string }>
+}
+
+export const STANDARD_FRONT_MATTER_KEYS = new Set(['title', 'slug', 'date', 'tags'])
+
+function quoteYamlScalar(value: string): string {
+  const clean = value.replace(/\r?\n/g, ' ').trim()
+  return `"${clean.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+}
+
+function formatTags(tags: string[]): string {
+  if (tags.length === 0) {
+    return '[]'
+  }
+  const inner = tags
+    .map((tag) => {
+      const clean = tag.trim()
+      return /^[\w-]+$/.test(clean) ? clean : quoteYamlScalar(clean)
+    })
+    .join(', ')
+  return `[${inner}]`
+}
+
+function formatExtraValue(value: string): string {
+  const clean = value.trim()
+
+  if (clean === '') {
+    return '""'
+  }
+
+  if (/^(?:true|false|null|-?\d+(?:\.\d+)?)$/.test(clean)) {
+    return clean
+  }
+
+  if (/^[\w\-./:@+%]+$/.test(clean)) {
+    return clean
+  }
+
+  return quoteYamlScalar(clean)
+}
+
+/**
+ * Build the YAML front-matter block (with trailing blank line) for the
+ * meta fields that live outside the editor body. Standard fields always
+ * come first; extra fields (cover, …) are sorted by key. The `tags`
+ * inline array keeps `front_matter_tags()` on the backend working.
+ */
+export function buildFrontMatter({
+  title,
+  slug,
+  date = '',
+  tags = [],
+  extra = [],
+}: BuildFrontMatterInput): string {
+  const lines = ['---']
+  lines.push(`title: ${quoteYamlScalar(title)}`)
+  lines.push(`slug: ${quoteYamlScalar(slug)}`)
+  if (date !== '') {
+    lines.push(`date: ${date}`)
+  }
+  lines.push(`tags: ${formatTags(tags)}`)
+
+  const seen = new Set(STANDARD_FRONT_MATTER_KEYS)
+
+  for (const field of [...extra].sort((a, b) => a.key.localeCompare(b.key))) {
+    const key = field.key.trim()
+
+    if (key === '' || seen.has(key) || !/^[A-Za-z0-9_-]+$/.test(key)) {
+      continue
+    }
+
+    seen.add(key)
+    lines.push(`${key}: ${formatExtraValue(field.value)}`)
+  }
+
+  lines.push('---', '')
+  return lines.join('\n')
+}
+
 function parseYamlLines(block: string): Record<string, unknown> {
   const data: Record<string, unknown> = {}
 

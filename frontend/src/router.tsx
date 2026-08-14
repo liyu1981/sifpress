@@ -156,7 +156,6 @@ function RootLayout() {
   }
 
   const needsAuth = pathname === '/settings' || pathname === '/assets' || pathname.startsWith('/editor')
-  const isEditor = pathname.startsWith('/editor')
 
   let content: ReactNode
 
@@ -172,19 +171,9 @@ function RootLayout() {
     <div className="ambient-bg min-h-screen w-full overflow-x-clip">
       <AmbientBackground />
       <Toaster />
-      <div
-        className={`relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 ${
-          isEditor ? 'h-dvh py-6' : 'min-h-screen py-12'
-        }`}
-      >
+      <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-12">
         <AppHeader />
-        <main
-          className={
-            isEditor
-              ? 'min-h-0 flex-1'
-              : 'animate-in slide-in-from-bottom-3 duration-500 ease-out'
-          }
-        >
+        <main className="animate-in slide-in-from-bottom-3 duration-500 ease-out">
           {content}
         </main>
 

@@ -139,6 +139,28 @@ dist/               build artifacts (gitignored)
   resources, language persisted in localStorage and synced to
   `document.documentElement.lang`. Add keys in the `resources` object; use
   `useTranslation()` in components.
+- **Markdown editor + rendering** (`src/lib/marked/`): Milkdown
+  (`@milkdown/crepe`, pinned) wrapped as `MilkdownEditor` (WYSIWYG editor on
+  `/editor`) and `MarkdownView` (article display via `getHTML()` +
+  post-processing). `createMarkdownEditor()` in `shared.ts` is the single
+  source of truth for the schema — it builds the **same** editor for both
+  modes so edit and render can't drift.
+  - Custom plugins live in `src/lib/marked/plugins/`: `mermaid` (diagram
+    node + NodeView, uses the app's Mermaid), `image-directives`
+    (`![Alt|640]`/floats/`link`, extends the commonmark image schema),
+    `slug` handled by the built-in heading-id generator (ids in `getHTML`
+    output feed the TOC).
+  - **Feature ordering matters**: `codeMirror` must be `addFeature`d before
+    `latex` (the Latex feature throws otherwise).
+  - Crepe's UI chrome (toolbar, slash menu, tables…) is written in **Vue 3**
+    and bundled as a hard dep (~35–45 KB gz) — do not add `@milkdown/react`;
+    we mount `CrepeBuilder` directly.
+  - Article rendering pipeline: `parseFrontMatter` → `escapeTableCodePipes`
+    (tables with pipes in code spans) → `markdownToHtml` (hidden renderer
+    singleton + `getHTML()`) → `postProcessHtml` (block math → KaTeX,
+    mermaid SVG, video embeds, figure/caption lift, external links).
+  - Meta fields (title/slug/date/tags) live in dedicated editor inputs and
+    are assembled on save by `buildFrontMatter()` in `src/lib/front-matter.ts`.
 - **Glass design system** in `index.css` (`@layer components`):
   `glass-control` (frosted surfaces — applied by default to `Card`),
   `apple-panel` (chrome — used by the nav pill), `ambient-bg` (page

@@ -7,7 +7,7 @@ import { ArrowLeft, Calendar, Clock, FilePenLine, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DeletePageMenu } from '@/components/delete-page-menu'
-import { Markdown } from '@/components/markdown/markdown'
+import { MarkdownView } from '@/lib/marked'
 import {
   TableOfContents,
   useArticleHeadings,
@@ -159,7 +159,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
             </header>
 
             <div ref={contentRef}>
-              <Markdown
+              <MarkdownView
                 content={page.content_md}
                 className="prose max-w-none text-[0.95rem] leading-7"
               />
