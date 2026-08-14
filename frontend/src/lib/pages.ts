@@ -46,6 +46,7 @@ export interface PageListItem {
   content_md: string
   tags: string[]
   status: PageStatus
+  created_by: number | null
   created_by_name: string
   updated_at: string
   can_edit: boolean

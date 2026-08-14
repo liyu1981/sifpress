@@ -13,6 +13,7 @@ import { Loader2, LogOut } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { Toaster } from '@/components/ui/sonner'
 import { AmbientBackground } from '@/components/ambient-background'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { MigrationScreen } from '@/components/migration-screen'
@@ -170,6 +171,7 @@ function RootLayout() {
   return (
     <div className="ambient-bg min-h-screen w-full overflow-x-clip">
       <AmbientBackground />
+      <Toaster />
       <div
         className={`relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 ${
           isEditor ? 'h-dvh py-6' : 'min-h-screen py-12'

@@ -942,6 +942,17 @@ function api_pages_delete(string $method): never
         json_response(['error' => 'page not found'], 404);
     }
 
+    /*
+     * Deletion is ownership-aware: only the author (or an admin) may
+     * delete a page, even though editors hold the pages.delete
+     * permission. Editors can still edit pages they have a grant for.
+     */
+    $user = current_user();
+
+    if (!is_admin($user) && (int) $page['created_by'] !== (int) $user['id']) {
+        json_response(['error' => 'forbidden'], 403);
+    }
+
     $stmt = db()->prepare('DELETE FROM pages WHERE id = ?');
     $stmt->execute([$id]);
 

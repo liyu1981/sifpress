@@ -1,11 +1,12 @@
 import { useRef } from 'react'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Calendar, Clock, FilePenLine } from 'lucide-react'
+import { ArrowLeft, Calendar, Clock, FilePenLine, Trash2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { DeletePageMenu } from '@/components/delete-page-menu'
 import { Markdown } from '@/components/markdown/markdown'
 import {
   TableOfContents,
@@ -14,6 +15,7 @@ import {
 } from '@/components/markdown/toc'
 import { ReadingProgress } from '@/components/reading-progress'
 import { usePageTitle } from '@/hooks/use-page-title'
+import { useAuth } from '@/lib/auth'
 import { pagesApi } from '@/lib/pages'
 import { frontMatterString, parseFrontMatter } from '@/lib/front-matter'
 import { estimateReadingMinutes, formatDate } from '@/lib/format'
@@ -35,6 +37,8 @@ function ArticleSkeleton() {
 
 export function ArticleDetailPage({ slug }: { slug: string }) {
   const { t, i18n } = useTranslation()
+  const { user, isAdmin } = useAuth()
+  const navigate = useNavigate()
   const contentRef = useRef<HTMLDivElement>(null)
 
   const article = useQuery({
@@ -108,13 +112,30 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                 {page.status === 'draft' && (
                   <Badge variant="outline">{t('article.draft')}</Badge>
                 )}
-                {page.can_edit && (
-                  <Button asChild variant="glass" size="xs" className="ml-auto">
-                    <Link to="/editor/$slug" params={{ slug: page.slug }}>
-                      <FilePenLine />
-                      {t('article.edit')}
-                    </Link>
-                  </Button>
+                {(page.can_edit ||
+                  (user !== null && (isAdmin || page.created_by === user.id))) && (
+                  <div className="ml-auto flex flex-wrap items-center gap-2">
+                    {page.can_edit && (
+                      <Button asChild variant="glass" size="xs">
+                        <Link to="/editor/$slug" params={{ slug: page.slug }}>
+                          <FilePenLine />
+                          {t('article.edit')}
+                        </Link>
+                      </Button>
+                    )}
+                    {user !== null && (isAdmin || page.created_by === user.id) && (
+                      <DeletePageMenu
+                        pageId={page.id}
+                        title={page.title}
+                        onDeleted={() => navigate({ to: '/article' })}
+                      >
+                        <Button variant="glass" size="xs" className="text-destructive">
+                          <Trash2 />
+                          {t('editor.delete')}
+                        </Button>
+                      </DeletePageMenu>
+                    )}
+                  </div>
                 )}
               </div>
               <h1 className="font-heading text-3xl leading-tight font-bold tracking-tight sm:text-4xl">

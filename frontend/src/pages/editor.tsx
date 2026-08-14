@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { DeletePageMenu } from '@/components/delete-page-menu'
 import { Markdown } from '@/components/markdown/markdown'
 import { parseFrontMatter } from '@/lib/front-matter'
 import { useAuth } from '@/lib/auth'
@@ -210,7 +211,7 @@ function EditorSkeleton() {
 
 export function EditorPage({ slug }: { slug: string | null }) {
   const { t } = useTranslation()
-  const { user, has, isAdmin } = useAuth()
+  const { user, isAdmin } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -331,20 +332,6 @@ export function EditorPage({ slug }: { slug: string | null }) {
       queryClient.invalidateQueries({ queryKey: ['page-grants', page?.id] })
     },
   })
-
-  const remove = useMutation({
-    mutationFn: () => pagesApi.remove(page!.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['pages'] })
-      navigate({ to: '/article' })
-    },
-  })
-
-  function handleDelete() {
-    if (window.confirm(t('editor.deleteConfirm'))) {
-      remove.mutate()
-    }
-  }
 
   if (editing && pageQuery.isLoading) {
     return (
@@ -558,17 +545,17 @@ export function EditorPage({ slug }: { slug: string | null }) {
                         : t('editor.statusDraft')}
                     </span>
                   </label>
-                  {editing && page !== null && has('pages.delete') && (
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      onClick={handleDelete}
-                      disabled={remove.isPending}
+                  {editing && page !== null && user !== null && (isAdmin || page.created_by === user.id) && (
+                    <DeletePageMenu
+                      pageId={page.id}
+                      title={page.title}
+                      onDeleted={() => navigate({ to: '/article' })}
                     >
-                      {remove.isPending ? <Loader2 className="animate-spin" /> : <Trash2 />}
-                      {t('editor.delete')}
-                    </Button>
+                      <Button type="button" variant="destructive" size="sm">
+                        <Trash2 />
+                        {t('editor.delete')}
+                      </Button>
+                    </DeletePageMenu>
                   )}
                   <Button type="submit" size="sm" disabled={save.isPending}>
                     {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}

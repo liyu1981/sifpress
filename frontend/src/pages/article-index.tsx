@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ArrowRight, Calendar, Clock, FilePenLine, Search } from 'lucide-react'
+import { ArrowRight, Calendar, Clock, FilePenLine, Search, Trash2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DeletePageMenu } from '@/components/delete-page-menu'
 import { useAuth } from '@/lib/auth'
 import { pagesApi, tagsApi } from '@/lib/pages'
 import type { PageListItem, SearchResult } from '@/lib/pages'
@@ -54,6 +55,7 @@ function SearchCard({ result, locale }: { result: SearchResult; locale: string }
 
 function ArticleCard({ article, locale }: { article: PageListItem; locale: string }) {
   const { t } = useTranslation()
+  const { user, isAdmin } = useAuth()
   const frontMatter = parseFrontMatter(article.content_md)
   const cover = frontMatterString(frontMatter.data, 'cover')
   const readingMinutes = estimateReadingMinutes(frontMatter.content)
@@ -128,6 +130,14 @@ function ArticleCard({ article, locale }: { article: PageListItem; locale: strin
                 {t('article.edit')}
               </Link>
             </Button>
+          )}
+          {user !== null && (isAdmin || article.created_by === user.id) && (
+            <DeletePageMenu pageId={article.id} title={article.title}>
+              <Button size="sm" variant="ghost" className="text-destructive">
+                <Trash2 />
+                {t('editor.delete')}
+              </Button>
+            </DeletePageMenu>
           )}
         </div>
       </div>
