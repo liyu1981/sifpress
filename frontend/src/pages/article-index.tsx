@@ -1,22 +1,21 @@
-import { useState } from 'react'
-import { Link, useNavigate } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
-import { useTranslation } from 'react-i18next'
-import { ArrowRight, Calendar, Clock, FilePenLine, Search, Trash2 } from 'lucide-react'
-
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { DeletePageMenu } from '@/components/delete-page-menu'
-import { useAuth } from '@/lib/auth'
-import { pagesApi, tagsApi } from '@/lib/pages'
-import type { PageListItem, SearchResult } from '@/lib/pages'
-import { usePageTitle } from '@/hooks/use-page-title'
-import { frontMatterString, parseFrontMatter } from '@/lib/front-matter'
-import { estimateReadingMinutes, excerptFromMarkdown, formatDate } from '@/lib/format'
+import { useQuery } from '@tanstack/react-query';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { ArrowRight, Calendar, Clock, FilePenLine, Search, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { DeletePageMenu } from '@/components/delete-page-menu';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { usePageTitle } from '@/hooks/use-page-title';
+import { useAuth } from '@/lib/auth';
+import { estimateReadingMinutes, excerptFromMarkdown, formatDate } from '@/lib/format';
+import { frontMatterString, parseFrontMatter } from '@/lib/front-matter';
+import type { PageListItem, SearchResult } from '@/lib/pages';
+import { pagesApi, tagsApi } from '@/lib/pages';
 
 function SearchCard({ result, locale }: { result: SearchResult; locale: string }) {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
 
   return (
     <article className="glass-control group flex flex-col gap-3 rounded-2xl p-6 transition-shadow hover:shadow-lg">
@@ -50,15 +49,15 @@ function SearchCard({ result, locale }: { result: SearchResult; locale: string }
         </Link>
       </Button>
     </article>
-  )
+  );
 }
 
 function ArticleCard({ article, locale }: { article: PageListItem; locale: string }) {
-  const { t } = useTranslation()
-  const { user, isAdmin } = useAuth()
-  const frontMatter = parseFrontMatter(article.content_md)
-  const cover = frontMatterString(frontMatter.data, 'cover')
-  const readingMinutes = estimateReadingMinutes(frontMatter.content)
+  const { t } = useTranslation();
+  const { user, isAdmin } = useAuth();
+  const frontMatter = parseFrontMatter(article.content_md);
+  const cover = frontMatterString(frontMatter.data, 'cover');
+  const readingMinutes = estimateReadingMinutes(frontMatter.content);
 
   return (
     <article className="glass-control group flex flex-col gap-3 overflow-hidden rounded-2xl transition-shadow hover:shadow-lg">
@@ -86,12 +85,8 @@ function ArticleCard({ article, locale }: { article: PageListItem; locale: strin
             <Clock className="size-3.5" />
             {t('article.reading', { min: readingMinutes })}
           </span>
-          {article.created_by_name !== '' && (
-            <span>{article.created_by_name}</span>
-          )}
-          {article.status === 'draft' && (
-            <Badge variant="outline">{t('article.draft')}</Badge>
-          )}
+          {article.created_by_name !== '' && <span>{article.created_by_name}</span>}
+          {article.status === 'draft' && <Badge variant="outline">{t('article.draft')}</Badge>}
         </div>
         <h2 className="font-heading text-xl leading-snug font-semibold tracking-tight">
           <Link
@@ -107,7 +102,7 @@ function ArticleCard({ article, locale }: { article: PageListItem; locale: strin
         </p>
         {article.tags.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
-            {article.tags.map((tag) => (
+            {article.tags.map(tag => (
               <Badge key={tag} variant="outline">
                 <Link to="/article" search={{ tag }} className="no-underline">
                   {tag}
@@ -142,28 +137,28 @@ function ArticleCard({ article, locale }: { article: PageListItem; locale: strin
         </div>
       </div>
     </article>
-  )
+  );
 }
 
 export function ArticleIndexPage({ tag }: { tag?: string }) {
-  const { t, i18n } = useTranslation()
-  const { has, user } = useAuth()
-  const navigate = useNavigate()
+  const { t, i18n } = useTranslation();
+  const { has, user } = useAuth();
+  const navigate = useNavigate();
 
-  usePageTitle(tag ? `#${tag} — ${t('article.indexTitle')}` : t('article.indexTitle'))
+  usePageTitle(tag ? `#${tag} — ${t('article.indexTitle')}` : t('article.indexTitle'));
 
-  const [query, setQuery] = useState('')
-  const q = query.trim()
+  const [query, setQuery] = useState('');
+  const q = query.trim();
 
-  type StatusFilter = 'all' | 'published' | 'draft'
-  const [filter, setFilter] = useState<StatusFilter>('all')
-  const canSeeDrafts = has('pages.write')
+  type StatusFilter = 'all' | 'published' | 'draft';
+  const [filter, setFilter] = useState<StatusFilter>('all');
+  const canSeeDrafts = has('pages.write');
 
   const statusOptions: { value: StatusFilter; label: string }[] = [
     { value: 'all', label: t('article.filterAll') },
     { value: 'published', label: t('article.filterPublished') },
     { value: 'draft', label: t('article.filterDraft') },
-  ]
+  ];
 
   const list = useQuery({
     queryKey: ['pages', { tag, filter, user: user?.id ?? null }],
@@ -173,26 +168,26 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
         tag,
         ...(filter !== 'all' ? { status: filter } : {}),
       }),
-  })
+  });
 
   const search = useQuery({
     queryKey: ['pages', 'search', q, user?.id ?? null],
     queryFn: () => pagesApi.search(q),
     enabled: q.length >= 3,
-  })
+  });
 
   const allTags = useQuery({
     queryKey: ['tags'],
     queryFn: tagsApi.list,
-  })
+  });
 
-  const searching = q.length >= 3
+  const searching = q.length >= 3;
 
   function selectTag(next: string | undefined) {
     navigate({
       to: '/article',
       search: next !== undefined ? { tag: next } : {},
-    })
+    });
   }
 
   return (
@@ -201,9 +196,7 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
         <h1 className="font-heading text-3xl font-bold tracking-tight">
           {t('article.indexTitle')}
         </h1>
-        <p className="text-sm text-muted-foreground">
-          {t('article.indexDescription')}
-        </p>
+        <p className="text-sm text-muted-foreground">{t('article.indexDescription')}</p>
       </header>
 
       <div className="grid items-start gap-6 lg:grid-cols-[16rem_1fr]">
@@ -227,7 +220,7 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
                 <Input
                   type="search"
                   value={query}
-                  onChange={(event) => setQuery(event.target.value)}
+                  onChange={event => setQuery(event.target.value)}
                   placeholder={t('article.searchPlaceholder')}
                   className="pl-8"
                 />
@@ -240,7 +233,7 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
                   {t('article.visibilityField')}
                 </h2>
                 <div className="flex flex-col gap-1">
-                  {statusOptions.map((option) => (
+                  {statusOptions.map(option => (
                     <button
                       key={option.value}
                       type="button"
@@ -275,7 +268,7 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
                   >
                     {t('article.allTags')}
                   </button>
-                  {allTags.data.map((item) => (
+                  {allTags.data.map(item => (
                     <button
                       key={item.name}
                       type="button"
@@ -302,7 +295,7 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
               <p className="text-sm text-muted-foreground">{t('article.searching')}</p>
             ) : search.data && search.data.items.length > 0 ? (
               <div className="space-y-4">
-                {search.data.items.map((result) => (
+                {search.data.items.map(result => (
                   <SearchCard key={result.slug} result={result} locale={i18n.language} />
                 ))}
               </div>
@@ -333,7 +326,7 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
             </div>
           ) : (
             <div className="space-y-4">
-              {list.data.items.map((article) => (
+              {list.data.items.map(article => (
                 <ArticleCard key={article.slug} article={article} locale={i18n.language} />
               ))}
             </div>
@@ -341,5 +334,5 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
         </main>
       </div>
     </div>
-  )
+  );
 }

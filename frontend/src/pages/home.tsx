@@ -1,19 +1,18 @@
-import { useQuery } from '@tanstack/react-query'
-import { useTranslation } from 'react-i18next'
-
-import { ArticleDetailPage } from '@/pages/article-detail'
-import { pagesApi, DEMO_PAGE_SLUG } from '@/lib/pages'
-import { usePageTitle } from '@/hooks/use-page-title'
+import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
+import { usePageTitle } from '@/hooks/use-page-title';
+import { DEMO_PAGE_SLUG, pagesApi } from '@/lib/pages';
+import { ArticleDetailPage } from '@/pages/article-detail';
 
 export function HomePage() {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
 
-  usePageTitle(t('home.title'))
+  usePageTitle(t('home.title'));
 
   const latest = useQuery({
     queryKey: ['pages'],
     queryFn: () => pagesApi.list({ status: 'published', per_page: 1 }),
-  })
+  });
 
   if (latest.isLoading || latest.data === undefined) {
     return (
@@ -28,10 +27,10 @@ export function HomePage() {
           </div>
         </div>
       </div>
-    )
+    );
   }
 
-  const first = latest.data.items[0]
+  const first = latest.data.items[0];
 
   if (first === undefined) {
     /*
@@ -39,8 +38,8 @@ export function HomePage() {
      * reference page so a fresh install has something meaningful on
      * the home page.
      */
-    return <ArticleDetailPage slug={DEMO_PAGE_SLUG} />
+    return <ArticleDetailPage slug={DEMO_PAGE_SLUG} />;
   }
 
-  return <ArticleDetailPage slug={first.slug} />
+  return <ArticleDetailPage slug={first.slug} />;
 }

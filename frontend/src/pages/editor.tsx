@@ -1,7 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
-import { useTranslation } from 'react-i18next'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useNavigate } from '@tanstack/react-router';
 import {
   ArrowLeft,
   ChevronDown,
@@ -13,82 +11,79 @@ import {
   Trash2,
   UserPlus,
   X,
-} from 'lucide-react'
-import type { FormEvent } from 'react'
-
-import { ApiError, assetSourceUrl } from '@/lib/api'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+} from 'lucide-react';
+import type { FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { DeletePageMenu } from '@/components/delete-page-menu';
+import { TagsInput } from '@/components/tags-input';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
-import { TagsInput } from '@/components/tags-input'
-import { DeletePageMenu } from '@/components/delete-page-menu'
-import {
-  buildFrontMatter,
-  parseFrontMatter,
-  STANDARD_FRONT_MATTER_KEYS,
-} from '@/lib/front-matter'
-import { MilkdownEditor, type MilkdownEditorHandle } from '@/lib/marked'
-import { escapeTableCodePipes } from '@/lib/marked/preprocess'
-import { useAuth } from '@/lib/auth'
-import { assetsApi, pagesApi, type Grant } from '@/lib/pages'
-import { usePageTitle } from '@/hooks/use-page-title'
+} from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { usePageTitle } from '@/hooks/use-page-title';
+import { ApiError, assetSourceUrl } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { buildFrontMatter, parseFrontMatter, STANDARD_FRONT_MATTER_KEYS } from '@/lib/front-matter';
+import { MilkdownEditor, type MilkdownEditorHandle } from '@/lib/marked';
+import { escapeTableCodePipes } from '@/lib/marked/preprocess';
+import { assetsApi, type Grant, pagesApi } from '@/lib/pages';
 
-const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function todayString(): string {
-  const now = new Date()
+  const now = new Date();
   return [
     now.getFullYear(),
     String(now.getMonth() + 1).padStart(2, '0'),
     String(now.getDate()).padStart(2, '0'),
-  ].join('-')
+  ].join('-');
 }
 
 interface SavePayload {
-  slug: string
-  title: string
-  status: 'published' | 'draft'
-  content_md: string
-  created_at: string
-  updated_at: string
+  slug: string;
+  title: string;
+  status: 'published' | 'draft';
+  content_md: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface ExtraField {
-  id: number
-  key: string
-  value: string
+  id: number;
+  key: string;
+  value: string;
 }
 
 function scalarToString(value: unknown): string {
   if (typeof value === 'string') {
-    return value
+    return value;
   }
   if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value)
+    return String(value);
   }
   if (Array.isArray(value)) {
-    return value.map(scalarToString).join(', ')
+    return value.map(scalarToString).join(', ');
   }
-  return ''
+  return '';
 }
 
 function errorMessages(error: ApiError | null): string[] {
   if (error === null) {
-    return []
+    return [];
   }
 
-  const messages = Object.values(error.data.errors ?? {}).flat()
+  const messages = Object.values(error.data.errors ?? {}).flat();
 
-  return messages.length > 0 ? messages : error.data.error ? [error.data.error] : []
+  return messages.length > 0 ? messages : error.data.error ? [error.data.error] : [];
 }
 
 function SegmentedControl<T extends string>({
@@ -96,13 +91,13 @@ function SegmentedControl<T extends string>({
   options,
   onChange,
 }: {
-  value: T
-  options: Array<{ value: T; label: string }>
-  onChange: (next: T) => void
+  value: T;
+  options: Array<{ value: T; label: string }>;
+  onChange: (next: T) => void;
 }) {
   return (
     <div className="flex items-center gap-1 rounded-full bg-muted/60 p-1">
-      {options.map((option) => (
+      {options.map(option => (
         <button
           key={option.value}
           type="button"
@@ -117,7 +112,7 @@ function SegmentedControl<T extends string>({
         </button>
       ))}
     </div>
-  )
+  );
 }
 
 /**
@@ -132,29 +127,31 @@ function GrantRow({
   onRevoke,
   saving,
 }: {
-  grant: Grant
-  index: number
-  onSave: (permission: 'edit' | 'view') => void
-  onRevoke: () => void
-  saving: boolean
+  grant: Grant;
+  index: number;
+  onSave: (permission: 'edit' | 'view') => void;
+  onRevoke: () => void;
+  saving: boolean;
 }) {
-  const { t } = useTranslation()
-  const [permission, setPermission] = useState<'edit' | 'view'>(grant.permission)
+  const { t } = useTranslation();
+  const [permission, setPermission] = useState<'edit' | 'view'>(grant.permission);
 
   useEffect(() => {
-    setPermission(grant.permission)
-  }, [grant.permission])
+    setPermission(grant.permission);
+  }, [grant.permission]);
 
-  const isFixed = grant.kind !== 'grant'
-  const isGuest = grant.username === '_guest_'
-  const changed = !isFixed && permission !== grant.permission
+  const isFixed = grant.kind !== 'grant';
+  const isGuest = grant.username === '_guest_';
+  const changed = !isFixed && permission !== grant.permission;
   const label =
     grant.username === '_guest_'
       ? grant.name || t('editor.websiteGuest')
       : grant.username === 'admin'
         ? t('editor.websiteAdmin')
-        : grant.username
-  const note = grant.note ?? (grant.granted_by_name ? t('editor.grantBy', { name: grant.granted_by_name }) : '')
+        : grant.username;
+  const note =
+    grant.note ??
+    (grant.granted_by_name ? t('editor.grantBy', { name: grant.granted_by_name }) : '');
 
   return (
     <tr
@@ -168,7 +165,7 @@ function GrantRow({
       <td className="px-3 py-2">
         <Select
           value={isFixed ? 'edit' : permission}
-          onValueChange={(value) => setPermission(value as 'edit' | 'view')}
+          onValueChange={value => setPermission(value as 'edit' | 'view')}
           disabled={isFixed}
         >
           <SelectTrigger
@@ -210,7 +207,7 @@ function GrantRow({
         </div>
       </td>
     </tr>
-  )
+  );
 }
 
 function EditorSkeleton() {
@@ -222,96 +219,96 @@ function EditorSkeleton() {
         <div className="h-40 w-full rounded bg-muted" />
       </div>
     </div>
-  )
+  );
 }
 
 export function EditorPage({ slug }: { slug: string | null }) {
-  const { t } = useTranslation()
-  const { user, isAdmin } = useAuth()
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
+  const { t } = useTranslation();
+  const { user, isAdmin } = useAuth();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  const editing = slug !== null
-  usePageTitle(editing ? t('editor.editTitle') : t('editor.newTitle'))
+  const editing = slug !== null;
+  usePageTitle(editing ? t('editor.editTitle') : t('editor.newTitle'));
 
   const pageQuery = useQuery({
     queryKey: ['page', slug ?? 'new'],
     queryFn: () => (slug ? pagesApi.get({ slug }) : Promise.resolve(null)),
     enabled: editing,
-  })
+  });
 
-  const [title, setTitle] = useState('')
-  const [slugValue, setSlugValue] = useState('')
-  const [date, setDate] = useState(editing ? '' : todayString())
-  const [updatedDate, setUpdatedDate] = useState('')
-  const [tags, setTags] = useState<string[]>([])
-  const [extraFields, setExtraFields] = useState<ExtraField[]>([])
-  const [extraOpen, setExtraOpen] = useState(false)
-  const [published, setPublished] = useState(false)
-  const [loaded, setLoaded] = useState(false)
-  const [saveError, setSaveError] = useState<ApiError | null>(null)
-  const editorRef = useRef<MilkdownEditorHandle>(null)
-  const extraFieldIdRef = useRef(0)
+  const [title, setTitle] = useState('');
+  const [slugValue, setSlugValue] = useState('');
+  const [date, setDate] = useState(editing ? '' : todayString());
+  const [updatedDate, setUpdatedDate] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [extraFields, setExtraFields] = useState<ExtraField[]>([]);
+  const [extraOpen, setExtraOpen] = useState(false);
+  const [published, setPublished] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [saveError, setSaveError] = useState<ApiError | null>(null);
+  const editorRef = useRef<MilkdownEditorHandle>(null);
+  const extraFieldIdRef = useRef(0);
 
-  const [body, setBody] = useState('')
-  const [bodyTab, setBodyTab] = useState<'editor' | 'source'>('editor')
-  const [sourceBody, setSourceBody] = useState('')
-  const [sourceDirty, setSourceDirty] = useState(false)
+  const [body, setBody] = useState('');
+  const [bodyTab, setBodyTab] = useState<'editor' | 'source'>('editor');
+  const [sourceBody, setSourceBody] = useState('');
+  const [sourceDirty, setSourceDirty] = useState(false);
 
-  const [frontTab, setFrontTab] = useState<'fields' | 'raw'>('fields')
-  const [rawFront, setRawFront] = useState('')
-  const [rawDirty, setRawDirty] = useState(false)
-  const [rawError, setRawError] = useState<string | null>(null)
+  const [frontTab, setFrontTab] = useState<'fields' | 'raw'>('fields');
+  const [rawFront, setRawFront] = useState('');
+  const [rawDirty, setRawDirty] = useState(false);
+  const [rawError, setRawError] = useState<string | null>(null);
 
-  const [accessOpen, setAccessOpen] = useState(false)
-  const [grantUsername, setGrantUsername] = useState('')
-  const [grantPermission, setGrantPermission] = useState<'edit' | 'view'>('edit')
-  const [grantNote, setGrantNote] = useState('')
-  const [grantError, setGrantError] = useState<ApiError | null>(null)
+  const [accessOpen, setAccessOpen] = useState(false);
+  const [grantUsername, setGrantUsername] = useState('');
+  const [grantPermission, setGrantPermission] = useState<'edit' | 'view'>('edit');
+  const [grantNote, setGrantNote] = useState('');
+  const [grantError, setGrantError] = useState<ApiError | null>(null);
 
   useEffect(() => {
     if (!editing || loaded || pageQuery.data === undefined) {
-      return
+      return;
     }
 
-    const page = pageQuery.data
+    const page = pageQuery.data;
 
     if (page !== null) {
-      const meta = parseFrontMatter(page.content_md)
-      const data = meta.data
+      const meta = parseFrontMatter(page.content_md);
+      const data = meta.data;
 
-      setTitle(typeof data.title === 'string' ? data.title : '')
-      setSlugValue(typeof data.slug === 'string' ? data.slug : '')
-      setDate(typeof data.date === 'string' ? data.date : '')
+      setTitle(typeof data.title === 'string' ? data.title : '');
+      setSlugValue(typeof data.slug === 'string' ? data.slug : '');
+      setDate(typeof data.date === 'string' ? data.date : '');
       setTags(
         Array.isArray(data.tags)
           ? data.tags.filter((tag): tag is string => typeof tag === 'string')
           : [],
-      )
+      );
 
       const extras: ExtraField[] = Object.entries(data)
         .filter(([key]) => !STANDARD_FRONT_MATTER_KEYS.has(key))
         .map(([key, value]) => {
-          extraFieldIdRef.current += 1
-          return { id: extraFieldIdRef.current, key, value: scalarToString(value) }
-        })
-      setExtraFields(extras)
-      setExtraOpen(extras.length > 0)
+          extraFieldIdRef.current += 1;
+          return { id: extraFieldIdRef.current, key, value: scalarToString(value) };
+        });
+      setExtraFields(extras);
+      setExtraOpen(extras.length > 0);
 
-      setBody(escapeTableCodePipes(meta.content))
-      setSourceBody(escapeTableCodePipes(meta.content))
-      setPublished(page.status === 'published')
+      setBody(escapeTableCodePipes(meta.content));
+      setSourceBody(escapeTableCodePipes(meta.content));
+      setPublished(page.status === 'published');
     }
 
-    setLoaded(true)
-  }, [editing, loaded, pageQuery.data])
+    setLoaded(true);
+  }, [editing, loaded, pageQuery.data]);
 
   const handleUpload = useCallback(async (file: File): Promise<string> => {
-    const formData = new FormData()
-    formData.append('file', file)
-    const result = await assetsApi.create(formData)
-    return assetSourceUrl(result.asset.id, result.asset.name, result.asset.kind)
-  }, [])
+    const formData = new FormData();
+    formData.append('file', file);
+    const result = await assetsApi.create(formData);
+    return assetSourceUrl(result.asset.id, result.asset.name, result.asset.kind);
+  }, []);
 
   const save = useMutation({
     mutationFn: async (meta: SavePayload) => {
@@ -322,21 +319,19 @@ export function EditorPage({ slug }: { slug: string | null }) {
         content_md: meta.content_md,
         created_at: meta.created_at,
         updated_at: meta.updated_at,
-      }
+      };
 
-      return editing
-        ? pagesApi.update({ id: pageQuery.data!.id, ...base })
-        : pagesApi.create(base)
+      return editing ? pagesApi.update({ id: pageQuery.data!.id, ...base }) : pagesApi.create(base);
     },
-    onSuccess: (page) => {
-      queryClient.invalidateQueries({ queryKey: ['pages'] })
-      queryClient.invalidateQueries({ queryKey: ['page', page.slug] })
-      navigate({ to: '/article/$slug', params: { slug: page.slug } })
+    onSuccess: page => {
+      queryClient.invalidateQueries({ queryKey: ['pages'] });
+      queryClient.invalidateQueries({ queryKey: ['page', page.slug] });
+      navigate({ to: '/article/$slug', params: { slug: page.slug } });
     },
-    onError: (err) => {
-      setSaveError(err instanceof ApiError ? err : null)
+    onError: err => {
+      setSaveError(err instanceof ApiError ? err : null);
     },
-  })
+  });
 
   const buildFrontMatterFromFields = (): string =>
     buildFrontMatter({
@@ -345,124 +340,123 @@ export function EditorPage({ slug }: { slug: string | null }) {
       date: date.trim(),
       tags,
       extra: extraFields
-        .map((field) => ({ key: field.key.trim(), value: field.value }))
-        .filter((field) => field.key !== ''),
-    })
+        .map(field => ({ key: field.key.trim(), value: field.value }))
+        .filter(field => field.key !== ''),
+    });
 
   const applyRawFront = (raw: string): boolean => {
-    const meta = parseFrontMatter(`${raw.trimEnd()}\n\n`)
-    const data = meta.data
+    const meta = parseFrontMatter(`${raw.trimEnd()}\n\n`);
+    const data = meta.data;
 
     if (Object.keys(data).length === 0) {
-      setRawError(t('editor.rawInvalid'))
-      return false
+      setRawError(t('editor.rawInvalid'));
+      return false;
     }
 
-    setTitle(typeof data.title === 'string' ? data.title : '')
-    setSlugValue(typeof data.slug === 'string' ? data.slug : '')
-    setDate(typeof data.date === 'string' ? data.date : '')
+    setTitle(typeof data.title === 'string' ? data.title : '');
+    setSlugValue(typeof data.slug === 'string' ? data.slug : '');
+    setDate(typeof data.date === 'string' ? data.date : '');
     setTags(
       Array.isArray(data.tags)
         ? data.tags.filter((tag): tag is string => typeof tag === 'string')
         : [],
-    )
+    );
 
     const extras: ExtraField[] = Object.entries(data)
       .filter(([key]) => !STANDARD_FRONT_MATTER_KEYS.has(key))
       .map(([key, value]) => {
-        extraFieldIdRef.current += 1
-        return { id: extraFieldIdRef.current, key, value: scalarToString(value) }
-      })
-    setExtraFields(extras)
-    setExtraOpen(extras.length > 0)
+        extraFieldIdRef.current += 1;
+        return { id: extraFieldIdRef.current, key, value: scalarToString(value) };
+      });
+    setExtraFields(extras);
+    setExtraOpen(extras.length > 0);
 
-    setRawError(null)
-    return true
-  }
+    setRawError(null);
+    return true;
+  };
 
   const switchFrontTab = (next: 'fields' | 'raw'): void => {
     if (next === frontTab) {
-      return
+      return;
     }
 
     if (next === 'raw') {
-      setRawFront(buildFrontMatterFromFields())
-      setRawDirty(false)
-      setRawError(null)
+      setRawFront(buildFrontMatterFromFields());
+      setRawDirty(false);
+      setRawError(null);
     } else if (rawDirty && !applyRawFront(rawFront)) {
-      return
+      return;
     }
 
-    setFrontTab(next)
-  }
+    setFrontTab(next);
+  };
 
   const switchBodyTab = (next: 'editor' | 'source'): void => {
     if (next === bodyTab) {
-      return
+      return;
     }
 
     if (next === 'source') {
-      setSourceBody(editorRef.current?.getMarkdown() ?? '')
-      setSourceDirty(false)
+      setSourceBody(editorRef.current?.getMarkdown() ?? '');
+      setSourceDirty(false);
     } else if (sourceDirty) {
-      editorRef.current?.setMarkdown(sourceBody)
-      setSourceDirty(false)
+      editorRef.current?.setMarkdown(sourceBody);
+      setSourceDirty(false);
     }
 
-    setBodyTab(next)
-  }
+    setBodyTab(next);
+  };
 
   function handleSave(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setSaveError(null)
+    event.preventDefault();
+    setSaveError(null);
 
-    const errors: Record<string, string> = {}
-    const cleanTitle = title.trim()
-    const cleanSlug = slugValue.trim().toLowerCase()
-    const cleanDate = date.trim()
-    const cleanUpdatedDate = updatedDate.trim()
+    const errors: Record<string, string> = {};
+    const cleanTitle = title.trim();
+    const cleanSlug = slugValue.trim().toLowerCase();
+    const cleanDate = date.trim();
+    const cleanUpdatedDate = updatedDate.trim();
 
     if (cleanTitle === '') {
-      errors.title = t('editor.metaTitleRequired')
+      errors.title = t('editor.metaTitleRequired');
     }
 
     if (cleanSlug === '') {
-      errors.slug = t('editor.metaSlugRequired')
+      errors.slug = t('editor.metaSlugRequired');
     } else if (!SLUG_RE.test(cleanSlug)) {
-      errors.slug = t('editor.slugInvalid')
+      errors.slug = t('editor.slugInvalid');
     }
 
     if (cleanDate !== '' && !DATE_RE.test(cleanDate)) {
-      errors.date = t('editor.metaDateInvalid')
+      errors.date = t('editor.metaDateInvalid');
     }
 
     if (cleanUpdatedDate !== '' && !DATE_RE.test(cleanUpdatedDate)) {
-      errors.updated_at = t('editor.metaDateInvalid')
+      errors.updated_at = t('editor.metaDateInvalid');
     }
 
     if (Object.keys(errors).length > 0) {
       const fieldErrors = Object.fromEntries(
         Object.entries(errors).map(([field, message]) => [field, [message]]),
-      )
-      setSaveError(new ApiError(422, { error: t('editor.metaInvalid'), errors: fieldErrors }))
-      return
+      );
+      setSaveError(new ApiError(422, { error: t('editor.metaInvalid'), errors: fieldErrors }));
+      return;
     }
 
-    let frontBlock: string
+    let frontBlock: string;
 
     if (frontTab === 'raw' && rawDirty) {
-      const meta = parseFrontMatter(`${rawFront.trimEnd()}\n\n`)
+      const meta = parseFrontMatter(`${rawFront.trimEnd()}\n\n`);
       if (Object.keys(meta.data).length === 0) {
-        setSaveError(new ApiError(422, { error: t('editor.rawInvalid'), errors: {} }))
-        return
+        setSaveError(new ApiError(422, { error: t('editor.rawInvalid'), errors: {} }));
+        return;
       }
-      frontBlock = `${rawFront.trimEnd()}\n\n`
+      frontBlock = `${rawFront.trimEnd()}\n\n`;
     } else {
-      frontBlock = buildFrontMatterFromFields()
+      frontBlock = buildFrontMatterFromFields();
     }
 
-    const bodyMd =
-      bodyTab === 'source' ? sourceBody : (editorRef.current?.getMarkdown() ?? '')
+    const bodyMd = bodyTab === 'source' ? sourceBody : (editorRef.current?.getMarkdown() ?? '');
 
     save.mutate({
       slug: cleanSlug,
@@ -471,80 +465,75 @@ export function EditorPage({ slug }: { slug: string | null }) {
       content_md: frontBlock + bodyMd,
       created_at: cleanDate !== '' ? `${cleanDate} 00:00:00` : '',
       updated_at: cleanUpdatedDate !== '' ? `${cleanUpdatedDate} 00:00:00` : '',
-    })
+    });
   }
 
   const addExtraField = (): void => {
-    extraFieldIdRef.current += 1
-    setExtraFields((prev) => [...prev, { id: extraFieldIdRef.current, key: '', value: '' }])
-    setExtraOpen(true)
-  }
+    extraFieldIdRef.current += 1;
+    setExtraFields(prev => [...prev, { id: extraFieldIdRef.current, key: '', value: '' }]);
+    setExtraOpen(true);
+  };
 
   const updateExtraField = (id: number, patch: Partial<ExtraField>): void => {
-    setExtraFields((prev) => prev.map((field) => (field.id === id ? { ...field, ...patch } : field)))
-  }
+    setExtraFields(prev => prev.map(field => (field.id === id ? { ...field, ...patch } : field)));
+  };
 
   const removeExtraField = (id: number): void => {
-    setExtraFields((prev) => prev.filter((field) => field.id !== id))
-  }
+    setExtraFields(prev => prev.filter(field => field.id !== id));
+  };
 
-  const page = pageQuery.data ?? null
-  const canManageGrants = page !== null && (isAdmin || page.created_by === user?.id)
+  const page = pageQuery.data ?? null;
+  const canManageGrants = page !== null && (isAdmin || page.created_by === user?.id);
 
   const grantsQuery = useQuery({
     queryKey: ['page-grants', page?.id],
     queryFn: () => pagesApi.grants(page!.id),
     enabled: editing && page !== null && canManageGrants,
-  })
+  });
 
   const grant = useMutation({
-    mutationFn: (args: {
-      username: string
-      permission: 'edit' | 'view'
-      note?: string
-    }) => pagesApi.grant(page!.id, args.username, args.permission, args.note),
+    mutationFn: (args: { username: string; permission: 'edit' | 'view'; note?: string }) =>
+      pagesApi.grant(page!.id, args.username, args.permission, args.note),
     onSuccess: () => {
-      setGrantError(null)
-      queryClient.invalidateQueries({ queryKey: ['page-grants', page?.id] })
+      setGrantError(null);
+      queryClient.invalidateQueries({ queryKey: ['page-grants', page?.id] });
     },
-    onError: (err) => {
-      setGrantError(err instanceof ApiError ? err : null)
+    onError: err => {
+      setGrantError(err instanceof ApiError ? err : null);
     },
-  })
+  });
 
   function handleAddGrant() {
     grant.mutate({
       username: grantUsername.trim(),
       permission: grantPermission,
       note: grantNote,
-    })
-    setGrantUsername('')
-    setGrantPermission('edit')
-    setGrantNote('')
+    });
+    setGrantUsername('');
+    setGrantPermission('edit');
+    setGrantNote('');
   }
 
   const revoke = useMutation({
     mutationFn: (username: string) => pagesApi.revokeGrant(page!.id, username),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['page-grants', page?.id] })
+      queryClient.invalidateQueries({ queryKey: ['page-grants', page?.id] });
     },
-  })
+  });
 
   if (editing && pageQuery.isLoading) {
     return (
       <div className="mx-auto w-full max-w-3xl">
         <EditorSkeleton />
       </div>
-    )
+    );
   }
 
   if (editing && pageQuery.data === null) {
     return (
       <div className="mx-auto w-full max-w-xl space-y-4 text-center">
         <Badge variant="outline">{t('editor.notFoundBadge')}</Badge>
-        <h1 className="font-heading text-2xl font-bold">
-          {t('editor.notFoundTitle')}
-        </h1>
+        <h1 className="font-heading text-2xl font-bold">{t('editor.notFoundTitle')}</h1>
         <Button asChild variant="glass" size="sm">
           <Link to="/article">
             <ArrowLeft className="size-3.5" />
@@ -552,7 +541,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
           </Link>
         </Button>
       </div>
-    )
+    );
   }
 
   if (editing && page !== null && !page.can_edit) {
@@ -561,12 +550,8 @@ export function EditorPage({ slug }: { slug: string | null }) {
         <div className="flex size-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
           <Lock className="size-6" />
         </div>
-        <h1 className="font-heading text-2xl font-bold">
-          {t('editor.forbiddenTitle')}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {t('editor.forbiddenDescription')}
-        </p>
+        <h1 className="font-heading text-2xl font-bold">{t('editor.forbiddenTitle')}</h1>
+        <p className="text-sm text-muted-foreground">{t('editor.forbiddenDescription')}</p>
         <Button asChild variant="glass" size="sm">
           <Link to="/article/$slug" params={{ slug: page.slug }}>
             <ArrowLeft className="size-3.5" />
@@ -574,10 +559,10 @@ export function EditorPage({ slug }: { slug: string | null }) {
           </Link>
         </Button>
       </div>
-    )
+    );
   }
 
-  const messages = errorMessages(saveError)
+  const messages = errorMessages(saveError);
 
   return (
     <div className="w-full">
@@ -594,23 +579,24 @@ export function EditorPage({ slug }: { slug: string | null }) {
                 aria-label={t('editor.statusField')}
               />
               <span className="text-sm font-medium">
-                {published
-                  ? t('editor.statusPublished')
-                  : t('editor.statusDraft')}
+                {published ? t('editor.statusPublished') : t('editor.statusDraft')}
               </span>
             </label>
-            {editing && page !== null && user !== null && (isAdmin || page.created_by === user.id) && (
-              <DeletePageMenu
-                pageId={page.id}
-                title={page.title}
-                onDeleted={() => navigate({ to: '/article' })}
-              >
-                <Button type="button" variant="destructive" size="sm">
-                  <Trash2 />
-                  {t('editor.delete')}
-                </Button>
-              </DeletePageMenu>
-            )}
+            {editing &&
+              page !== null &&
+              user !== null &&
+              (isAdmin || page.created_by === user.id) && (
+                <DeletePageMenu
+                  pageId={page.id}
+                  title={page.title}
+                  onDeleted={() => navigate({ to: '/article' })}
+                >
+                  <Button type="button" variant="destructive" size="sm">
+                    <Trash2 />
+                    {t('editor.delete')}
+                  </Button>
+                </DeletePageMenu>
+              )}
             <Button type="submit" size="sm" disabled={save.isPending}>
               {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
               {t('editor.save')}
@@ -618,15 +604,13 @@ export function EditorPage({ slug }: { slug: string | null }) {
           </div>
         </div>
 
-        {!editing && (
-          <p className="text-sm text-muted-foreground">{t('editor.newHint')}</p>
-        )}
+        {!editing && <p className="text-sm text-muted-foreground">{t('editor.newHint')}</p>}
 
         {editing && page !== null && canManageGrants && (
           <div className="glass-control rounded-2xl">
             <button
               type="button"
-              onClick={() => setAccessOpen((value) => !value)}
+              onClick={() => setAccessOpen(value => !value)}
               className="flex w-full items-center justify-between gap-3 p-4 text-left"
             >
               <span className="flex items-center gap-2 text-sm font-medium">
@@ -642,23 +626,17 @@ export function EditorPage({ slug }: { slug: string | null }) {
 
             {accessOpen && (
               <div className="space-y-3 border-t border-border/60 p-4">
-                <p className="text-xs text-muted-foreground">
-                  {t('editor.grantsDescription')}
-                </p>
+                <p className="text-xs text-muted-foreground">{t('editor.grantsDescription')}</p>
 
                 <div className="overflow-x-auto rounded-xl border-2 border-black/25 dark:border-border">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b-2 border-black/25 text-left text-xs text-muted-foreground dark:border-border">
-                        <th className="px-3 py-2 font-medium">
-                          {t('editor.grantUsername')}
-                        </th>
+                        <th className="px-3 py-2 font-medium">{t('editor.grantUsername')}</th>
                         <th className="px-3 py-2 font-medium">
                           {t('editor.grantPermissionField')}
                         </th>
-                        <th className="px-3 py-2 font-medium">
-                          {t('editor.grantNote')}
-                        </th>
+                        <th className="px-3 py-2 font-medium">{t('editor.grantNote')}</th>
                         <th className="px-3 py-2 font-medium" />
                       </tr>
                     </thead>
@@ -667,34 +645,32 @@ export function EditorPage({ slug }: { slug: string | null }) {
                         <td className="px-3 py-2">
                           <Input
                             value={grantUsername}
-                            onChange={(event) => setGrantUsername(event.target.value)}
+                            onChange={event => setGrantUsername(event.target.value)}
                             placeholder={t('editor.grantPlaceholder')}
                             className="h-8"
                           />
                         </td>
                         <td className="px-3 py-2">
                           <Select
-                          value={grantPermission}
-                          onValueChange={(value) =>
-                            setGrantPermission(value as 'edit' | 'view')
-                          }
-                        >
-                          <SelectTrigger
-                            className="h-8 w-full min-w-[6.5rem]"
-                            aria-label={t('editor.grantPermissionField')}
+                            value={grantPermission}
+                            onValueChange={value => setGrantPermission(value as 'edit' | 'view')}
                           >
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="edit">{t('editor.permissionEdit')}</SelectItem>
-                            <SelectItem value="view">{t('editor.permissionView')}</SelectItem>
-                          </SelectContent>
-                        </Select>
+                            <SelectTrigger
+                              className="h-8 w-full min-w-[6.5rem]"
+                              aria-label={t('editor.grantPermissionField')}
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="edit">{t('editor.permissionEdit')}</SelectItem>
+                              <SelectItem value="view">{t('editor.permissionView')}</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </td>
                         <td className="px-3 py-2">
                           <Input
                             value={grantNote}
-                            onChange={(event) => setGrantNote(event.target.value)}
+                            onChange={event => setGrantNote(event.target.value)}
                             placeholder={t('editor.grantNotePlaceholder')}
                             className="h-8"
                           />
@@ -719,7 +695,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
                           key={g.username}
                           grant={g}
                           index={index}
-                          onSave={(permission) =>
+                          onSave={permission =>
                             grant.mutate({
                               username: g.username,
                               permission,
@@ -731,10 +707,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
                       ))}
                       {grantsQuery.data?.length === 0 && (
                         <tr>
-                          <td
-                            colSpan={4}
-                            className="py-2 text-sm text-muted-foreground"
-                          >
+                          <td colSpan={4} className="py-2 text-sm text-muted-foreground">
                             {t('editor.grantsEmpty')}
                           </td>
                         </tr>
@@ -755,7 +728,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
 
         {messages.length > 0 && (
           <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-            {messages.map((message) => (
+            {messages.map(message => (
               <p key={message}>{message}</p>
             ))}
           </div>
@@ -783,7 +756,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
                   </span>
                   <Input
                     value={title}
-                    onChange={(event) => setTitle(event.target.value)}
+                    onChange={event => setTitle(event.target.value)}
                     placeholder={t('editor.titleField')}
                     className="h-9"
                   />
@@ -794,7 +767,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
                   </span>
                   <Input
                     value={slugValue}
-                    onChange={(event) => setSlugValue(event.target.value)}
+                    onChange={event => setSlugValue(event.target.value)}
                     placeholder="my-post-slug"
                     className="h-9"
                   />
@@ -808,7 +781,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
                   </span>
                   <Input
                     value={updatedDate}
-                    onChange={(event) => setUpdatedDate(event.target.value)}
+                    onChange={event => setUpdatedDate(event.target.value)}
                     placeholder={t('editor.updatedAtHint')}
                   />
                 </label>
@@ -818,7 +791,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
                   </span>
                   <Input
                     value={date}
-                    onChange={(event) => setDate(event.target.value)}
+                    onChange={event => setDate(event.target.value)}
                     placeholder="YYYY-MM-DD"
                   />
                 </label>
@@ -842,7 +815,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
               <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/60 pt-4">
                 <button
                   type="button"
-                  onClick={() => setExtraOpen((value) => !value)}
+                  onClick={() => setExtraOpen(value => !value)}
                   className="flex items-center gap-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
                   aria-expanded={extraOpen}
                 >
@@ -860,23 +833,19 @@ export function EditorPage({ slug }: { slug: string | null }) {
               {extraOpen && (
                 <div className="mt-3 space-y-2">
                   {extraFields.length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      {t('editor.extraFieldsEmpty')}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{t('editor.extraFieldsEmpty')}</p>
                   )}
-                  {extraFields.map((field) => (
+                  {extraFields.map(field => (
                     <div key={field.id} className="flex items-center gap-2">
                       <Input
                         value={field.key}
-                        onChange={(event) =>
-                          updateExtraField(field.id, { key: event.target.value })
-                        }
+                        onChange={event => updateExtraField(field.id, { key: event.target.value })}
                         placeholder={t('editor.fieldKeyPlaceholder')}
                         className="h-8 w-32"
                       />
                       <Input
                         value={field.value}
-                        onChange={(event) =>
+                        onChange={event =>
                           updateExtraField(field.id, { value: event.target.value })
                         }
                         placeholder={t('editor.fieldValuePlaceholder')}
@@ -901,19 +870,15 @@ export function EditorPage({ slug }: { slug: string | null }) {
               <textarea
                 aria-label={t('editor.rawTab')}
                 value={rawFront}
-                onChange={(event) => {
-                  setRawFront(event.target.value)
-                  setRawDirty(true)
+                onChange={event => {
+                  setRawFront(event.target.value);
+                  setRawDirty(true);
                 }}
                 className="h-64 w-full resize-y rounded-xl border border-input bg-background p-3 font-mono text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
                 spellCheck={false}
               />
-              {rawError !== null && (
-                <p className="mt-2 text-sm text-destructive">{rawError}</p>
-              )}
-              <p className="mt-2 text-xs text-muted-foreground">
-                {t('editor.rawHint')}
-              </p>
+              {rawError !== null && <p className="mt-2 text-sm text-destructive">{rawError}</p>}
+              <p className="mt-2 text-xs text-muted-foreground">{t('editor.rawHint')}</p>
             </div>
           )}
         </div>
@@ -933,11 +898,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
 
           <div className={bodyTab === 'editor' ? 'block' : 'hidden'}>
             {(!editing || loaded) && (
-              <MilkdownEditor
-                ref={editorRef}
-                defaultValue={body}
-                onUpload={handleUpload}
-              />
+              <MilkdownEditor ref={editorRef} defaultValue={body} onUpload={handleUpload} />
             )}
           </div>
 
@@ -945,9 +906,9 @@ export function EditorPage({ slug }: { slug: string | null }) {
             <textarea
               aria-label={t('editor.sourceTab')}
               value={sourceBody}
-              onChange={(event) => {
-                setSourceBody(event.target.value)
-                setSourceDirty(true)
+              onChange={event => {
+                setSourceBody(event.target.value);
+                setSourceDirty(true);
               }}
               className="min-h-[60vh] w-full resize-y bg-transparent p-4 font-mono text-sm leading-6 outline-none"
               spellCheck={false}
@@ -956,5 +917,5 @@ export function EditorPage({ slug }: { slug: string | null }) {
         </div>
       </form>
     </div>
-  )
+  );
 }

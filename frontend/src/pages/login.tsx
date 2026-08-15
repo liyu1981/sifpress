@@ -1,76 +1,70 @@
-import { useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
-import { useTranslation } from 'react-i18next'
-import { Loader2, LogIn } from 'lucide-react'
-import type { FormEvent } from 'react'
-
-import { ApiError } from '@/lib/api'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { useAuth } from '@/lib/auth'
-import { usePageTitle } from '@/hooks/use-page-title'
+import { useNavigate } from '@tanstack/react-router';
+import { Loader2, LogIn } from 'lucide-react';
+import type { FormEvent } from 'react';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { usePageTitle } from '@/hooks/use-page-title';
+import { ApiError } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 
 export function LoginPage({ next }: { next?: string }) {
-  const { t } = useTranslation()
-  const { login, user } = useAuth()
-  const navigate = useNavigate()
+  const { t } = useTranslation();
+  const { login, user } = useAuth();
+  const navigate = useNavigate();
 
-  usePageTitle(t('login.title'))
+  usePageTitle(t('login.title'));
 
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [pending, setPending] = useState(false)
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+    event.preventDefault();
 
     if (pending) {
-      return
+      return;
     }
 
-    setPending(true)
-    setError(null)
+    setPending(true);
+    setError(null);
 
     try {
-      await login(username.trim(), password)
+      await login(username.trim(), password);
 
       if (next !== undefined && next !== '/login') {
-        navigate({ to: next })
+        navigate({ to: next });
       } else {
-        navigate({ to: '/' })
+        navigate({ to: '/' });
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        setError(t('login.invalid'))
+        setError(t('login.invalid'));
       } else {
-        setError(t('login.error'))
+        setError(t('login.error'));
       }
-      setPending(false)
+      setPending(false);
     }
   }
 
   if (user !== null && !user.must_change_password) {
-    navigate({ to: '/' })
+    navigate({ to: '/' });
   }
 
   return (
     <div className="mx-auto flex w-full max-w-sm items-center justify-center py-16">
-      <form
-        onSubmit={handleSubmit}
-        className="glass-control w-full rounded-2xl p-8"
-      >
+      <form onSubmit={handleSubmit} className="glass-control w-full rounded-2xl p-8">
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
           <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <LogIn className="size-6" />
           </div>
           <div className="space-y-1">
             <Badge>{t('login.badge')}</Badge>
-            <h1 className="font-heading text-2xl font-bold tracking-tight">
-              {t('login.title')}
-            </h1>
+            <h1 className="font-heading text-2xl font-bold tracking-tight">{t('login.title')}</h1>
             <p className="text-sm text-muted-foreground">{t('login.subtitle')}</p>
           </div>
         </div>
@@ -82,7 +76,7 @@ export function LoginPage({ next }: { next?: string }) {
               id="login-username"
               autoComplete="username"
               value={username}
-              onChange={(event) => setUsername(event.target.value)}
+              onChange={event => setUsername(event.target.value)}
               required
               autoFocus
             />
@@ -94,7 +88,7 @@ export function LoginPage({ next }: { next?: string }) {
               type="password"
               autoComplete="current-password"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={event => setPassword(event.target.value)}
               required
             />
           </div>
@@ -108,5 +102,5 @@ export function LoginPage({ next }: { next?: string }) {
         </div>
       </form>
     </div>
-  )
+  );
 }

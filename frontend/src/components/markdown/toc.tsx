@@ -1,90 +1,90 @@
-import { useEffect, useLayoutEffect, useState } from 'react'
-import type { RefObject } from 'react'
+import type { RefObject } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 
 export interface TocItem {
-  id: string
-  text: string
-  level: 2 | 3
+  id: string;
+  text: string;
+  level: 2 | 3;
 }
 
 export function useArticleHeadings(
   rootRef: RefObject<HTMLElement | null>,
   ready: boolean,
 ): TocItem[] {
-  const [items, setItems] = useState<TocItem[]>([])
+  const [items, setItems] = useState<TocItem[]>([]);
 
   useLayoutEffect(() => {
     if (!ready) {
-      setItems([])
-      return
+      setItems([]);
+      return;
     }
 
-    const root = rootRef.current
+    const root = rootRef.current;
 
     if (!root) {
-      return
+      return;
     }
 
     const scan = (): void => {
-      const nodes = Array.from(root.querySelectorAll<HTMLElement>('h2[id], h3[id]'))
+      const nodes = Array.from(root.querySelectorAll<HTMLElement>('h2[id], h3[id]'));
       setItems(
-        nodes.map((el) => ({
+        nodes.map(el => ({
           id: el.id,
           text: el.textContent ?? '',
           level: el.tagName === 'H2' ? 2 : 3,
         })),
-      )
-    }
+      );
+    };
 
     // The article renders asynchronously (markdown -> getHTML -> postprocess),
     // so headings may not exist when this effect first runs. Re-scan whenever
     // the content DOM changes instead of relying on a one-shot query.
-    scan()
+    scan();
 
-    const observer = new MutationObserver(scan)
-    observer.observe(root, { childList: true, subtree: true })
+    const observer = new MutationObserver(scan);
+    observer.observe(root, { childList: true, subtree: true });
 
     return () => {
-      observer.disconnect()
-      setItems([])
-    }
-  }, [rootRef, ready])
+      observer.disconnect();
+      setItems([]);
+    };
+  }, [rootRef, ready]);
 
-  return items
+  return items;
 }
 
 export function useScrollSpy(items: TocItem[]): string | null {
-  const [activeId, setActiveId] = useState<string | null>(items[0]?.id ?? null)
+  const [activeId, setActiveId] = useState<string | null>(items[0]?.id ?? null);
 
   useEffect(() => {
     if (items.length === 0) {
-      return
+      return;
     }
 
-    const ids = items.map((item) => item.id)
+    const ids = items.map(item => item.id);
 
     const onScroll = (): void => {
-      const threshold = 120
-      let current = ids[0]
+      const threshold = 120;
+      let current = ids[0];
 
       for (const id of ids) {
-        const el = document.getElementById(id)
+        const el = document.getElementById(id);
 
         if (el && el.getBoundingClientRect().top <= threshold) {
-          current = id
+          current = id;
         }
       }
 
-      setActiveId(current)
-    }
+      setActiveId(current);
+    };
 
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
 
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [items])
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [items]);
 
-  return activeId
+  return activeId;
 }
 
 export function TableOfContents({
@@ -92,12 +92,12 @@ export function TableOfContents({
   activeId,
   label,
 }: {
-  items: TocItem[]
-  activeId: string | null
-  label: string
+  items: TocItem[];
+  activeId: string | null;
+  label: string;
 }) {
   if (items.length < 2) {
-    return null
+    return null;
   }
 
   return (
@@ -106,7 +106,7 @@ export function TableOfContents({
         {label}
       </p>
       <ul className="space-y-1 border-l border-border">
-        {items.map((item) => (
+        {items.map(item => (
           <li key={item.id} className={item.level === 3 ? 'pl-4' : 'pl-0'}>
             <a
               href={`#${item.id}`}
@@ -122,5 +122,5 @@ export function TableOfContents({
         ))}
       </ul>
     </nav>
-  )
+  );
 }

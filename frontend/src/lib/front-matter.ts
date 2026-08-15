@@ -16,77 +16,74 @@
  */
 
 export interface FrontMatter {
-  data: Record<string, unknown>
-  content: string
+  data: Record<string, unknown>;
+  content: string;
 }
 
-const FRONT_MATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/
+const FRONT_MATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
 
 export function parseFrontMatter(markdown: string): FrontMatter {
-  const match = FRONT_MATTER_RE.exec(markdown)
+  const match = FRONT_MATTER_RE.exec(markdown);
 
   if (match === null) {
-    return { data: {}, content: markdown }
+    return { data: {}, content: markdown };
   }
 
   return {
     data: parseYamlLines(match[1]),
     content: markdown.slice(match[0].length),
-  }
+  };
 }
 
-export function frontMatterString(
-  data: Record<string, unknown>,
-  key: string,
-): string | null {
-  const value = data[key]
-  return typeof value === 'string' && value !== '' ? value : null
+export function frontMatterString(data: Record<string, unknown>, key: string): string | null {
+  const value = data[key];
+  return typeof value === 'string' && value !== '' ? value : null;
 }
 
 export interface BuildFrontMatterInput {
-  title: string
-  slug: string
-  date?: string
-  tags?: string[]
-  extra?: Array<{ key: string; value: string }>
+  title: string;
+  slug: string;
+  date?: string;
+  tags?: string[];
+  extra?: Array<{ key: string; value: string }>;
 }
 
-export const STANDARD_FRONT_MATTER_KEYS = new Set(['title', 'slug', 'date', 'tags'])
+export const STANDARD_FRONT_MATTER_KEYS = new Set(['title', 'slug', 'date', 'tags']);
 
 function quoteYamlScalar(value: string): string {
-  const clean = value.replace(/\r?\n/g, ' ').trim()
-  return `"${clean.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+  const clean = value.replace(/\r?\n/g, ' ').trim();
+  return `"${clean.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
 
 function formatTags(tags: string[]): string {
   if (tags.length === 0) {
-    return '[]'
+    return '[]';
   }
   const inner = tags
-    .map((tag) => {
-      const clean = tag.trim()
-      return /^[\w-]+$/.test(clean) ? clean : quoteYamlScalar(clean)
+    .map(tag => {
+      const clean = tag.trim();
+      return /^[\w-]+$/.test(clean) ? clean : quoteYamlScalar(clean);
     })
-    .join(', ')
-  return `[${inner}]`
+    .join(', ');
+  return `[${inner}]`;
 }
 
 function formatExtraValue(value: string): string {
-  const clean = value.trim()
+  const clean = value.trim();
 
   if (clean === '') {
-    return '""'
+    return '""';
   }
 
   if (/^(?:true|false|null|-?\d+(?:\.\d+)?)$/.test(clean)) {
-    return clean
+    return clean;
   }
 
   if (/^[\w\-./:@+%]+$/.test(clean)) {
-    return clean
+    return clean;
   }
 
-  return quoteYamlScalar(clean)
+  return quoteYamlScalar(clean);
 }
 
 /**
@@ -102,86 +99,86 @@ export function buildFrontMatter({
   tags = [],
   extra = [],
 }: BuildFrontMatterInput): string {
-  const lines = ['---']
-  lines.push(`title: ${quoteYamlScalar(title)}`)
-  lines.push(`slug: ${quoteYamlScalar(slug)}`)
+  const lines = ['---'];
+  lines.push(`title: ${quoteYamlScalar(title)}`);
+  lines.push(`slug: ${quoteYamlScalar(slug)}`);
   if (date !== '') {
-    lines.push(`date: ${date}`)
+    lines.push(`date: ${date}`);
   }
-  lines.push(`tags: ${formatTags(tags)}`)
+  lines.push(`tags: ${formatTags(tags)}`);
 
-  const seen = new Set(STANDARD_FRONT_MATTER_KEYS)
+  const seen = new Set(STANDARD_FRONT_MATTER_KEYS);
 
   for (const field of [...extra].sort((a, b) => a.key.localeCompare(b.key))) {
-    const key = field.key.trim()
+    const key = field.key.trim();
 
     if (key === '' || seen.has(key) || !/^[A-Za-z0-9_-]+$/.test(key)) {
-      continue
+      continue;
     }
 
-    seen.add(key)
-    lines.push(`${key}: ${formatExtraValue(field.value)}`)
+    seen.add(key);
+    lines.push(`${key}: ${formatExtraValue(field.value)}`);
   }
 
-  lines.push('---', '')
-  return lines.join('\n')
+  lines.push('---', '');
+  return lines.join('\n');
 }
 
 function parseYamlLines(block: string): Record<string, unknown> {
-  const data: Record<string, unknown> = {}
+  const data: Record<string, unknown> = {};
 
   for (const line of block.split(/\r?\n/)) {
-    const trimmed = line.trim()
+    const trimmed = line.trim();
 
     if (trimmed === '' || trimmed.startsWith('#')) {
-      continue
+      continue;
     }
 
-    const match = /^([\w-]+):\s*(.*)$/.exec(trimmed)
+    const match = /^([\w-]+):\s*(.*)$/.exec(trimmed);
 
     if (match === null) {
-      continue
+      continue;
     }
 
-    data[match[1]] = parseScalar(match[2])
+    data[match[1]] = parseScalar(match[2]);
   }
 
-  return data
+  return data;
 }
 
 function parseScalar(raw: string): unknown {
-  const value = raw.trim()
+  const value = raw.trim();
 
   if (value === '') {
-    return null
+    return null;
   }
 
   if (value.startsWith('[') && value.endsWith(']')) {
     return value
       .slice(1, -1)
       .split(',')
-      .map((item) => parseScalar(item))
-      .filter((item) => item !== null)
+      .map(item => parseScalar(item))
+      .filter(item => item !== null);
   }
 
   if (
     (value.startsWith('"') && value.endsWith('"')) ||
     (value.startsWith("'") && value.endsWith("'"))
   ) {
-    return value.slice(1, -1)
+    return value.slice(1, -1);
   }
 
   if (value === 'true') {
-    return true
+    return true;
   }
 
   if (value === 'false') {
-    return false
+    return false;
   }
 
   if (/^-?\d+(?:\.\d+)?$/.test(value)) {
-    return Number(value)
+    return Number(value);
   }
 
-  return value.split(/\s+#/)[0].trim()
+  return value.split(/\s+#/)[0].trim();
 }

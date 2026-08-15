@@ -2,8 +2,8 @@ export {
   MilkdownEditor,
   type MilkdownEditorHandle,
   type MilkdownEditorProps,
-} from './editor'
-export { MarkdownView, type MarkdownViewProps } from './view'
-export { markdownToHtml } from './render'
-export { postProcessHtml } from './postprocess'
-export { setMermaidTheme, type MermaidTheme } from './mermaid'
+} from './editor';
+export { type MermaidTheme, setMermaidTheme } from './mermaid';
+export { postProcessHtml } from './postprocess';
+export { markdownToHtml } from './render';
+export { MarkdownView, type MarkdownViewProps } from './view';

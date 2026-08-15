@@ -12,6 +12,7 @@
   pnpm install        # installs from pnpm-lock.yaml
   pnpm add <pkg>      # add a dependency
   pnpm run typecheck  # tsc --noEmit
+  pnpm run format     # biome format --write .
   pnpm run build      # tsc --noEmit && vite build -> frontend/dist/
   ```
 
@@ -176,6 +177,13 @@ dist/               build artifacts (gitignored)
   libraries are unavailable and must not be installed. There is no
   browser-based verification; rely on `pnpm run typecheck`, `php build.php`,
   curl, and code inspection instead.
+- **Biome is the formatter for `frontend/src` and `frontend/vite.config.ts**
+  (config: `frontend/biome.json`; linter disabled — formatter only). Run
+  `pnpm run format` after editing TS/TSX. Enforced style: semicolons at
+  statement ends, trailing commas, single quotes, 2-space indent, 100-col
+  width. Scope is limited to `src/**/*.{ts,tsx}` + `vite.config.ts`; Biome
+  must NOT touch `index.css` (Tailwind v4 syntax breaks its CSS parser) or
+  other files.
 - **Prose typography overrides must be unlayered.** In Tailwind v4 the
   `@tailwindcss/typography` plugin emits its default `.prose` tokens into the
   `utilities` layer, which outranks `components`-layer rules no matter their

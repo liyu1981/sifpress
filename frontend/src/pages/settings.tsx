@@ -1,6 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useTranslation } from 'react-i18next'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronDown,
   Globe,
@@ -10,13 +8,12 @@ import {
   Upload,
   UserPlus,
   UserRound,
-} from 'lucide-react'
-import type { ChangeEvent, FormEvent } from 'react'
-
-import { ApiError } from '@/lib/api'
-import { makeAvatarThumb } from '@/lib/assets'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+} from 'lucide-react';
+import type { ChangeEvent, FormEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardAction,
@@ -24,38 +21,34 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useAuth } from '@/lib/auth'
-import {
-  authApi,
-  rolesApi,
-  usersApi,
-  type RoleListItem,
-  type UserListItem,
-} from '@/lib/pages'
-import { cn } from '@/lib/utils'
-import { usePageTitle } from '@/hooks/use-page-title'
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { usePageTitle } from '@/hooks/use-page-title';
+import { ApiError } from '@/lib/api';
+import { makeAvatarThumb } from '@/lib/assets';
+import { useAuth } from '@/lib/auth';
+import { authApi, type RoleListItem, rolesApi, type UserListItem, usersApi } from '@/lib/pages';
+import { cn } from '@/lib/utils';
 
 function ProfileCard() {
-  const { t } = useTranslation()
-  const { user, refresh } = useAuth()
+  const { t } = useTranslation();
+  const { user, refresh } = useAuth();
 
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [done, setDone] = useState(false)
-  const [avatarBusy, setAvatarBusy] = useState(false)
-  const avatarInputRef = useRef<HTMLInputElement>(null)
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user !== null) {
-      setName(user.name)
-      setEmail(user.email ?? '')
+      setName(user.name);
+      setEmail(user.email ?? '');
     }
-  }, [user?.name, user?.email, user?.id])
+  }, [user?.name, user?.email, user?.id]);
 
   const save = useMutation({
     mutationFn: () =>
@@ -64,66 +57,66 @@ function ProfileCard() {
         email: email.trim() === '' ? null : email.trim(),
       }),
     onSuccess: () => {
-      setError(null)
-      setDone(true)
-      refresh()
+      setError(null);
+      setDone(true);
+      refresh();
     },
-    onError: (err) => {
-      setDone(false)
+    onError: err => {
+      setDone(false);
       setError(
         err instanceof ApiError
           ? (err.data.error ?? t('settings.profileError'))
           : t('settings.profileError'),
-      )
+      );
     },
-  })
+  });
 
   async function handleAvatarChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    event.target.value = ''
+    const file = event.target.files?.[0];
+    event.target.value = '';
     if (file === undefined) {
-      return
+      return;
     }
 
-    setAvatarBusy(true)
-    setError(null)
-    setDone(false)
+    setAvatarBusy(true);
+    setError(null);
+    setDone(false);
 
     try {
-      const blob = await makeAvatarThumb(file)
+      const blob = await makeAvatarThumb(file);
       if (blob === null) {
-        throw new Error('thumbnail failed')
+        throw new Error('thumbnail failed');
       }
-      const formData = new FormData()
-      formData.append('avatar', blob, 'avatar.webp')
-      await authApi.avatar(formData)
-      setDone(true)
-      refresh()
+      const formData = new FormData();
+      formData.append('avatar', blob, 'avatar.webp');
+      await authApi.avatar(formData);
+      setDone(true);
+      refresh();
     } catch {
-      setError(t('settings.avatarError'))
+      setError(t('settings.avatarError'));
     } finally {
-      setAvatarBusy(false)
+      setAvatarBusy(false);
     }
   }
 
   async function handleRemoveAvatar() {
-    setAvatarBusy(true)
-    setError(null)
-    setDone(false)
+    setAvatarBusy(true);
+    setError(null);
+    setDone(false);
 
     try {
-      await authApi.removeAvatar()
-      setDone(true)
-      refresh()
+      await authApi.removeAvatar();
+      setDone(true);
+      refresh();
     } catch {
-      setError(t('settings.avatarError'))
+      setError(t('settings.avatarError'));
     } finally {
-      setAvatarBusy(false)
+      setAvatarBusy(false);
     }
   }
 
   if (user === null) {
-    return null
+    return null;
   }
 
   return (
@@ -179,9 +172,9 @@ function ProfileCard() {
 
         <form
           className="space-y-3"
-          onSubmit={(event) => {
-            event.preventDefault()
-            save.mutate()
+          onSubmit={event => {
+            event.preventDefault();
+            save.mutate();
           }}
         >
           <div className="grid gap-3 sm:grid-cols-2">
@@ -190,7 +183,7 @@ function ProfileCard() {
               <Input
                 id="profile-name"
                 value={name}
-                onChange={(event) => setName(event.target.value)}
+                onChange={event => setName(event.target.value)}
                 required
               />
             </div>
@@ -200,7 +193,7 @@ function ProfileCard() {
                 id="profile-email"
                 type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={event => setEmail(event.target.value)}
                 placeholder="you@example.com"
               />
               <p className="text-xs text-muted-foreground">{t('settings.profileEmailHint')}</p>
@@ -217,45 +210,49 @@ function ProfileCard() {
         </form>
       </CardContent>
     </Card>
-  )
+  );
 }
 
 function ChangePasswordForm() {
-  const { t } = useTranslation()
-  const { user, changePassword } = useAuth()
+  const { t } = useTranslation();
+  const { user, changePassword } = useAuth();
 
-  const [current, setCurrent] = useState('')
-  const [next, setNext] = useState('')
-  const [confirm, setConfirm] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [pending, setPending] = useState(false)
-  const [done, setDone] = useState(false)
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [done, setDone] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+    event.preventDefault();
 
     if (pending) {
-      return
+      return;
     }
 
     if (next !== confirm) {
-      setError(t('changePassword.mismatch'))
-      return
+      setError(t('changePassword.mismatch'));
+      return;
     }
 
-    setPending(true)
-    setError(null)
+    setPending(true);
+    setError(null);
 
     try {
-      await changePassword(next, current)
-      setDone(true)
-      setCurrent('')
-      setNext('')
-      setConfirm('')
+      await changePassword(next, current);
+      setDone(true);
+      setCurrent('');
+      setNext('');
+      setConfirm('');
     } catch (err) {
-      setError(err instanceof ApiError ? (err.data.error ?? t('changePassword.error')) : t('changePassword.error'))
+      setError(
+        err instanceof ApiError
+          ? (err.data.error ?? t('changePassword.error'))
+          : t('changePassword.error'),
+      );
     } finally {
-      setPending(false)
+      setPending(false);
     }
   }
 
@@ -274,7 +271,7 @@ function ChangePasswordForm() {
               type="password"
               autoComplete="current-password"
               value={current}
-              onChange={(event) => setCurrent(event.target.value)}
+              onChange={event => setCurrent(event.target.value)}
               required={!user?.must_change_password}
             />
           </div>
@@ -286,7 +283,7 @@ function ChangePasswordForm() {
                 type="password"
                 autoComplete="new-password"
                 value={next}
-                onChange={(event) => setNext(event.target.value)}
+                onChange={event => setNext(event.target.value)}
                 required
               />
             </div>
@@ -297,7 +294,7 @@ function ChangePasswordForm() {
                 type="password"
                 autoComplete="new-password"
                 value={confirm}
-                onChange={(event) => setConfirm(event.target.value)}
+                onChange={event => setConfirm(event.target.value)}
                 required
               />
             </div>
@@ -311,7 +308,7 @@ function ChangePasswordForm() {
         </form>
       </CardContent>
     </Card>
-  )
+  );
 }
 
 function RoleCheckboxes({
@@ -319,21 +316,19 @@ function RoleCheckboxes({
   onChange,
   roles,
 }: {
-  selected: number[]
-  onChange: (ids: number[]) => void
-  roles: RoleListItem[]
+  selected: number[];
+  onChange: (ids: number[]) => void;
+  roles: RoleListItem[];
 }) {
   function toggle(id: number) {
     onChange(
-      selected.includes(id)
-        ? selected.filter((existing) => existing !== id)
-        : [...selected, id],
-    )
+      selected.includes(id) ? selected.filter(existing => existing !== id) : [...selected, id],
+    );
   }
 
   return (
     <div className="flex flex-wrap gap-3">
-      {roles.map((role) => (
+      {roles.map(role => (
         <label key={role.id} className="flex cursor-pointer items-center gap-1.5 text-sm">
           <input
             type="checkbox"
@@ -345,58 +340,63 @@ function RoleCheckboxes({
         </label>
       ))}
     </div>
-  )
+  );
 }
 
 function UserRow({ user, roles }: { user: UserListItem; roles: RoleListItem[] }) {
-  const { t } = useTranslation()
-  const queryClient = useQueryClient()
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
 
-  const [expanded, setExpanded] = useState(false)
-  const [roleIds, setRoleIds] = useState<number[]>([])
-  const [resetPassword, setResetPassword] = useState('')
-  const [rowError, setRowError] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState(false);
+  const [roleIds, setRoleIds] = useState<number[]>([]);
+  const [resetPassword, setResetPassword] = useState('');
+  const [rowError, setRowError] = useState<string | null>(null);
 
-  const roleIdByCode = new Map(roles.map((r) => [r.code, r.id]))
+  const roleIdByCode = new Map(roles.map(r => [r.code, r.id]));
 
   function open() {
     setRoleIds(
-      user.roles
-        .map((code) => roleIdByCode.get(code))
-        .filter((id): id is number => id !== undefined),
-    )
-    setExpanded((value) => !value)
+      user.roles.map(code => roleIdByCode.get(code)).filter((id): id is number => id !== undefined),
+    );
+    setExpanded(value => !value);
   }
 
   const setRoles = useMutation({
     mutationFn: () => usersApi.setRoles(user.id, roleIds),
     onSuccess: () => {
-      setRowError(null)
-      queryClient.invalidateQueries({ queryKey: ['users'] })
+      setRowError(null);
+      queryClient.invalidateQueries({ queryKey: ['users'] });
     },
-    onError: (err) => {
-      setRowError(err instanceof ApiError ? (err.data.error ?? t('settings.userError')) : t('settings.userError'))
+    onError: err => {
+      setRowError(
+        err instanceof ApiError
+          ? (err.data.error ?? t('settings.userError'))
+          : t('settings.userError'),
+      );
     },
-  })
+  });
 
   const toggleActive = useMutation({
     mutationFn: () => usersApi.update({ id: user.id, is_active: !user.is_active }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] })
+      queryClient.invalidateQueries({ queryKey: ['users'] });
     },
-  })
+  });
 
   const resetPasswordMutation = useMutation({
-    mutationFn: () =>
-      usersApi.update({ id: user.id, password: resetPassword }),
+    mutationFn: () => usersApi.update({ id: user.id, password: resetPassword }),
     onSuccess: () => {
-      setResetPassword('')
-      queryClient.invalidateQueries({ queryKey: ['users'] })
+      setResetPassword('');
+      queryClient.invalidateQueries({ queryKey: ['users'] });
     },
-    onError: (err) => {
-      setRowError(err instanceof ApiError ? (err.data.error ?? t('settings.userError')) : t('settings.userError'))
+    onError: err => {
+      setRowError(
+        err instanceof ApiError
+          ? (err.data.error ?? t('settings.userError'))
+          : t('settings.userError'),
+      );
     },
-  })
+  });
 
   return (
     <li className="rounded-lg bg-muted/50 px-3 py-2.5">
@@ -404,7 +404,7 @@ function UserRow({ user, roles }: { user: UserListItem; roles: RoleListItem[] })
         <div className="min-w-0">
           <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
             <span className="truncate">{user.username}</span>
-            {user.roles.map((role) => (
+            {user.roles.map(role => (
               <Badge key={role} variant="secondary">
                 {role}
               </Badge>
@@ -429,9 +429,7 @@ function UserRow({ user, roles }: { user: UserListItem; roles: RoleListItem[] })
             aria-expanded={expanded}
             onClick={open}
           >
-            <ChevronDown
-              className={`transition-transform ${expanded ? 'rotate-180' : ''}`}
-            />
+            <ChevronDown className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
           </Button>
         </div>
       </div>
@@ -440,11 +438,7 @@ function UserRow({ user, roles }: { user: UserListItem; roles: RoleListItem[] })
         <div className="mt-3 space-y-3 border-t border-border/60 pt-3">
           <div className="space-y-1.5">
             <Label>{t('settings.rolesField')}</Label>
-            <RoleCheckboxes
-              selected={roleIds}
-              onChange={setRoleIds}
-              roles={roles}
-            />
+            <RoleCheckboxes selected={roleIds} onChange={setRoleIds} roles={roles} />
             <Button
               type="button"
               size="sm"
@@ -463,7 +457,7 @@ function UserRow({ user, roles }: { user: UserListItem; roles: RoleListItem[] })
                 id={`reset-${user.id}`}
                 type="password"
                 value={resetPassword}
-                onChange={(event) => setResetPassword(event.target.value)}
+                onChange={event => setResetPassword(event.target.value)}
                 placeholder={t('settings.resetPlaceholder')}
               />
               <Button
@@ -491,29 +485,29 @@ function UserRow({ user, roles }: { user: UserListItem; roles: RoleListItem[] })
         </div>
       )}
     </li>
-  )
+  );
 }
 
 function UsersCard() {
-  const { t } = useTranslation()
-  const queryClient = useQueryClient()
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
 
   const usersQuery = useQuery({
     queryKey: ['users'],
     queryFn: usersApi.list,
-  })
+  });
 
   const rolesQuery = useQuery({
     queryKey: ['roles'],
     queryFn: rolesApi.list,
-  })
+  });
 
-  const [username, setUsername] = useState('')
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [roleIds, setRoleIds] = useState<number[]>([])
-  const [formError, setFormError] = useState<string | null>(null)
+  const [username, setUsername] = useState('');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [roleIds, setRoleIds] = useState<number[]>([]);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const create = useMutation({
     mutationFn: () =>
@@ -525,24 +519,24 @@ function UsersCard() {
         role_ids: roleIds,
       }),
     onSuccess: () => {
-      setUsername('')
-      setName('')
-      setEmail('')
-      setPassword('')
-      setRoleIds([])
-      setFormError(null)
-      queryClient.invalidateQueries({ queryKey: ['users'] })
+      setUsername('');
+      setName('');
+      setEmail('');
+      setPassword('');
+      setRoleIds([]);
+      setFormError(null);
+      queryClient.invalidateQueries({ queryKey: ['users'] });
     },
-    onError: (err) => {
+    onError: err => {
       if (err instanceof ApiError) {
-        setFormError(err.data.error ?? err.message)
+        setFormError(err.data.error ?? err.message);
       } else {
-        setFormError(t('settings.userError'))
+        setFormError(t('settings.userError'));
       }
     },
-  })
+  });
 
-  const roles = rolesQuery.data ?? []
+  const roles = rolesQuery.data ?? [];
 
   return (
     <Card>
@@ -555,9 +549,9 @@ function UsersCard() {
       </CardHeader>
       <CardContent className="space-y-6">
         <form
-          onSubmit={(event) => {
-            event.preventDefault()
-            create.mutate()
+          onSubmit={event => {
+            event.preventDefault();
+            create.mutate();
           }}
           className="space-y-3 rounded-xl bg-muted/40 p-4"
         >
@@ -568,17 +562,13 @@ function UsersCard() {
               <Input
                 id="new-username"
                 value={username}
-                onChange={(event) => setUsername(event.target.value)}
+                onChange={event => setUsername(event.target.value)}
                 required
               />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="new-name">{t('settings.newName')}</Label>
-              <Input
-                id="new-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
+              <Input id="new-name" value={name} onChange={event => setName(event.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="new-email">{t('settings.newEmail')}</Label>
@@ -586,7 +576,7 @@ function UsersCard() {
                 id="new-email"
                 type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={event => setEmail(event.target.value)}
               />
             </div>
             <div className="space-y-1.5">
@@ -595,7 +585,7 @@ function UsersCard() {
                 id="new-password"
                 type="password"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={event => setPassword(event.target.value)}
                 required
               />
             </div>
@@ -615,19 +605,19 @@ function UsersCard() {
           <p className="text-sm text-muted-foreground">{t('settings.loading')}</p>
         ) : (
           <ul className="space-y-2">
-            {(usersQuery.data ?? []).map((user) => (
+            {(usersQuery.data ?? []).map(user => (
               <UserRow key={user.id} user={user} roles={roles} />
             ))}
           </ul>
         )}
       </CardContent>
     </Card>
-  )
+  );
 }
 
 function SystemSettingsCard() {
-  const { i18n, t } = useTranslation()
-  const current = i18n.language?.startsWith('zh') ? 'zh' : 'en'
+  const { i18n, t } = useTranslation();
+  const current = i18n.language?.startsWith('zh') ? 'zh' : 'en';
 
   return (
     <Card size="sm">
@@ -642,7 +632,7 @@ function SystemSettingsCard() {
         <div className="space-y-1.5">
           <Label>{t('settings.localeField')}</Label>
           <div className="flex flex-wrap gap-1.5">
-            {(['en', 'zh'] as const).map((lang) => (
+            {(['en', 'zh'] as const).map(lang => (
               <button
                 key={lang}
                 type="button"
@@ -661,23 +651,21 @@ function SystemSettingsCard() {
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }
 
 export function SettingsPage() {
-  const { t } = useTranslation()
-  const { user } = useAuth()
+  const { t } = useTranslation();
+  const { user } = useAuth();
 
-  usePageTitle(t('settings.title'))
+  usePageTitle(t('settings.title'));
 
-  const canManageUsers = user?.permissions.includes('users.manage') ?? false
+  const canManageUsers = user?.permissions.includes('users.manage') ?? false;
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6">
       <header className="space-y-2">
-        <h1 className="font-heading text-3xl font-bold tracking-tight">
-          {t('settings.title')}
-        </h1>
+        <h1 className="font-heading text-3xl font-bold tracking-tight">{t('settings.title')}</h1>
         <p className="text-sm text-muted-foreground">{t('settings.description')}</p>
       </header>
 
@@ -725,7 +713,7 @@ export function SettingsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
-                {user.roles.map((role) => (
+                {user.roles.map(role => (
                   <Badge key={role} variant="secondary">
                     {role}
                   </Badge>
@@ -750,5 +738,5 @@ export function SettingsPage() {
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }

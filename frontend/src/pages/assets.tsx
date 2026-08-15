@@ -1,24 +1,9 @@
-import { useRef, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useTranslation } from 'react-i18next'
-import {
-  Check,
-  Copy,
-  Film,
-  Loader2,
-  Search,
-  Trash2,
-  Upload,
-  X,
-} from 'lucide-react'
-
-import { ApiError, assetMarkdownLink, assetUrl, copyText } from '@/lib/api'
-import { makeImageThumb, makeVideoThumb } from '@/lib/assets'
-import { assetsApi, systemApi, type Asset, type AssetKind } from '@/lib/pages'
-import { useAuth } from '@/lib/auth'
-import { usePageTitle } from '@/hooks/use-page-title'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Check, Copy, Film, Loader2, Search, Trash2, Upload, X } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardAction,
@@ -26,47 +11,53 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { cn } from '@/lib/utils'
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { usePageTitle } from '@/hooks/use-page-title';
+import { ApiError, assetMarkdownLink, assetUrl, copyText } from '@/lib/api';
+import { makeImageThumb, makeVideoThumb } from '@/lib/assets';
+import { useAuth } from '@/lib/auth';
+import { type Asset, type AssetKind, assetsApi, systemApi } from '@/lib/pages';
+import { cn } from '@/lib/utils';
 
-const PER_PAGE = 24
-const ACCEPT = 'image/jpeg,image/png,image/gif,image/webp,image/avif,video/mp4,video/webm,video/ogg'
+const PER_PAGE = 24;
+const ACCEPT =
+  'image/jpeg,image/png,image/gif,image/webp,image/avif,video/mp4,video/webm,video/ogg';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) {
-    return `${bytes} B`
+    return `${bytes} B`;
   }
-  const units = ['KB', 'MB', 'GB']
-  let value = bytes / 1024
-  let i = 0
+  const units = ['KB', 'MB', 'GB'];
+  let value = bytes / 1024;
+  let i = 0;
   while (value >= 1024 && i < units.length - 1) {
-    value /= 1024
-    i += 1
+    value /= 1024;
+    i += 1;
   }
-  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[i]}`
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[i]}`;
 }
 
 function formatDate(value: string, language: string): string {
-  const date = new Date(value.replace(' ', 'T') + 'Z')
+  const date = new Date(value.replace(' ', 'T') + 'Z');
   if (Number.isNaN(date.getTime())) {
-    return value
+    return value;
   }
   return date.toLocaleDateString(language, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
-  })
+  });
 }
 
 interface UploadItem {
-  key: string
-  file: File
-  status: 'queued' | 'processing' | 'done' | 'error'
-  error?: string
-  duplicate?: boolean
+  key: string;
+  file: File;
+  status: 'queued' | 'processing' | 'done' | 'error';
+  error?: string;
+  duplicate?: boolean;
 }
 
 function AssetThumb({ asset }: { asset: Asset }) {
@@ -78,7 +69,7 @@ function AssetThumb({ asset }: { asset: Asset }) {
         loading="lazy"
         className="size-full object-cover"
       />
-    )
+    );
   }
 
   if (asset.kind === 'image') {
@@ -89,33 +80,33 @@ function AssetThumb({ asset }: { asset: Asset }) {
         loading="lazy"
         className="size-full object-contain"
       />
-    )
+    );
   }
 
   return (
     <div className="flex size-full items-center justify-center bg-muted/30 text-muted-foreground">
       <Film className="size-10" />
     </div>
-  )
+  );
 }
 
 export function AssetsPage() {
-  const { t, i18n } = useTranslation()
-  const { user, has } = useAuth()
-  const queryClient = useQueryClient()
+  const { t, i18n } = useTranslation();
+  const { user, has } = useAuth();
+  const queryClient = useQueryClient();
 
-  usePageTitle(t('assets.title'))
+  usePageTitle(t('assets.title'));
 
-  const canUpload = user !== null && (user.roles.includes('admin') || has('assets.upload'))
+  const canUpload = user !== null && (user.roles.includes('admin') || has('assets.upload'));
 
-  const [kind, setKind] = useState<'all' | AssetKind>('all')
-  const [query, setQuery] = useState('')
-  const [submitted, setSubmitted] = useState('')
-  const [page, setPage] = useState(1)
-  const [queue, setQueue] = useState<UploadItem[]>([])
-  const [dragOver, setDragOver] = useState(false)
-  const [copiedId, setCopiedId] = useState<number | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [kind, setKind] = useState<'all' | AssetKind>('all');
+  const [query, setQuery] = useState('');
+  const [submitted, setSubmitted] = useState('');
+  const [page, setPage] = useState(1);
+  const [queue, setQueue] = useState<UploadItem[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const listQuery = useQuery({
     queryKey: ['assets', { kind, q: submitted, page }],
@@ -126,90 +117,90 @@ export function AssetsPage() {
         page,
         per_page: PER_PAGE,
       }),
-  })
+  });
 
   const systemQuery = useQuery({
     queryKey: ['system', 'status'],
     queryFn: systemApi.status,
     staleTime: 60_000,
-  })
+  });
 
-  const limits = systemQuery.data?.asset_limits
+  const limits = systemQuery.data?.asset_limits;
 
   const remove = useMutation({
     mutationFn: (id: number) => assetsApi.remove(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['assets'] })
+      queryClient.invalidateQueries({ queryKey: ['assets'] });
     },
-  })
+  });
 
   const setPublic = useMutation({
     mutationFn: ({ id, is_public }: { id: number; is_public: boolean }) =>
       assetsApi.update(id, { is_public }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['assets'] })
+      queryClient.invalidateQueries({ queryKey: ['assets'] });
     },
-  })
+  });
 
   function addFiles(files: FileList | File[]) {
-    const next: UploadItem[] = []
+    const next: UploadItem[] = [];
     for (const file of Array.from(files)) {
-      const supported = file.type.startsWith('image/') || file.type.startsWith('video/')
+      const supported = file.type.startsWith('image/') || file.type.startsWith('video/');
       next.push({
         key: `${file.name}-${file.size}-${file.lastModified}-${Math.random()}`,
         file,
         status: supported ? 'queued' : 'error',
         error: supported ? undefined : t('assets.unsupported'),
-      })
+      });
     }
-    setQueue((current) => [...current, ...next])
+    setQueue(current => [...current, ...next]);
   }
 
   async function uploadOne(item: UploadItem) {
-    setQueue((current) =>
-      current.map((entry) =>
+    setQueue(current =>
+      current.map(entry =>
         entry.key === item.key ? { ...entry, status: 'processing' as const } : entry,
       ),
-    )
+    );
 
     try {
-      const isVideo = item.file.type.startsWith('video/')
-      const formData = new FormData()
-      formData.append('file', item.file)
-      formData.append('name', item.file.name)
-      formData.append('kind', isVideo ? 'video' : 'image')
+      const isVideo = item.file.type.startsWith('video/');
+      const formData = new FormData();
+      formData.append('file', item.file);
+      formData.append('name', item.file.name);
+      formData.append('kind', isVideo ? 'video' : 'image');
 
       if (isVideo) {
-        const meta = await makeVideoThumb(item.file)
+        const meta = await makeVideoThumb(item.file);
         if (meta.thumb !== null) {
-          formData.append('thumb', meta.thumb, 'thumb.webp')
+          formData.append('thumb', meta.thumb, 'thumb.webp');
         }
         if (meta.width > 0) {
-          formData.append('width', String(meta.width))
+          formData.append('width', String(meta.width));
         }
         if (meta.height > 0) {
-          formData.append('height', String(meta.height))
+          formData.append('height', String(meta.height));
         }
         if (meta.duration > 0) {
-          formData.append('duration', String(meta.duration))
+          formData.append('duration', String(meta.duration));
         }
       } else {
-        const meta = await makeImageThumb(item.file)
+        const meta = await makeImageThumb(item.file);
         if (meta.thumb !== null) {
-          formData.append('thumb', meta.thumb, 'thumb.webp')
+          formData.append('thumb', meta.thumb, 'thumb.webp');
         }
         if (meta.width > 0) {
-          formData.append('width', String(meta.width))
+          formData.append('width', String(meta.width));
         }
         if (meta.height > 0) {
-          formData.append('height', String(meta.height))
+          formData.append('height', String(meta.height));
         }
       }
 
-      const result = await assetsApi.create(formData)
+      const result = await assetsApi.create(formData);
 
-      setQueue((current) =>
-        current.map((entry) =>
+      setQueue(current =>
+        current.map(entry =>
           entry.key === item.key
             ? {
                 ...entry,
@@ -218,53 +209,53 @@ export function AssetsPage() {
               }
             : entry,
         ),
-      )
+      );
 
-      queryClient.invalidateQueries({ queryKey: ['assets'] })
+      queryClient.invalidateQueries({ queryKey: ['assets'] });
     } catch (err) {
       const reason =
         err instanceof ApiError
-          ? err.data.error ?? err.data.reason ?? t('assets.uploadError')
-          : t('assets.uploadError')
+          ? (err.data.error ?? err.data.reason ?? t('assets.uploadError'))
+          : t('assets.uploadError');
 
-      setQueue((current) =>
-        current.map((entry) =>
+      setQueue(current =>
+        current.map(entry =>
           entry.key === item.key ? { ...entry, status: 'error' as const, error: reason } : entry,
         ),
-      )
+      );
     }
   }
 
   async function startUpload() {
-    const pending = queue.filter((entry) => entry.status === 'queued')
+    const pending = queue.filter(entry => entry.status === 'queued');
     for (const item of pending) {
-      await uploadOne(item)
+      await uploadOne(item);
     }
   }
 
   async function copyLink(asset: Asset) {
-    const text = assetMarkdownLink(asset.name, asset.id, asset.kind)
+    const text = assetMarkdownLink(asset.name, asset.id, asset.kind);
 
     if (!(await copyText(text))) {
-      window.prompt(t('assets.copyManual'), text)
+      window.prompt(t('assets.copyManual'), text);
     }
 
-    setCopiedId(asset.id)
-    window.setTimeout(() => setCopiedId(null), 1500)
+    setCopiedId(asset.id);
+    window.setTimeout(() => setCopiedId(null), 1500);
   }
 
   function handleDelete(asset: Asset) {
     if (window.confirm(t('assets.deleteConfirm'))) {
-      remove.mutate(asset.id)
+      remove.mutate(asset.id);
     }
   }
 
-  const pendingCount = queue.filter((entry) => entry.status === 'queued').length
-  const busy = queue.some((entry) => entry.status === 'processing')
+  const pendingCount = queue.filter(entry => entry.status === 'queued').length;
+  const busy = queue.some(entry => entry.status === 'processing');
 
-  const items = listQuery.data?.items ?? []
-  const total = listQuery.data?.total ?? 0
-  const pages = Math.max(1, Math.ceil(total / PER_PAGE))
+  const items = listQuery.data?.items ?? [];
+  const total = listQuery.data?.total ?? 0;
+  const pages = Math.max(1, Math.ceil(total / PER_PAGE));
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6">
@@ -273,9 +264,7 @@ export function AssetsPage() {
           <h1 className="font-heading text-3xl font-bold tracking-tight">{t('assets.title')}</h1>
           <p className="text-sm text-muted-foreground">{t('assets.description')}</p>
         </div>
-        <Badge variant="outline">
-          {t('assets.total', { count: total })}
-        </Badge>
+        <Badge variant="outline">{t('assets.total', { count: total })}</Badge>
       </header>
 
       {canUpload && (
@@ -292,21 +281,21 @@ export function AssetsPage() {
               role="button"
               tabIndex={0}
               onClick={() => inputRef.current?.click()}
-              onKeyDown={(event) => {
+              onKeyDown={event => {
                 if (event.key === 'Enter' || event.key === ' ') {
-                  inputRef.current?.click()
+                  inputRef.current?.click();
                 }
               }}
-              onDragOver={(event) => {
-                event.preventDefault()
-                setDragOver(true)
+              onDragOver={event => {
+                event.preventDefault();
+                setDragOver(true);
               }}
               onDragLeave={() => setDragOver(false)}
-              onDrop={(event) => {
-                event.preventDefault()
-                setDragOver(false)
+              onDrop={event => {
+                event.preventDefault();
+                setDragOver(false);
                 if (event.dataTransfer.files.length > 0) {
-                  addFiles(event.dataTransfer.files)
+                  addFiles(event.dataTransfer.files);
                 }
               }}
               className={cn(
@@ -334,17 +323,17 @@ export function AssetsPage() {
               multiple
               accept={ACCEPT}
               className="hidden"
-              onChange={(event) => {
+              onChange={event => {
                 if (event.target.files !== null) {
-                  addFiles(event.target.files)
+                  addFiles(event.target.files);
                 }
-                event.target.value = ''
+                event.target.value = '';
               }}
             />
 
             {queue.length > 0 && (
               <ul className="space-y-1.5">
-                {queue.map((item) => (
+                {queue.map(item => (
                   <li
                     key={item.key}
                     className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm"
@@ -359,9 +348,7 @@ export function AssetsPage() {
                       <Upload className="size-4 shrink-0 text-muted-foreground" />
                     )}
                     <span className="min-w-0 flex-1 truncate">{item.file.name}</span>
-                    {item.duplicate && (
-                      <Badge variant="secondary">{t('assets.duplicate')}</Badge>
-                    )}
+                    {item.duplicate && <Badge variant="secondary">{t('assets.duplicate')}</Badge>}
                     {item.error !== undefined && (
                       <span className="truncate text-xs text-destructive">{item.error}</span>
                     )}
@@ -371,9 +358,7 @@ export function AssetsPage() {
                       size="icon-xs"
                       aria-label={t('assets.remove')}
                       onClick={() =>
-                        setQueue((current) =>
-                          current.filter((entry) => entry.key !== item.key),
-                        )
+                        setQueue(current => current.filter(entry => entry.key !== item.key))
                       }
                       disabled={item.status === 'processing'}
                     >
@@ -397,9 +382,9 @@ export function AssetsPage() {
       <div className="flex flex-wrap items-center gap-3">
         <Tabs
           value={kind}
-          onValueChange={(value) => {
-            setKind(value as 'all' | AssetKind)
-            setPage(1)
+          onValueChange={value => {
+            setKind(value as 'all' | AssetKind);
+            setPage(1);
           }}
         >
           <TabsList>
@@ -411,16 +396,16 @@ export function AssetsPage() {
 
         <form
           className="relative min-w-0 flex-1"
-          onSubmit={(event) => {
-            event.preventDefault()
-            setSubmitted(query.trim())
-            setPage(1)
+          onSubmit={event => {
+            event.preventDefault();
+            setSubmitted(query.trim());
+            setPage(1);
           }}
         >
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={event => setQuery(event.target.value)}
             placeholder={t('assets.search')}
             className="pl-8"
           />
@@ -440,8 +425,11 @@ export function AssetsPage() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {items.map((asset) => (
-              <div key={asset.id} className="glass-control flex flex-col overflow-hidden rounded-xl">
+            {items.map(asset => (
+              <div
+                key={asset.id}
+                className="glass-control flex flex-col overflow-hidden rounded-xl"
+              >
                 <div className="aspect-[4/3] bg-muted/30">
                   <AssetThumb asset={asset} />
                 </div>
@@ -472,12 +460,10 @@ export function AssetsPage() {
                     <Switch
                       checked={asset.is_public}
                       disabled={setPublic.isPending}
-                      onCheckedChange={(value) =>
+                      onCheckedChange={value =>
                         setPublic.mutate({ id: asset.id, is_public: value })
                       }
-                      aria-label={
-                        asset.is_public ? t('assets.private') : t('assets.public')
-                      }
+                      aria-label={asset.is_public ? t('assets.private') : t('assets.public')}
                       title={asset.is_public ? t('assets.public') : t('assets.private')}
                     />
                   </div>
@@ -489,11 +475,7 @@ export function AssetsPage() {
                       className="flex-1 justify-start"
                       onClick={() => copyLink(asset)}
                     >
-                      {copiedId === asset.id ? (
-                        <Check className="text-emerald-600" />
-                      ) : (
-                        <Copy />
-                      )}
+                      {copiedId === asset.id ? <Check className="text-emerald-600" /> : <Copy />}
                       {copiedId === asset.id ? t('assets.copied') : t('assets.copyMarkdown')}
                     </Button>
                     <Button
@@ -520,7 +502,7 @@ export function AssetsPage() {
                 variant="outline"
                 size="sm"
                 disabled={page <= 1}
-                onClick={() => setPage((value) => value - 1)}
+                onClick={() => setPage(value => value - 1)}
               >
                 {t('assets.prev')}
               </Button>
@@ -532,7 +514,7 @@ export function AssetsPage() {
                 variant="outline"
                 size="sm"
                 disabled={page >= pages}
-                onClick={() => setPage((value) => value + 1)}
+                onClick={() => setPage(value => value + 1)}
               >
                 {t('assets.next')}
               </Button>
@@ -541,5 +523,5 @@ export function AssetsPage() {
         </>
       )}
     </div>
-  )
+  );
 }

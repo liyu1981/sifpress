@@ -1,7 +1,7 @@
-import i18n from 'i18next'
-import { initReactI18next } from 'react-i18next'
+import i18n from 'i18next';
+import { initReactI18next } from 'react-i18next';
 
-const LANGUAGE_KEY = 'language'
+const LANGUAGE_KEY = 'language';
 
 const en = {
   app: 'Sifpress',
@@ -77,8 +77,7 @@ const en = {
   changePassword: {
     title: 'Change password',
     required: 'Action required',
-    description:
-      'The default password must be changed before you can use the app.',
+    description: 'The default password must be changed before you can use the app.',
     current: 'Current password',
     new: 'New password',
     confirm: 'Confirm new password',
@@ -96,8 +95,7 @@ const en = {
     notFoundBadge: '404',
     notFoundTitle: 'Page not found',
     forbiddenTitle: 'No edit access',
-    forbiddenDescription:
-      'Only the author, users with a grant, and admins can edit this page.',
+    forbiddenDescription: 'Only the author, users with a grant, and admins can edit this page.',
     titleField: 'Title',
     slugField: 'Slug',
     dateField: 'Date',
@@ -120,16 +118,14 @@ const en = {
     delete: 'Delete',
     deleteConfirm: 'Delete',
     deleteDialogTitle: 'Delete this page?',
-    deleteDialogMessage:
-      'This will permanently delete "{{title}}". This action cannot be undone.',
+    deleteDialogMessage: 'This will permanently delete "{{title}}". This action cannot be undone.',
     cancel: 'Cancel',
     deleteSuccess: 'Page deleted.',
     deleteFailed: 'Could not delete the page.',
     error: 'Could not save the page.',
     slugInvalid: 'Lowercase letters, digits, and hyphens only.',
     grantsTitle: 'Access permissions',
-    grantsDescription:
-      'Grant or revoke edit access for users with the pages.write permission.',
+    grantsDescription: 'Grant or revoke edit access for users with the pages.write permission.',
     grantUsername: 'Username',
     grantPermissionField: 'Permission',
     grantNote: 'Note',
@@ -240,8 +236,7 @@ const en = {
   migration: {
     badge: 'Maintenance',
     title: 'Database needs migration',
-    description:
-      'The schema is behind the embedded migrations. Apply them to continue.',
+    description: 'The schema is behind the embedded migrations. Apply them to continue.',
     checking: 'Checking…',
     pending: 'pending',
     run: 'Run migrations',
@@ -290,7 +285,7 @@ const en = {
     image: 'Image',
     video: 'Video',
   },
-}
+};
 
 const zh = {
   app: 'Sifpress',
@@ -323,8 +318,7 @@ const zh = {
   article: {
     badge: '博客',
     indexTitle: '文章',
-    indexDescription:
-      '关于单文件、markdown 驱动的博客的笔记——数学公式、图表和灵活的图像。',
+    indexDescription: '关于单文件、markdown 驱动的博客的笔记——数学公式、图表和灵活的图像。',
     reading: '阅读约 {{min}} 分钟',
     readMore: '阅读全文',
     toc: '本页目录',
@@ -573,14 +567,14 @@ const zh = {
     image: '图片',
     video: '视频',
   },
-}
+};
 
 const resources = {
   en: { translation: en },
   zh: { translation: zh },
-}
+};
 
-const saved = localStorage.getItem(LANGUAGE_KEY)
+const saved = localStorage.getItem(LANGUAGE_KEY);
 
 i18n.use(initReactI18next).init({
   resources,
@@ -588,11 +582,11 @@ i18n.use(initReactI18next).init({
   fallbackLng: 'en',
   interpolation: { escapeValue: false },
   react: { useSuspense: false },
-})
+});
 
-i18n.on('languageChanged', (lng) => {
-  localStorage.setItem(LANGUAGE_KEY, lng)
-  document.documentElement.lang = lng
-})
+i18n.on('languageChanged', lng => {
+  localStorage.setItem(LANGUAGE_KEY, lng);
+  document.documentElement.lang = lng;
+});
 
-export default i18n
+export default i18n;

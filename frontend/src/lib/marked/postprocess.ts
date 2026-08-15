@@ -1,116 +1,88 @@
-import katex from 'katex'
-import { buildVideoElement } from './video-element'
-import { nextDiagramId, renderMermaidChart } from './mermaid'
+import katex from 'katex';
+import { nextDiagramId, renderMermaidChart } from './mermaid';
 
 function convertLatexBlocks(body: HTMLElement): void {
   for (const pre of Array.from(body.querySelectorAll('pre'))) {
-    const code = pre.querySelector(':scope > code')
-    const langMatch = /\blanguage-([\w+-]+)/.exec(code?.className ?? '')
+    const code = pre.querySelector(':scope > code');
+    const langMatch = /\blanguage-([\w+-]+)/.exec(code?.className ?? '');
 
     if (langMatch === null || langMatch[1].toLowerCase() !== 'latex') {
-      continue
+      continue;
     }
 
-    const source = code?.textContent ?? ''
-    const wrapper = document.createElement('div')
-    wrapper.className = 'md-math-display my-6 overflow-x-auto'
+    const source = code?.textContent ?? '';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'md-math-display my-6 overflow-x-auto';
     wrapper.innerHTML = katex.renderToString(source, {
       throwOnError: false,
       displayMode: true,
-    })
-    pre.replaceWith(wrapper)
+    });
+    pre.replaceWith(wrapper);
   }
 }
 
 async function renderMermaidDivs(body: HTMLElement): Promise<void> {
-  const divs = Array.from(body.querySelectorAll('[data-type="diagram"]'))
+  const divs = Array.from(body.querySelectorAll('[data-type="diagram"]'));
 
   await Promise.all(
-    divs.map(async (el) => {
-      const chart = el.getAttribute('data-value') ?? el.textContent ?? ''
-      const holder = document.createElement('div')
-      holder.className = 'md-mermaid my-6 flex justify-center overflow-x-auto'
-      el.replaceWith(holder)
+    divs.map(async el => {
+      const chart = el.getAttribute('data-value') ?? el.textContent ?? '';
+      const holder = document.createElement('div');
+      holder.className = 'md-mermaid my-6 flex justify-center overflow-x-auto';
+      el.replaceWith(holder);
 
       if (chart.trim() === '') {
-        return
+        return;
       }
 
       try {
-        const svg = await renderMermaidChart(chart, nextDiagramId())
-        holder.innerHTML = svg
+        const svg = await renderMermaidChart(chart, nextDiagramId());
+        holder.innerHTML = svg;
       } catch {
         holder.className =
-          'md-mermaid-error my-6 rounded-lg border border-destructive/30 bg-destructive/5 p-4'
-        const pre = document.createElement('pre')
-        pre.className = 'overflow-x-auto text-xs'
-        pre.textContent = chart
-        holder.appendChild(pre)
+          'md-mermaid-error my-6 rounded-lg border border-destructive/30 bg-destructive/5 p-4';
+        const pre = document.createElement('pre');
+        pre.className = 'overflow-x-auto text-xs';
+        pre.textContent = chart;
+        holder.appendChild(pre);
       }
     }),
-  )
-}
-
-function convertVideoImages(body: HTMLElement): void {
-  for (const img of Array.from(body.querySelectorAll('img'))) {
-    const player = buildVideoElement({
-      src: img.getAttribute('src') ?? '',
-      alt: img.getAttribute('alt') ?? '',
-      autoplay: img.getAttribute('data-autoplay') === 'true',
-      width: toNumberOrNull(img.getAttribute('width')),
-      height: toNumberOrNull(img.getAttribute('height')),
-      className: img.getAttribute('class') ?? '',
-    })
-
-    if (player === null) {
-      continue
-    }
-
-    img.replaceWith(player)
-  }
-}
-
-function toNumberOrNull(value: string | null): number | null {
-  if (value === null) {
-    return null
-  }
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
+  );
 }
 
 function liftLoneImageFigures(body: HTMLElement): void {
   for (const p of Array.from(body.querySelectorAll('p'))) {
     if (p.childNodes.length !== 1) {
-      continue
+      continue;
     }
 
-    const media = p.querySelector(':scope > img, :scope > video, :scope > iframe')
+    const media = p.querySelector(':scope > img, :scope > video, :scope > iframe');
 
     if (media === null) {
-      continue
+      continue;
     }
 
-    const caption = media instanceof HTMLImageElement ? media.getAttribute('alt') : null
+    const caption = media instanceof HTMLImageElement ? media.getAttribute('alt') : null;
 
-    const figure = document.createElement('figure')
-    p.replaceWith(figure)
-    figure.appendChild(media)
+    const figure = document.createElement('figure');
+    p.replaceWith(figure);
+    figure.appendChild(media);
 
     if (caption !== null && caption !== '') {
-      const figcaption = document.createElement('figcaption')
-      figcaption.textContent = caption
-      figure.appendChild(figcaption)
+      const figcaption = document.createElement('figcaption');
+      figcaption.textContent = caption;
+      figure.appendChild(figcaption);
     }
   }
 }
 
 function externalizeLinks(body: HTMLElement): void {
   for (const a of Array.from(body.querySelectorAll('a'))) {
-    const href = a.getAttribute('href') ?? ''
+    const href = a.getAttribute('href') ?? '';
 
     if (/^https?:\/\//.test(href)) {
-      a.target = '_blank'
-      a.rel = 'noopener noreferrer'
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
     }
   }
 }
@@ -122,14 +94,13 @@ function externalizeLinks(body: HTMLElement): void {
  * figures with captions, external links → new tab.
  */
 export async function postProcessHtml(html: string): Promise<string> {
-  const doc = new DOMParser().parseFromString(html, 'text/html')
-  const body = doc.body
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const body = doc.body;
 
-  convertLatexBlocks(body)
-  await renderMermaidDivs(body)
-  convertVideoImages(body)
-  liftLoneImageFigures(body)
-  externalizeLinks(body)
+  convertLatexBlocks(body);
+  await renderMermaidDivs(body);
+  // liftLoneImageFigures(body);
+  externalizeLinks(body);
 
-  return body.innerHTML
+  return body.innerHTML;
 }

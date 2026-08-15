@@ -1,35 +1,35 @@
-import { getHTML } from '@milkdown/kit/utils'
-import type { CrepeBuilder } from '@milkdown/crepe/builder'
-import { escapeTableCodePipes } from './preprocess'
-import { createMarkdownEditor, setMarkdownContent } from './shared'
+import type { CrepeBuilder } from '@milkdown/crepe/builder';
+import { getHTML } from '@milkdown/kit/utils';
+import { escapeTableCodePipes } from './preprocess';
+import { createMarkdownEditor, setMarkdownContent } from './shared';
 
-let renderer: CrepeBuilder | null = null
-let rendererEl: HTMLDivElement | null = null
-let queue: Promise<unknown> = Promise.resolve()
+let renderer: CrepeBuilder | null = null;
+let rendererEl: HTMLDivElement | null = null;
+let queue: Promise<unknown> = Promise.resolve();
 
 function getRenderer(): Promise<CrepeBuilder> {
   if (renderer !== null) {
-    return Promise.resolve(renderer)
+    return Promise.resolve(renderer);
   }
 
-  rendererEl = document.createElement('div')
-  rendererEl.setAttribute('aria-hidden', 'true')
-  rendererEl.style.position = 'fixed'
-  rendererEl.style.top = '-10000px'
-  rendererEl.style.left = '-10000px'
-  rendererEl.style.width = '0'
-  rendererEl.style.height = '0'
-  rendererEl.style.overflow = 'hidden'
-  document.body.appendChild(rendererEl)
+  rendererEl = document.createElement('div');
+  rendererEl.setAttribute('aria-hidden', 'true');
+  rendererEl.style.position = 'fixed';
+  rendererEl.style.top = '-10000px';
+  rendererEl.style.left = '-10000px';
+  rendererEl.style.width = '0';
+  rendererEl.style.height = '0';
+  rendererEl.style.overflow = 'hidden';
+  document.body.appendChild(rendererEl);
 
   const builder = createMarkdownEditor({
     root: rendererEl,
     defaultValue: '',
     mode: 'render',
-  })
-  renderer = builder
+  });
+  renderer = builder;
 
-  return builder.create().then(() => builder)
+  return builder.create().then(() => builder);
 }
 
 /**
@@ -38,15 +38,15 @@ function getRenderer(): Promise<CrepeBuilder> {
  * the hidden renderer instance is a singleton.
  */
 export async function markdownToHtml(markdown: string): Promise<string> {
-  const builder = await getRenderer()
-  const input = escapeTableCodePipes(markdown)
+  const builder = await getRenderer();
+  const input = escapeTableCodePipes(markdown);
 
   const run = queue.then(() => {
-    builder.editor.action(setMarkdownContent(input))
-    return builder.editor.action(getHTML())
-  })
+    builder.editor.action(setMarkdownContent(input));
+    return builder.editor.action(getHTML());
+  });
 
-  queue = run.catch(() => undefined)
+  queue = run.catch(() => undefined);
 
-  return run
+  return run;
 }

@@ -1,14 +1,14 @@
-import mermaid from 'mermaid'
+import mermaid from 'mermaid';
 
-export type MermaidTheme = 'light' | 'dark'
+export type MermaidTheme = 'light' | 'dark';
 
-let currentTheme: MermaidTheme = 'light'
-let idCounter = 0
-const rerenders = new Set<() => void>()
+let currentTheme: MermaidTheme = 'light';
+let idCounter = 0;
+const rerenders = new Set<() => void>();
 
 export function nextDiagramId(): string {
-  idCounter += 1
-  return `md-diagram-${idCounter}`
+  idCounter += 1;
+  return `md-diagram-${idCounter}`;
 }
 
 function initialize(): void {
@@ -17,29 +17,29 @@ function initialize(): void {
     securityLevel: 'strict',
     fontFamily: 'inherit',
     theme: currentTheme === 'dark' ? 'dark' : 'default',
-  })
+  });
 }
 
 export function setMermaidTheme(theme: MermaidTheme): void {
   if (theme === currentTheme) {
-    return
+    return;
   }
-  currentTheme = theme
-  initialize()
+  currentTheme = theme;
+  initialize();
   for (const rerender of rerenders) {
-    rerender()
+    rerender();
   }
 }
 
 export function registerDiagramRerender(fn: () => void): () => void {
-  rerenders.add(fn)
+  rerenders.add(fn);
   return () => {
-    rerenders.delete(fn)
-  }
+    rerenders.delete(fn);
+  };
 }
 
 export async function renderMermaidChart(chart: string, id: string): Promise<string> {
-  initialize()
-  const { svg } = await mermaid.render(id, chart)
-  return svg
+  initialize();
+  const { svg } = await mermaid.render(id, chart);
+  return svg;
 }

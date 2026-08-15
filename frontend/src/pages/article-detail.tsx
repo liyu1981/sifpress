@@ -1,47 +1,41 @@
-import { useRef, useState } from 'react'
-import { Link, useNavigate } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
-import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Calendar, Clock, FilePenLine, Trash2 } from 'lucide-react'
-
-import { avatarUrl } from '@/lib/api'
-import { cn } from '@/lib/utils'
-
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { DeletePageMenu } from '@/components/delete-page-menu'
-import { MarkdownView } from '@/lib/marked'
-import {
-  TableOfContents,
-  useArticleHeadings,
-  useScrollSpy,
-} from '@/components/markdown/toc'
-import { ReadingProgress } from '@/components/reading-progress'
-import { usePageTitle } from '@/hooks/use-page-title'
-import { useAuth } from '@/lib/auth'
-import { pagesApi } from '@/lib/pages'
-import { frontMatterString, parseFrontMatter } from '@/lib/front-matter'
-import { estimateReadingMinutes, formatDate } from '@/lib/format'
+import { useQuery } from '@tanstack/react-query';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { ArrowLeft, Calendar, Clock, FilePenLine, Trash2 } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { DeletePageMenu } from '@/components/delete-page-menu';
+import { TableOfContents, useArticleHeadings, useScrollSpy } from '@/components/markdown/toc';
+import { ReadingProgress } from '@/components/reading-progress';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { usePageTitle } from '@/hooks/use-page-title';
+import { avatarUrl } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { estimateReadingMinutes, formatDate } from '@/lib/format';
+import { frontMatterString, parseFrontMatter } from '@/lib/front-matter';
+import { MarkdownView } from '@/lib/marked';
+import { pagesApi } from '@/lib/pages';
+import { cn } from '@/lib/utils';
 
 function AuthorAvatar({
   name,
   userId,
   className,
 }: {
-  name: string
-  userId: number | null
-  className?: string
+  name: string;
+  userId: number | null;
+  className?: string;
 }) {
-  const [failed, setFailed] = useState(false)
+  const [failed, setFailed] = useState(false);
   const initials = name
     .split(/\s+/)
-    .map((part) => part[0])
+    .map(part => part[0])
     .filter(Boolean)
     .slice(0, 2)
     .join('')
-    .toUpperCase()
+    .toUpperCase();
 
-  const baseClass = 'shrink-0 rounded-full bg-muted object-cover'
+  const baseClass = 'shrink-0 rounded-full bg-muted object-cover';
 
   if (userId === null || failed) {
     return (
@@ -54,7 +48,7 @@ function AuthorAvatar({
       >
         {initials}
       </span>
-    )
+    );
   }
 
   return (
@@ -64,7 +58,7 @@ function AuthorAvatar({
       onError={() => setFailed(true)}
       className={cn(baseClass, className)}
     />
-  )
+  );
 }
 
 function ArticleSkeleton() {
@@ -79,37 +73,37 @@ function ArticleSkeleton() {
         <div className="h-3 w-2/3 rounded bg-muted" />
       </div>
     </div>
-  )
+  );
 }
 
 export function ArticleDetailPage({ slug }: { slug: string }) {
-  const { t, i18n } = useTranslation()
-  const { user, isAdmin } = useAuth()
-  const navigate = useNavigate()
-  const contentRef = useRef<HTMLDivElement>(null)
+  const { t, i18n } = useTranslation();
+  const { user, isAdmin } = useAuth();
+  const navigate = useNavigate();
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const article = useQuery({
     queryKey: ['page', slug],
     queryFn: () => pagesApi.get({ slug }),
-  })
+  });
 
-  usePageTitle(article.data?.title ?? t('article.loadingTitle'))
+  usePageTitle(article.data?.title ?? t('article.loadingTitle'));
 
   const headings = useArticleHeadings(
     contentRef,
     article.data !== undefined && article.data !== null,
-  )
-  const activeId = useScrollSpy(headings)
+  );
+  const activeId = useScrollSpy(headings);
 
   const prevNext = useQuery({
     queryKey: ['pages'],
     queryFn: () => pagesApi.list({ per_page: 50 }),
-  })
+  });
 
-  const items = prevNext.data?.items ?? []
-  const index = article.data ? items.findIndex((a) => a.slug === article.data?.slug) : -1
-  const newer = index > 0 ? items[index - 1] : null
-  const older = index >= 0 && index < items.length - 1 ? items[index + 1] : null
+  const items = prevNext.data?.items ?? [];
+  const index = article.data ? items.findIndex(a => a.slug === article.data?.slug) : -1;
+  const newer = index > 0 ? items[index - 1] : null;
+  const older = index >= 0 && index < items.length - 1 ? items[index + 1] : null;
 
   if (article.isLoading || article.data === undefined) {
     return (
@@ -117,19 +111,15 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
         <ReadingProgress />
         <ArticleSkeleton />
       </div>
-    )
+    );
   }
 
   if (article.data === null) {
     return (
       <div className="mx-auto w-full max-w-xl space-y-4 text-center">
         <Badge variant="outline">{t('article.notFoundBadge')}</Badge>
-        <h1 className="font-heading text-2xl font-bold">
-          {t('article.notFoundTitle')}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {t('article.notFoundDescription')}
-        </p>
+        <h1 className="font-heading text-2xl font-bold">{t('article.notFoundTitle')}</h1>
+        <p className="text-sm text-muted-foreground">{t('article.notFoundDescription')}</p>
         <Button asChild variant="glass" size="sm">
           <Link to="/article">
             <ArrowLeft className="size-3.5" />
@@ -137,11 +127,11 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
           </Link>
         </Button>
       </div>
-    )
+    );
   }
 
-  const page = article.data
-  const cover = frontMatterString(parseFrontMatter(page.content_md).data, 'cover')
+  const page = article.data;
+  const cover = frontMatterString(parseFrontMatter(page.content_md).data, 'cover');
 
   return (
     <div className="mx-auto w-full max-w-5xl">
@@ -156,11 +146,8 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
           <div className="px-6 py-8 sm:px-10 sm:py-10">
             <header className="mb-8 space-y-4">
               <div className="flex flex-wrap items-center gap-2">
-                {page.status === 'draft' && (
-                  <Badge variant="outline">{t('article.draft')}</Badge>
-                )}
-                {(page.can_edit ||
-                  (user !== null && (isAdmin || page.created_by === user.id))) && (
+                {page.status === 'draft' && <Badge variant="outline">{t('article.draft')}</Badge>}
+                {(page.can_edit || (user !== null && (isAdmin || page.created_by === user.id))) && (
                   <div className="ml-auto flex flex-wrap items-center gap-2">
                     {page.can_edit && (
                       <Button asChild variant="glass" size="xs">
@@ -207,9 +194,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                       userId={page.created_by}
                       className="size-5 text-[0.55rem]"
                     />
-                    <span className="font-medium text-foreground/80">
-                      {page.created_by_name}
-                    </span>
+                    <span className="font-medium text-foreground/80">{page.created_by_name}</span>
                   </span>
                 )}
               </div>
@@ -226,18 +211,14 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
 
         <aside className="mt-12 hidden lg:block">
           <div className="sticky top-24 space-y-6">
-            <TableOfContents
-              items={headings}
-              activeId={activeId}
-              label={t('article.toc')}
-            />
+            <TableOfContents items={headings} activeId={activeId} label={t('article.toc')} />
             {page.tags.length > 0 && (
               <section aria-label={t('article.tagsTitle')} className="text-sm">
                 <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   {t('article.tagsTitle')}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {page.tags.map((tag) => (
+                  {page.tags.map(tag => (
                     <Badge key={tag}>
                       <Link to="/article" search={{ tag }} className="no-underline">
                         {tag}
@@ -258,12 +239,8 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
             params={{ slug: newer.slug }}
             className="glass-control group flex flex-col gap-1 rounded-2xl p-5 transition-shadow hover:shadow-lg"
           >
-            <span className="text-xs text-muted-foreground">
-              {t('article.newer')}
-            </span>
-            <span className="font-medium group-hover:text-muted-foreground">
-              {newer.title}
-            </span>
+            <span className="text-xs text-muted-foreground">{t('article.newer')}</span>
+            <span className="font-medium group-hover:text-muted-foreground">{newer.title}</span>
           </Link>
         ) : (
           <div />
@@ -274,12 +251,8 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
             params={{ slug: older.slug }}
             className="glass-control group flex flex-col items-end gap-1 rounded-2xl p-5 text-right transition-shadow hover:shadow-lg"
           >
-            <span className="text-xs text-muted-foreground">
-              {t('article.older')}
-            </span>
-            <span className="font-medium group-hover:text-muted-foreground">
-              {older.title}
-            </span>
+            <span className="text-xs text-muted-foreground">{t('article.older')}</span>
+            <span className="font-medium group-hover:text-muted-foreground">{older.title}</span>
           </Link>
         ) : null}
       </nav>
@@ -293,5 +266,5 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
         </Button>
       </div>
     </div>
-  )
+  );
 }
