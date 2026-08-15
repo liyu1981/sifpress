@@ -60,6 +60,7 @@ const en = {
     searchTitle: 'Search',
     searching: 'Searching…',
     searchEmpty: 'No matches.',
+    byAuthor: 'by',
     empty: 'No pages yet.',
   },
   login: {
@@ -185,6 +186,9 @@ const en = {
     imageTitleHint: 'Used as the image caption and alt text.',
     videoDirectivesTitle: 'Video',
     imageAutoplay: 'Autoplay',
+    mediaAssets: 'Assets',
+    mediaLoadMore: 'Load more',
+    mediaEmpty: 'No assets yet.',
   },
   settings: {
     badge: 'System settings',
@@ -345,6 +349,7 @@ const zh = {
     searchTitle: '搜索',
     searching: '搜索中…',
     searchEmpty: '没有匹配结果。',
+    byAuthor: '作者',
     empty: '还没有页面。',
   },
   login: {
@@ -465,6 +470,9 @@ const zh = {
     imageTitleHint: '作为图片说明和替代文本。',
     videoDirectivesTitle: '视频',
     imageAutoplay: '自动播放',
+    mediaAssets: '资源',
+    mediaLoadMore: '加载更多',
+    mediaEmpty: '暂无资源。',
   },
   settings: {
     badge: '系统设置',

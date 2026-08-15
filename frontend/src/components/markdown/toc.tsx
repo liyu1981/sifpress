@@ -25,15 +25,29 @@ export function useArticleHeadings(
       return
     }
 
-    const nodes = Array.from(root.querySelectorAll<HTMLElement>('h2[id], h3[id]'))
+    const scan = (): void => {
+      const nodes = Array.from(root.querySelectorAll<HTMLElement>('h2[id], h3[id]'))
+      setItems(
+        nodes.map((el) => ({
+          id: el.id,
+          text: el.textContent ?? '',
+          level: el.tagName === 'H2' ? 2 : 3,
+        })),
+      )
+    }
 
-    setItems(
-      nodes.map((el) => ({
-        id: el.id,
-        text: el.textContent ?? '',
-        level: el.tagName === 'H2' ? 2 : 3,
-      })),
-    )
+    // The article renders asynchronously (markdown -> getHTML -> postprocess),
+    // so headings may not exist when this effect first runs. Re-scan whenever
+    // the content DOM changes instead of relying on a one-shot query.
+    scan()
+
+    const observer = new MutationObserver(scan)
+    observer.observe(root, { childList: true, subtree: true })
+
+    return () => {
+      observer.disconnect()
+      setItems([])
+    }
   }, [rootRef, ready])
 
   return items

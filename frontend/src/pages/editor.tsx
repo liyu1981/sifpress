@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import type { FormEvent } from 'react'
 
-import { ApiError, assetUrl } from '@/lib/api'
+import { ApiError, assetSourceUrl } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -310,7 +310,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
     const formData = new FormData()
     formData.append('file', file)
     const result = await assetsApi.create(formData)
-    return assetUrl(result.asset.id)
+    return assetSourceUrl(result.asset.id, result.asset.name, result.asset.kind)
   }, [])
 
   const save = useMutation({

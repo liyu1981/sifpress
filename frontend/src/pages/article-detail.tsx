@@ -1,8 +1,11 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, Calendar, Clock, FilePenLine, Trash2 } from 'lucide-react'
+
+import { avatarUrl } from '@/lib/api'
+import { cn } from '@/lib/utils'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -19,6 +22,50 @@ import { useAuth } from '@/lib/auth'
 import { pagesApi } from '@/lib/pages'
 import { frontMatterString, parseFrontMatter } from '@/lib/front-matter'
 import { estimateReadingMinutes, formatDate } from '@/lib/format'
+
+function AuthorAvatar({
+  name,
+  userId,
+  className,
+}: {
+  name: string
+  userId: number | null
+  className?: string
+}) {
+  const [failed, setFailed] = useState(false)
+  const initials = name
+    .split(/\s+/)
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+
+  const baseClass = 'shrink-0 rounded-full bg-muted object-cover'
+
+  if (userId === null || failed) {
+    return (
+      <span
+        aria-hidden="true"
+        className={cn(
+          'flex shrink-0 items-center justify-center rounded-full bg-muted font-semibold text-muted-foreground',
+          className,
+        )}
+      >
+        {initials}
+      </span>
+    )
+  }
+
+  return (
+    <img
+      src={avatarUrl(userId)}
+      alt=""
+      onError={() => setFailed(true)}
+      className={cn(baseClass, className)}
+    />
+  )
+}
 
 function ArticleSkeleton() {
   return (
@@ -153,7 +200,17 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                   })}
                 </span>
                 {page.created_by_name !== '' && (
-                  <span>{page.created_by_name}</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    {t('article.byAuthor')}
+                    <AuthorAvatar
+                      name={page.created_by_name}
+                      userId={page.created_by}
+                      className="size-5 text-[0.55rem]"
+                    />
+                    <span className="font-medium text-foreground/80">
+                      {page.created_by_name}
+                    </span>
+                  </span>
                 )}
               </div>
             </header>

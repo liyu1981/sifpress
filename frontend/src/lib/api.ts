@@ -109,17 +109,35 @@ export function assetUrl(id: number, thumb = false): string {
   return `${window.location.pathname}?${params.toString()}`
 }
 
+/**
+ * URL for a user's avatar. The backend serves the stored image when present,
+ * otherwise a generated SVG, so this endpoint always returns an image.
+ */
+export function avatarUrl(userId: number): string {
+  const params = new URLSearchParams({ module: 'asset', user: String(userId) })
+  return `${window.location.pathname}?${params.toString()}`
+}
+
 function escapeMarkdownText(name: string): string {
   return name.replace(/[\\[\]()]/g, (ch) => `\\${ch}`)
 }
 
-export function assetMarkdownLink(name: string, id: number, kind: string): string {
+/**
+ * URL for an asset's source. App-asset URLs carry no extension, so video
+ * assets are tagged with `&filetype=<ext>` — the backend ignores the param,
+ * but the renderer uses it to pick `<video>` over `<img>`.
+ */
+export function assetSourceUrl(id: number, name: string, kind: string): string {
   const url = assetUrl(id)
-  if (kind === 'video') {
-    const ext = /\.([a-z0-9]{2,5})$/i.exec(name)?.[1]?.toLowerCase() ?? 'mp4'
-    return `![${escapeMarkdownText(name)}](${url}&filetype=${ext})`
+  if (kind !== 'video') {
+    return url
   }
-  return `![${escapeMarkdownText(name)}](${url})`
+  const ext = /\.([a-z0-9]{2,5})$/i.exec(name)?.[1]?.toLowerCase() ?? 'mp4'
+  return `${url}&filetype=${ext}`
+}
+
+export function assetMarkdownLink(name: string, id: number, kind: string): string {
+  return `![${escapeMarkdownText(name)}](${assetSourceUrl(id, name, kind)})`
 }
 
 /**

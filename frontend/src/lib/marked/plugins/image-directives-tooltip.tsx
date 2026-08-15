@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import i18n from '@/lib/i18n'
 import type { Ctx } from '@milkdown/kit/ctx'
@@ -8,7 +8,9 @@ import { NodeSelection } from '@milkdown/kit/prose/state'
 import type { EditorState, PluginView } from '@milkdown/kit/prose/state'
 import type { Node } from '@milkdown/kit/prose/model'
 import type { EditorView } from '@milkdown/kit/prose/view'
+import { ChevronDown, Film, Loader2, Plus } from 'lucide-react'
 
+import { assetSourceUrl, assetUrl } from '@/lib/api'
 import { isVideoSource } from '@/components/markdown/video'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { assetsApi, type Asset } from '@/lib/pages'
 import { cn } from '@/lib/utils'
 import { bestEffortPositionMiddleware } from './image-directives-position'
 import { rebuildImageAlt, type ImageDirectiveAttrs } from './image-directives'
@@ -49,10 +52,47 @@ interface ImageDirectivePopupProps {
   onUpload?: (file: File) => Promise<string>
 }
 
+const ASSETS_PER_PAGE = 9
+
+function AssetThumb({ asset }: { asset: Asset }) {
+  if (asset.has_thumb) {
+    return (
+      <img
+        src={assetUrl(asset.id, true)}
+        alt={asset.name}
+        loading="lazy"
+        className="size-full object-cover"
+      />
+    )
+  }
+
+  if (asset.kind === 'image') {
+    return (
+      <img
+        src={assetUrl(asset.id)}
+        alt={asset.name}
+        loading="lazy"
+        className="size-full object-contain"
+      />
+    )
+  }
+
+  return (
+    <div className="flex size-full items-center justify-center bg-muted/30 text-muted-foreground">
+      <Film className="size-6" />
+    </div>
+  )
+}
+
 function ImageDirectivePopup({ node, onCommit, onUpload }: ImageDirectivePopupProps) {
   const t = i18n.t.bind(i18n)
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+  const [assetsOpen, setAssetsOpen] = useState(false)
+  const [assets, setAssets] = useState<Asset[]>([])
+  const [assetsPage, setAssetsPage] = useState(1)
+  const [assetsTotal, setAssetsTotal] = useState(0)
+  const [assetsLoading, setAssetsLoading] = useState(false)
   const attrs = node.attrs as unknown as ImageDirectiveAttrs
 
   const setDimension = (key: 'width' | 'height') => (raw: string) => {
@@ -67,6 +107,38 @@ function ImageDirectivePopup({ node, onCommit, onUpload }: ImageDirectivePopupPr
     }
   }
 
+  const isLink = attrs.asLink
+  const isVideo = !isLink && isVideoSource(attrs.src)
+
+  const loadAssets = useCallback(
+    async (page: number): Promise<void> => {
+      setAssetsLoading(true)
+      try {
+        const result = await assetsApi.list({
+          kind: isVideo ? 'video' : 'image',
+          page,
+          per_page: ASSETS_PER_PAGE,
+        })
+        setAssets((prev) => (page === 1 ? result.items : [...prev, ...result.items]))
+        setAssetsTotal(result.total)
+        setAssetsPage(page)
+      } finally {
+        setAssetsLoading(false)
+      }
+    },
+    [isVideo],
+  )
+
+  const toggleAssets = (): void => {
+    setAssetsOpen((open) => {
+      const next = !open
+      if (next && assets.length === 0) {
+        void loadAssets(1)
+      }
+      return next
+    })
+  }
+
   const handleFile = async (file: File | undefined): Promise<void> => {
     if (file === undefined || onUpload === undefined) {
       return
@@ -75,58 +147,63 @@ function ImageDirectivePopup({ node, onCommit, onUpload }: ImageDirectivePopupPr
     try {
       const url = await onUpload(file)
       onCommit({ src: url })
+      if (assetsOpen) {
+        void loadAssets(1)
+      }
     } finally {
       setUploading(false)
     }
   }
 
-  const isLink = attrs.asLink
-  const isVideo = !isLink && isVideoSource(attrs.src)
-
   const positionValue = attrs.position ?? POSITION_NONE
 
   return (
-    <div className="w-[19rem] rounded-xl border border-border/60 bg-popover p-3.5 text-popover-foreground shadow-lg">
-      <div className="mb-3 flex items-center justify-between gap-2 border-b border-border/60 pb-2.5">
-        <span className="text-xs font-medium text-muted-foreground">
-          {t(isVideo ? 'editor.videoDirectivesTitle' : 'editor.imageDirectivesTitle')}
-        </span>
-        <input
-          ref={fileRef}
-          type="file"
-          accept={isVideo ? 'video/*' : 'image/*'}
-          className="hidden"
-          onChange={(event) => {
-            void handleFile(event.target.files?.[0])
-            event.target.value = ''
-          }}
-        />
-        {onUpload !== undefined && (
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-          >
-            {uploading ? t('editor.imageUploading') : t('editor.imageUpload')}
-          </Button>
-        )}
-      </div>
-
-      <div className="space-y-3">
-        <div className="grid gap-2">
-          <Label className="block text-xs font-medium text-muted-foreground">
-            {t('editor.imageSrc')}
-          </Label>
-          <Input
-            type="text"
-            value={attrs.src}
-            spellCheck={false}
-            onChange={(event) => onCommit({ src: event.target.value })}
-            className="h-8 text-sm"
+    <div className="flex overflow-hidden rounded-xl border border-border/60 bg-popover text-popover-foreground shadow-lg">
+      <div className="flex w-[19rem] flex-col p-3.5">
+        <div className="mb-3 flex items-center justify-between gap-2 border-b border-border/60 pb-2.5">
+          <span className="text-xs font-medium text-muted-foreground">
+            {t(isVideo ? 'editor.videoDirectivesTitle' : 'editor.imageDirectivesTitle')}
+          </span>
+          <input
+            ref={fileRef}
+            type="file"
+            accept={isVideo ? 'video/*' : 'image/*'}
+            className="hidden"
+            onChange={(event) => {
+              void handleFile(event.target.files?.[0])
+              event.target.value = ''
+            }}
           />
+          {onUpload !== undefined && (
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              onClick={toggleAssets}
+              aria-expanded={assetsOpen}
+              className="gap-1"
+            >
+              {t('editor.mediaAssets')}
+              <ChevronDown
+                className={cn('size-3.5 transition-transform', assetsOpen && 'rotate-180')}
+              />
+            </Button>
+          )}
         </div>
+
+        <div className="space-y-3">
+          <div className="grid gap-2">
+            <Label className="block text-xs font-medium text-muted-foreground">
+              {t('editor.imageSrc')}
+            </Label>
+            <Input
+              type="text"
+              value={attrs.src}
+              spellCheck={false}
+              onChange={(event) => onCommit({ src: event.target.value })}
+              className="h-8 text-sm"
+            />
+          </div>
 
         <div className="grid gap-2">
           <Label className="block text-xs font-medium text-muted-foreground">
@@ -223,7 +300,63 @@ function ImageDirectivePopup({ node, onCommit, onUpload }: ImageDirectivePopupPr
             {buildImageMarkdown(attrs)}
           </code>
         </div>
+        </div>
       </div>
+
+      {assetsOpen && onUpload !== undefined && (
+        <div className="flex w-56 flex-col gap-2.5 border-l border-border/60 p-3">
+          <div className="grid grid-cols-3 gap-1.5">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border/70 text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+            >
+              {uploading ? (
+                <Loader2 className="size-5 animate-spin" />
+              ) : (
+                <Plus className="size-5" />
+              )}
+              <span className="px-1 text-center text-[0.6rem] leading-tight">
+                {uploading ? t('editor.imageUploading') : t('editor.imageUpload')}
+              </span>
+            </button>
+            {assets.map((asset) => (
+              <button
+                key={asset.id}
+                type="button"
+                onClick={() =>
+                  onCommit({ src: assetSourceUrl(asset.id, asset.name, asset.kind) })
+                }
+                title={asset.name}
+                className="aspect-square overflow-hidden rounded-lg border border-border/60 bg-muted/30 transition-colors hover:border-ring"
+              >
+                <AssetThumb asset={asset} />
+              </button>
+            ))}
+          </div>
+
+          {assetsLoading && (
+            <Loader2 className="mx-auto size-4 animate-spin text-muted-foreground" />
+          )}
+          {!assetsLoading && assets.length > 0 && assets.length < assetsTotal && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              className="w-full"
+              onClick={() => void loadAssets(assetsPage + 1)}
+            >
+              {t('editor.mediaLoadMore')}
+            </Button>
+          )}
+          {!assetsLoading && assets.length === 0 && (
+            <p className="text-center text-xs text-muted-foreground">
+              {t('editor.mediaEmpty')}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   )
 }
