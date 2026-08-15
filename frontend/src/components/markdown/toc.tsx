@@ -25,8 +25,21 @@ export function useArticleHeadings(
       return;
     }
 
+    // Track the last-seen heading signature so observer callbacks that fire on
+    // unrelated content DOM mutations (e.g. React re-inserting the rendered
+    // article HTML) don't schedule a page re-render for an unchanged TOC.
+    let lastKey = '';
+
     const scan = (): void => {
       const nodes = Array.from(root.querySelectorAll<HTMLElement>('h2[id], h3[id]'));
+      const key = nodes.map(el => `${el.tagName}#${el.id}:${el.textContent ?? ''}`).join('|');
+
+      if (key === lastKey) {
+        return;
+      }
+
+      lastKey = key;
+
       setItems(
         nodes.map(el => ({
           id: el.id,

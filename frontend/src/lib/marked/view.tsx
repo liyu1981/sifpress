@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import type { MouseEvent } from 'react';
 import { copyText } from '@/lib/api';
 import { parseFrontMatter } from '@/lib/front-matter';
@@ -13,7 +13,11 @@ export interface MarkdownViewProps {
   containerRef?: React.Ref<HTMLDivElement>;
 }
 
-export function MarkdownView({ content, className, containerRef }: MarkdownViewProps) {
+export const MarkdownView = memo(function MarkdownView({
+  content,
+  className,
+  containerRef,
+}: MarkdownViewProps) {
   const { theme } = useTheme();
   const [html, setHtml] = useState('');
 
@@ -72,4 +76,4 @@ export function MarkdownView({ content, className, containerRef }: MarkdownViewP
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
-}
+});
