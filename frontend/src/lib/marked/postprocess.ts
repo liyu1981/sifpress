@@ -1,5 +1,6 @@
 import katex from 'katex';
 import { nextDiagramId, renderMermaidChart } from './mermaid';
+import { buildVideoElement } from './video-element';
 
 function convertLatexBlocks(body: HTMLElement): void {
   for (const pre of Array.from(body.querySelectorAll('pre'))) {
@@ -48,6 +49,35 @@ async function renderMermaidDivs(body: HTMLElement): Promise<void> {
       }
     }),
   );
+}
+
+function convertVideoImages(body: HTMLElement): void {
+  for (const img of Array.from(body.querySelectorAll('img'))) {
+    const player = buildVideoElement({
+      src: img.getAttribute('src') ?? '',
+      alt: img.getAttribute('alt') ?? '',
+      autoplay: img.getAttribute('data-autoplay') === 'true',
+      width: toNumberOrNull(img.getAttribute('width')),
+      height: toNumberOrNull(img.getAttribute('height')),
+      className: img.getAttribute('class') ?? '',
+    });
+
+    if (player === null) {
+      continue;
+    }
+
+    img.replaceWith(player);
+  }
+}
+
+function toNumberOrNull(value: string | null): number | null {
+  if (value === null) {
+    return null;
+  }
+
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function liftLoneImageFigures(body: HTMLElement): void {
@@ -99,6 +129,7 @@ export async function postProcessHtml(html: string): Promise<string> {
 
   convertLatexBlocks(body);
   await renderMermaidDivs(body);
+  convertVideoImages(body);
   // liftLoneImageFigures(body);
   externalizeLinks(body);
 
