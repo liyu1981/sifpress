@@ -32,6 +32,7 @@ declare(strict_types=1);
  *   src/db.php           SQLite open, pragmas, migration detection/runner, seeds
  *   src/migration.php    ?module=migration handler
  *   src/auth.php         sessions, RBAC, page grants
+ *   src/update.php       ?module=update version check / upgrade handler
  *   src/demo_page.php    shared markdown-demo page (virtual + dev seed)
  *   src/api.php          JSON API handler
  *   src/spa.php          SPA serving / meta injection
@@ -69,6 +70,7 @@ $parts = [
     'db.php',
     'migration.php',
     'auth.php',
+    'update.php',
     'demo_page.php',
     'api.php',
     'asset.php',

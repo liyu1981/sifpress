@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  ArrowDownToLine,
   ChevronDown,
   Globe,
   Loader2,
@@ -12,6 +13,7 @@ import {
 import type { ChangeEvent, FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,6 +32,7 @@ import { ApiError } from '@/lib/api';
 import { makeAvatarThumb } from '@/lib/assets';
 import { useAuth } from '@/lib/auth';
 import { authApi, type RoleListItem, rolesApi, type UserListItem, usersApi } from '@/lib/pages';
+import { updateApi } from '@/lib/update';
 import { cn } from '@/lib/utils';
 
 function ProfileCard() {
@@ -654,6 +657,164 @@ function SystemSettingsCard() {
   );
 }
 
+function UpdateCard() {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const status = useQuery({
+    queryKey: ['update', 'status'],
+    queryFn: updateApi.status,
+    staleTime: 30_000,
+  });
+
+  const run = useMutation({
+    mutationFn: updateApi.run,
+    onSuccess: () => {
+      setConfirmOpen(false);
+      toast.success(t('update.done'));
+      queryClient.invalidateQueries({ queryKey: ['update', 'status'] });
+    },
+    onError: err => {
+      setConfirmOpen(false);
+      toast.error(
+        err instanceof ApiError && err.data.error
+          ? err.data.error === 'checksum mismatch'
+            ? t('update.checksumMismatch')
+            : err.data.error
+          : t('update.runError'),
+      );
+    },
+  });
+
+  const data = status.data;
+
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardAction>
+          <ArrowDownToLine className="size-5 text-muted-foreground" />
+        </CardAction>
+        <CardTitle>{t('update.title')}</CardTitle>
+        <CardDescription>{t('update.description')}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {data === undefined ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            {t('update.checking')}
+          </div>
+        ) : (
+          <>
+            <dl className="space-y-2 text-sm">
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-muted-foreground">{t('update.current')}</dt>
+                <dd className="font-medium">{data.current_version}</dd>
+              </div>
+              {data.latest_version !== null && (
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-muted-foreground">{t('update.latest')}</dt>
+                  <dd className="font-medium">{data.latest_version}</dd>
+                </div>
+              )}
+            </dl>
+
+            {data.fetch_error !== null ? (
+              <p className="text-sm text-destructive">
+                {data.fetch_error === 'network'
+                  ? t('update.fetchNetwork')
+                  : t('update.fetchBadJson')}
+              </p>
+            ) : data.update_available ? (
+              <p className="text-sm font-medium text-amber-600">{t('update.available')}</p>
+            ) : data.ahead ? (
+              <p className="text-sm text-muted-foreground">{t('update.ahead')}</p>
+            ) : (
+              <p className="text-sm text-emerald-600">{t('update.upToDate')}</p>
+            )}
+
+            {data.update_available && (
+              <>
+                {data.manifest?.notes != null && data.manifest.notes !== '' && (
+                  <p className="text-sm text-muted-foreground">{data.manifest.notes}</p>
+                )}
+
+                {data.can_upgrade ? (
+                  <div className="flex items-center gap-2">
+                    {!confirmOpen ? (
+                      <Button type="button" size="sm" onClick={() => setConfirmOpen(true)}>
+                        <ArrowDownToLine />
+                        {t('update.upgrade')}
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setConfirmOpen(false)}
+                          disabled={run.isPending}
+                        >
+                          {t('editor.cancel')}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="default"
+                          onClick={() => run.mutate()}
+                          disabled={run.isPending}
+                        >
+                          {run.isPending ? (
+                            <Loader2 className="animate-spin" />
+                          ) : (
+                            <ArrowDownToLine />
+                          )}
+                          {run.isPending ? t('update.upgrading') : t('update.upgrade')}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3 rounded-xl bg-muted/40 p-4 text-sm">
+                    <p className="font-medium">{t('update.manualTitle')}</p>
+                    <p className="text-muted-foreground">{t('update.manualHint')}</p>
+                    {data.manifest?.url != null && (
+                      <p className="flex flex-wrap items-center gap-2">
+                        <Button asChild variant="outline" size="sm">
+                          <a href={data.manifest.url} target="_blank" rel="noopener noreferrer">
+                            <ArrowDownToLine />
+                            {t('update.downloadUrl')}
+                          </a>
+                        </Button>
+                        {data.manifest.md5 !== '' && (
+                          <code className="break-all rounded bg-muted px-2 py-1 text-xs">
+                            {data.manifest.md5}
+                          </code>
+                        )}
+                      </p>
+                    )}
+                    <ol className="list-inside list-decimal space-y-1 text-xs text-muted-foreground">
+                      <li>{t('update.manualStepBackup')}</li>
+                      <li>{t('update.manualStepDownload')}</li>
+                      <li>{t('update.manualStepVerify')}</li>
+                      <li>{t('update.manualStepReplace')}</li>
+                      <li>{t('update.manualStepReload')}</li>
+                    </ol>
+                    <p className="text-xs text-muted-foreground">
+                      {t('update.selfPath')}:{' '}
+                      <code className="rounded bg-muted px-1.5 py-0.5">{data.self_path}</code>
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function SettingsPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -697,6 +858,16 @@ export function SettingsPage() {
               {t('settings.tabSystem')}
             </span>
           </TabsTrigger>
+          {user !== null && user.roles.includes('admin') && (
+            <TabsTrigger
+              value="update"
+              className="group justify-end rounded-full border-transparent px-0 data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent dark:data-[state=active]:shadow-none"
+            >
+              <span className="rounded-full px-3 py-1.5 transition-colors group-data-[state=active]:bg-accent group-data-[state=active]:text-accent-foreground">
+                {t('update.tab')}
+              </span>
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="account" className="space-y-6">
@@ -736,6 +907,12 @@ export function SettingsPage() {
         <TabsContent value="system">
           <SystemSettingsCard />
         </TabsContent>
+
+        {user !== null && user.roles.includes('admin') && (
+          <TabsContent value="update">
+            <UpdateCard />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

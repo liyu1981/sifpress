@@ -26,10 +26,54 @@
 const APP_NAME = 'Sifpress';
 const APP_VERSION = '0.1.0';
 
+/*
+ * Update-check configuration. The manifest is a JSON document reporting the
+ * latest release (see plan/version-check-and-update.md):
+ *
+ *   { "version": "0.2.0", "md5": "...", "url": "...", "size_bytes": 2710345,
+ *     "notes": "..." }
+ */
+const UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/liyu1981/sifpress/main/latest.json';
+const UPDATE_MAX_BYTES = 200 * 1024 * 1024;
+const UPDATE_FETCH_TIMEOUT = 30;
+
 function request_method(): string
 {
     return strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 }
+
+/**
+ * Remove a leftover backup (`<artifact>.bak`) created by an in-app upgrade.
+ * Runs on every request but is a no-op when no backup exists. The backup is
+ * deleted once the running artifact is newer than it — i.e. the upgrade that
+ * created it has already taken effect. Stale `<artifact>.new` staging files
+ * (left behind by an interrupted install) are swept too.
+ */
+function maybe_clean_backup(): void
+{
+    $self = realpath(__FILE__);
+
+    if ($self === false) {
+        return;
+    }
+
+    $backup = $self . '.bak';
+
+    if (is_file($backup)
+        && @filemtime($backup) !== false
+        && @filemtime($self) !== false
+        && filemtime($backup) <= filemtime($self)) {
+        @unlink($backup);
+    }
+
+    $staging = $self . '.new';
+
+    if (is_file($staging)) {
+        @unlink($staging);
+    }
+}
+
+maybe_clean_backup();
 
 /**
  * Read a single query parameter as a string (or the default).
