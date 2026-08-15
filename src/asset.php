@@ -234,6 +234,46 @@ function serve_user_avatar(int $userId): never
 /* Serving                                                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Parse a single-range `Range: bytes=...` header against a resource size.
+ * Supports open-ended (`bytes=N-`) and suffix (`bytes=-N`) ranges. Returns
+ * [start, end] inclusive, null when the header is missing/malformed, or the
+ * string 'invalid' for an unsatisfiable range.
+ *
+ * @return array{0:int,1:int}|string|null
+ */
+function parse_byte_range(string $header, int $size)
+{
+    if (!preg_match('/^bytes=(\d*)-(\d*)$/', trim($header), $m)) {
+        return null;
+    }
+
+    $startSpec = $m[1];
+    $endSpec = $m[2];
+
+    if ($startSpec === '' && $endSpec === '') {
+        return null;
+    }
+
+    if ($startSpec === '') {
+        $len = min((int) $endSpec, $size);
+        $start = $size - $len;
+        $end = $size - 1;
+    } else {
+        $start = (int) $startSpec;
+        if ($start >= $size) {
+            return 'invalid';
+        }
+        $end = $endSpec === '' ? $size - 1 : min((int) $endSpec, $size - 1);
+    }
+
+    if ($start > $end) {
+        return null;
+    }
+
+    return [$start, $end];
+}
+
 function handle_asset(string $method): never
 {
     if ($method !== 'GET') {
@@ -308,24 +348,56 @@ function handle_asset(string $method): never
     }
 
     header('Content-Type: ' . $mime);
-    header('Content-Length: ' . $len);
     header('Cache-Control: private, max-age=3600');
     header('ETag: ' . $etag);
     header('X-Content-Type-Options: nosniff');
     header('Content-Disposition: inline; filename="' . basename((string) $row['name']) . '"');
 
     if ($thumb) {
+        header('Content-Length: ' . $len);
         echo $data;
-    } else {
-        $stmt = db()->prepare('SELECT data FROM assets WHERE id = ?');
-        $stmt->bindColumn(1, $stream, PDO::PARAM_LOB);
-        $stmt->execute([$id]);
-        $stmt->fetch(PDO::FETCH_BOUND);
-
-        if (is_resource($stream)) {
-            fpassthru($stream);
-        }
+        exit;
     }
 
-    exit;
+    /*
+     * Range support is required for <video>/<audio> playback. When a server
+     * answers a Range request with a 200 instead of a 206, media elements
+     * can re-request the stream in a loop (high CPU, endless reloads).
+     */
+    header('Accept-Ranges: bytes');
+
+    $rawRange = $_SERVER['HTTP_RANGE'] ?? '';
+    $range = $rawRange !== '' ? parse_byte_range($rawRange, $len) : null;
+
+    if ($range === 'invalid') {
+        http_response_code(416);
+        header('Content-Range: bytes */' . $len);
+        exit;
+    }
+
+    if ($range !== null) {
+        [$start, $end] = $range;
+        http_response_code(206);
+        header('Content-Range: bytes ' . $start . '-' . $end . '/' . $len);
+        header('Content-Length: ' . ($end - $start + 1));
+
+        // substr() on the blob is 1-based and byte-accurate, and cheap for
+        // the byte ranges media players actually request.
+        $rangeStmt = db()->prepare('SELECT substr(data, ?, ?) FROM assets WHERE id = ?');
+        $rangeStmt->execute([$start + 1, $end - $start + 1, $id]);
+        $part = $rangeStmt->fetchColumn();
+        echo $part === false ? '' : $part;
+        exit;
+    }
+
+    header('Content-Length: ' . $len);
+
+    $stmt = db()->prepare('SELECT data FROM assets WHERE id = ?');
+    $stmt->bindColumn(1, $stream, PDO::PARAM_LOB);
+    $stmt->execute([$id]);
+    $stmt->fetch(PDO::FETCH_BOUND);
+
+    if (is_resource($stream)) {
+        fpassthru($stream);
+    }
 }
