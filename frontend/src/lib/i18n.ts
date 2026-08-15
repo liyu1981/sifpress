@@ -179,6 +179,8 @@ const en = {
     imageUploading: 'Uploading…',
     imageMarkdown: 'Markdown',
     imageTitleHint: 'Used as the image caption and alt text.',
+    videoDirectivesTitle: 'Video',
+    imageAutoplay: 'Autoplay',
   },
   settings: {
     badge: 'Settings',
@@ -453,6 +455,8 @@ const zh = {
     imageUploading: '上传中…',
     imageMarkdown: 'Markdown',
     imageTitleHint: '作为图片说明和替代文本。',
+    videoDirectivesTitle: '视频',
+    imageAutoplay: '自动播放',
   },
   settings: {
     badge: '设置',

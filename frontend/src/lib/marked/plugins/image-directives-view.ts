@@ -3,6 +3,7 @@ import type { Node } from '@milkdown/kit/prose/model'
 import type { EditorView, NodeView } from '@milkdown/kit/prose/view'
 import { $view } from '@milkdown/kit/utils'
 
+import { buildVideoElement } from '../video-element'
 import type { ImageDirectiveAttrs } from './image-directives'
 
 /**
@@ -44,14 +45,28 @@ export const imageDirectivesView = $view(imageSchema.node, () => {
         return
       }
 
-      const img = document.createElement('img')
-      img.src = attrs.src
-      img.alt = attrs.alt ?? ''
-      if (attrs.title !== '') img.title = attrs.title
-      if (attrs.width != null) img.setAttribute('width', String(attrs.width))
-      if (attrs.height != null) img.setAttribute('height', String(attrs.height))
-      if (attrs.position !== null) img.classList.add(`md-img-${attrs.position}`)
-      dom.appendChild(img)
+      const positionClass = attrs.position !== null ? `md-img-${attrs.position}` : undefined
+      const player = buildVideoElement({
+        src: attrs.src,
+        alt: attrs.alt ?? '',
+        autoplay: attrs.autoplay,
+        width: attrs.width,
+        height: attrs.height,
+        className: positionClass,
+      })
+
+      if (player !== null) {
+        dom.appendChild(player)
+      } else {
+        const img = document.createElement('img')
+        img.src = attrs.src
+        img.alt = attrs.alt ?? ''
+        if (attrs.title !== '') img.title = attrs.title
+        if (attrs.width != null) img.setAttribute('width', String(attrs.width))
+        if (attrs.height != null) img.setAttribute('height', String(attrs.height))
+        if (positionClass !== undefined) img.classList.add(positionClass)
+        dom.appendChild(img)
+      }
 
       if (block) {
         dom.classList.add('md-image-view-lone')

@@ -9,6 +9,7 @@ import type { EditorState, PluginView } from '@milkdown/kit/prose/state'
 import type { Node } from '@milkdown/kit/prose/model'
 import type { EditorView } from '@milkdown/kit/prose/view'
 
+import { isVideoSource } from '@/components/markdown/video'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -29,7 +30,7 @@ export const imageDirectiveTooltip = tooltipFactory('IMAGE_DIRECTIVES')
 const POSITION_NONE = '__none__'
 
 const POSITION_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: POSITION_NONE, label: 'imagePositionNone' },
+  { value: POSITION_NONE, label: '' },
   { value: 'left', label: 'imagePositionLeft' },
   { value: 'center', label: 'imagePositionCenter' },
   { value: 'right', label: 'imagePositionRight' },
@@ -80,6 +81,7 @@ function ImageDirectivePopup({ node, onCommit, onUpload }: ImageDirectivePopupPr
   }
 
   const isLink = attrs.asLink
+  const isVideo = !isLink && isVideoSource(attrs.src)
 
   const positionValue = attrs.position ?? POSITION_NONE
 
@@ -87,12 +89,12 @@ function ImageDirectivePopup({ node, onCommit, onUpload }: ImageDirectivePopupPr
     <div className="w-[19rem] rounded-xl border border-border/60 bg-popover p-3.5 text-popover-foreground shadow-lg">
       <div className="mb-3 flex items-center justify-between gap-2 border-b border-border/60 pb-2.5">
         <span className="text-xs font-medium text-muted-foreground">
-          {t('editor.imageDirectivesTitle')}
+          {t(isVideo ? 'editor.videoDirectivesTitle' : 'editor.imageDirectivesTitle')}
         </span>
         <input
           ref={fileRef}
           type="file"
-          accept="image/*"
+          accept={isVideo ? 'video/*' : 'image/*'}
           className="hidden"
           onChange={(event) => {
             void handleFile(event.target.files?.[0])
@@ -180,12 +182,12 @@ function ImageDirectivePopup({ node, onCommit, onUpload }: ImageDirectivePopupPr
             }
           >
             <SelectTrigger className="w-full" size="sm">
-              <SelectValue placeholder={t('editor.imagePositionNone')} />
+              <SelectValue placeholder="" />
             </SelectTrigger>
             <SelectContent>
               {POSITION_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  {t(`editor.${option.label}`)}
+                  {option.label === '' ? '' : t(`editor.${option.label}`)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -199,6 +201,16 @@ function ImageDirectivePopup({ node, onCommit, onUpload }: ImageDirectivePopupPr
             onCheckedChange={(checked) => onCommit({ asLink: checked })}
           />
         </Label>
+
+        {isVideo && (
+          <Label className="flex cursor-pointer items-center justify-between gap-2 rounded-lg border border-border/50 bg-muted/40 px-2.5 py-2 text-xs text-muted-foreground">
+            {t('editor.imageAutoplay')}
+            <Switch
+              checked={attrs.autoplay}
+              onCheckedChange={(checked) => onCommit({ autoplay: checked })}
+            />
+          </Label>
+        )}
 
         <div className="rounded-lg border border-border/50 bg-muted/40 px-2.5 py-2">
           <span className="mb-1 block text-xs font-medium text-muted-foreground">

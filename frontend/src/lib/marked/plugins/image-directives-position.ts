@@ -1,12 +1,12 @@
 const VIEWPORT_PADDING = 8
-const SIDE_GAP = 12
+const GAP = 12
 
 /**
- * Keeps the image-directives popup on screen even for large images.
- * floating-ui's default flip only alternates between top and bottom, which can
- * both be off-screen when the image is taller than the viewport. Best-effort
- * fallback: if the top/bottom placement doesn't fit, anchor to the image's
- * right, then left; clamp into the viewport as a last resort.
+ * Positions the image/video popup over the selected media. The popup is
+ * centered horizontally on the media and placed above it (top-center); if
+ * there isn't room above, it goes below (bottom-center); if neither fits
+ * (e.g. the media is taller than the viewport), it anchors to the media's
+ * right, then left; the final fallback clamps it into the viewport.
  */
 export const bestEffortPositionMiddleware = {
   name: 'imageDirectivesBestEffort',
@@ -19,7 +19,7 @@ export const bestEffortPositionMiddleware = {
       floating: { width: number; height: number }
     }
   }) => {
-    const { x, y, placement, rects } = state
+    const { rects } = state
     const { reference, floating } = rects
     const vw = window.innerWidth
     const vh = window.innerHeight
@@ -30,30 +30,43 @@ export const bestEffortPositionMiddleware = {
       fx + floating.width <= vw - VIEWPORT_PADDING &&
       fy + floating.height <= vh - VIEWPORT_PADDING
 
-    if (fits(x, y)) {
-      return { x, y }
+    const centerX = Math.min(
+      Math.max(
+        reference.x + reference.width / 2 - floating.width / 2,
+        VIEWPORT_PADDING,
+      ),
+      vw - floating.width - VIEWPORT_PADDING,
+    )
+
+    const aboveY = reference.y - floating.height - GAP
+    const belowY = reference.y + reference.height + GAP
+
+    if (fits(centerX, aboveY)) {
+      return { x: centerX, y: aboveY }
     }
 
-    if (placement === 'top' || placement === 'bottom') {
-      const alignY = Math.min(
-        Math.max(reference.y, VIEWPORT_PADDING),
-        vh - floating.height - VIEWPORT_PADDING,
-      )
+    if (fits(centerX, belowY)) {
+      return { x: centerX, y: belowY }
+    }
 
-      const rightX = reference.x + reference.width + SIDE_GAP
-      if (rightX + floating.width <= vw - VIEWPORT_PADDING) {
-        return { x: rightX, y: alignY }
-      }
+    const sideY = Math.min(
+      Math.max(reference.y, VIEWPORT_PADDING),
+      vh - floating.height - VIEWPORT_PADDING,
+    )
 
-      const leftX = reference.x - floating.width - SIDE_GAP
-      if (leftX >= VIEWPORT_PADDING) {
-        return { x: leftX, y: alignY }
-      }
+    const rightX = reference.x + reference.width + GAP
+    if (rightX + floating.width <= vw - VIEWPORT_PADDING) {
+      return { x: rightX, y: sideY }
+    }
+
+    const leftX = reference.x - floating.width - GAP
+    if (leftX >= VIEWPORT_PADDING) {
+      return { x: leftX, y: sideY }
     }
 
     return {
-      x: Math.min(Math.max(x, VIEWPORT_PADDING), vw - floating.width - VIEWPORT_PADDING),
-      y: Math.min(Math.max(y, VIEWPORT_PADDING), vh - floating.height - VIEWPORT_PADDING),
+      x: centerX,
+      y: Math.min(Math.max(belowY, VIEWPORT_PADDING), vh - floating.height - VIEWPORT_PADDING),
     }
   },
 }

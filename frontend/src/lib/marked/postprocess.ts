@@ -1,6 +1,5 @@
-import { resolveVideo } from '@/components/markdown/video'
-import { cn } from '@/lib/utils'
 import katex from 'katex'
+import { buildVideoElement } from './video-element'
 import { nextDiagramId, renderMermaidChart } from './mermaid'
 
 function convertLatexBlocks(body: HTMLElement): void {
@@ -54,45 +53,29 @@ async function renderMermaidDivs(body: HTMLElement): Promise<void> {
 
 function convertVideoImages(body: HTMLElement): void {
   for (const img of Array.from(body.querySelectorAll('img'))) {
-    const src = img.getAttribute('src') ?? ''
-    const video = resolveVideo(src)
+    const player = buildVideoElement({
+      src: img.getAttribute('src') ?? '',
+      alt: img.getAttribute('alt') ?? '',
+      autoplay: img.getAttribute('data-autoplay') === 'true',
+      width: toNumberOrNull(img.getAttribute('width')),
+      height: toNumberOrNull(img.getAttribute('height')),
+      className: img.getAttribute('class') ?? '',
+    })
 
-    if (video === null) {
+    if (player === null) {
       continue
     }
 
-    const width = img.getAttribute('width')
-    const height = img.getAttribute('height')
-    const className = img.getAttribute('class') ?? ''
-    const alt = img.getAttribute('alt') ?? ''
-
-    let el: HTMLVideoElement | HTMLIFrameElement
-
-    if (video.kind === 'file') {
-      const v = document.createElement('video')
-      v.controls = true
-      v.preload = 'metadata'
-      v.src = video.src
-      v.title = alt
-      el = v
-    } else {
-      const iframe = document.createElement('iframe')
-      iframe.src =
-        video.kind === 'bilibili' ? `${video.src}&autoplay=0` : video.src
-      iframe.title = alt || 'Embedded video'
-      iframe.allowFullscreen = true
-      iframe.loading = 'lazy'
-      el = iframe
-    }
-
-    el.className = cn(
-      'my-6 mx-auto block max-h-[75vh] w-full rounded-xl bg-black',
-      className,
-    )
-    if (width !== null) el.style.maxWidth = `${width}px`
-    if (height !== null) el.style.maxHeight = `${height}px`
-    img.replaceWith(el)
+    img.replaceWith(player)
   }
+}
+
+function toNumberOrNull(value: string | null): number | null {
+  if (value === null) {
+    return null
+  }
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 function liftLoneImageFigures(body: HTMLElement): void {
