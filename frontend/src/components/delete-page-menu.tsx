@@ -1,18 +1,17 @@
-import { useState } from 'react'
-import type { ReactNode } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useTranslation } from 'react-i18next'
-import { Loader2, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
-
-import { ApiError } from '@/lib/api'
-import { pagesApi } from '@/lib/pages'
-import { Button } from '@/components/ui/button'
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Loader2, Trash2 } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@/components/ui/dropdown-menu';
+import { ApiError } from '@/lib/api';
+import { pagesApi } from '@/lib/pages';
 
 /**
  * Delete-page flow with an inline dropdown confirm: the trigger renders
@@ -27,33 +26,31 @@ export function DeletePageMenu({
   onDeleted,
   children,
 }: {
-  pageId: number
-  title: string
-  onDeleted?: () => void
-  children: ReactNode
+  pageId: number;
+  title: string;
+  onDeleted?: () => void;
+  children: ReactNode;
 }) {
-  const { t } = useTranslation()
-  const queryClient = useQueryClient()
-  const [open, setOpen] = useState(false)
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
 
   const remove = useMutation({
     mutationFn: () => pagesApi.remove(pageId),
     onSuccess: () => {
-      setOpen(false)
-      queryClient.invalidateQueries({ queryKey: ['pages'] })
-      queryClient.invalidateQueries({ queryKey: ['page', title] })
-      toast.success(t('editor.deleteSuccess'))
-      onDeleted?.()
+      setOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['pages'] });
+      queryClient.invalidateQueries({ queryKey: ['page', title] });
+      toast.success(t('editor.deleteSuccess'));
+      onDeleted?.();
     },
-    onError: (error) => {
-      setOpen(false)
+    onError: error => {
+      setOpen(false);
       toast.error(
-        error instanceof ApiError && error.data.error
-          ? error.data.error
-          : t('editor.deleteFailed'),
-      )
+        error instanceof ApiError && error.data.error ? error.data.error : t('editor.deleteFailed'),
+      );
     },
-  })
+  });
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -86,5 +83,5 @@ export function DeletePageMenu({
         </div>
       </DropdownMenuContent>
     </DropdownMenu>
-  )
+  );
 }

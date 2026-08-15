@@ -306,9 +306,13 @@ if ($html === null) {
 /*
  * Inline all JS and CSS so the document is fully self-contained.
  * The static title is stripped; PHP injects a route-aware title.
+ * Limit=1: only the single <head> title is a match target — the inlined
+ * JS can legitimately contain "<title" (e.g. the commonmark image input
+ * rule's `(?<title>…)` group) with no closing tag, which would otherwise
+ * make the regex scan the whole bundle and hit the PCRE backtrack limit.
  */
 $html = inline_assets($html, $frontendDist);
-$html = preg_replace('/<title[^>]*>.*?<\/title>/is', '', $html);
+$html = preg_replace('/<title[^>]*>.*?<\/title>/is', '', $html, 1);
 
 if ($html === null) {
     throw new RuntimeException('Could not strip the static title');

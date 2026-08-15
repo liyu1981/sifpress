@@ -1,31 +1,31 @@
-import { Moon, Monitor, Sun } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
+import { Monitor, Moon, Sun } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
-import { Button } from '@/components/ui/button'
-import { useTheme } from '@/lib/theme'
-import type { Theme } from '@/lib/theme'
+import { Button } from '@/components/ui/button';
+import type { Theme } from '@/lib/theme';
+import { useTheme } from '@/lib/theme';
 
-const ORDER: Theme[] = ['light', 'dark', 'system']
+const ORDER: Theme[] = ['light', 'dark', 'system'];
 
 const ICONS = {
   light: Sun,
   dark: Moon,
   system: Monitor,
-} as const
+} as const;
 
 const THEME_LABEL: Record<Theme, string> = {
   light: 'theme.light',
   dark: 'theme.dark',
   system: 'theme.system',
-}
+};
 
 export function ThemeToggle() {
-  const { theme, setTheme } = useTheme()
-  const { t } = useTranslation()
+  const { theme, setTheme } = useTheme();
+  const { t } = useTranslation();
 
-  const Icon = ICONS[theme]
-  const next = ORDER[(ORDER.indexOf(theme) + 1) % ORDER.length]
-  const label = t('theme.current', { theme: t(THEME_LABEL[theme]) })
+  const Icon = ICONS[theme];
+  const next = ORDER[(ORDER.indexOf(theme) + 1) % ORDER.length];
+  const label = t('theme.current', { theme: t(THEME_LABEL[theme]) });
 
   return (
     <Button
@@ -37,5 +37,5 @@ export function ThemeToggle() {
     >
       <Icon className="size-4" />
     </Button>
-  )
+  );
 }

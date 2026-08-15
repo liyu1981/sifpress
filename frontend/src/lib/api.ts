@@ -1,20 +1,20 @@
-export type ApiMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE'
+export type ApiMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
 export interface ApiErrorData {
-  error?: string
-  errors?: Record<string, string[]>
-  reason?: string
+  error?: string;
+  errors?: Record<string, string[]>;
+  reason?: string;
 }
 
 export class ApiError extends Error {
-  readonly status: number
-  readonly data: ApiErrorData
+  readonly status: number;
+  readonly data: ApiErrorData;
 
   constructor(status: number, data: ApiErrorData) {
-    super(data.error ?? `API error ${status}`)
-    this.name = 'ApiError'
-    this.status = status
-    this.data = data
+    super(data.error ?? `API error ${status}`);
+    this.name = 'ApiError';
+    this.status = status;
+    this.data = data;
   }
 }
 
@@ -23,14 +23,14 @@ export function apiUrl(
   action: string,
   params: Record<string, string> = {},
 ): string {
-  const query = new URLSearchParams({ module, action, ...params })
-  return `${window.location.pathname}?${query.toString()}`
+  const query = new URLSearchParams({ module, action, ...params });
+  return `${window.location.pathname}?${query.toString()}`;
 }
 
 interface RequestInitOptions {
-  method?: ApiMethod
-  body?: unknown
-  params?: Record<string, string>
+  method?: ApiMethod;
+  body?: unknown;
+  params?: Record<string, string>;
 }
 
 /**
@@ -42,31 +42,25 @@ export async function moduleRequest<T>(
   action: string,
   options: RequestInitOptions = {},
 ): Promise<T> {
-  const { method = 'GET', body, params } = options
+  const { method = 'GET', body, params } = options;
 
   const response = await fetch(apiUrl(module, action, params), {
     method,
     headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
     body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
+  });
 
-  const data: unknown = await response.json().catch(() => null)
+  const data: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new ApiError(
-      response.status,
-      (data ?? {}) as ApiErrorData,
-    )
+    throw new ApiError(response.status, (data ?? {}) as ApiErrorData);
   }
 
-  return data as T
+  return data as T;
 }
 
-export async function apiRequest<T>(
-  action: string,
-  options: RequestInitOptions = {},
-): Promise<T> {
-  return moduleRequest<T>('api', action, options)
+export async function apiRequest<T>(action: string, options: RequestInitOptions = {}): Promise<T> {
+  return moduleRequest<T>('api', action, options);
 }
 
 /**
@@ -82,18 +76,15 @@ export async function uploadRequest<T>(
   const response = await fetch(apiUrl(module, action), {
     method: 'POST',
     body: formData,
-  })
+  });
 
-  const data: unknown = await response.json().catch(() => null)
+  const data: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new ApiError(
-      response.status,
-      (data ?? {}) as ApiErrorData,
-    )
+    throw new ApiError(response.status, (data ?? {}) as ApiErrorData);
   }
 
-  return data as T
+  return data as T;
 }
 
 /**
@@ -102,24 +93,42 @@ export async function uploadRequest<T>(
  * file works at any depth.
  */
 export function assetUrl(id: number, thumb = false): string {
-  const params = new URLSearchParams({ module: 'asset', id: String(id) })
+  const params = new URLSearchParams({ module: 'asset', id: String(id) });
   if (thumb) {
-    params.set('thumb', '1')
+    params.set('thumb', '1');
   }
-  return `${window.location.pathname}?${params.toString()}`
+  return `${window.location.pathname}?${params.toString()}`;
+}
+
+/**
+ * URL for a user's avatar. The backend serves the stored image when present,
+ * otherwise a generated SVG, so this endpoint always returns an image.
+ */
+export function avatarUrl(userId: number): string {
+  const params = new URLSearchParams({ module: 'asset', user: String(userId) });
+  return `${window.location.pathname}?${params.toString()}`;
 }
 
 function escapeMarkdownText(name: string): string {
-  return name.replace(/[\\[\]()]/g, (ch) => `\\${ch}`)
+  return name.replace(/[\\[\]()]/g, ch => `\\${ch}`);
+}
+
+/**
+ * URL for an asset's source. App-asset URLs carry no extension, so video
+ * assets are tagged with `&filetype=<ext>` — the backend ignores the param,
+ * but the renderer uses it to pick `<video>` over `<img>`.
+ */
+export function assetSourceUrl(id: number, name: string, kind: string): string {
+  const url = assetUrl(id);
+  if (kind !== 'video') {
+    return url;
+  }
+  const ext = /\.([a-z0-9]{2,5})$/i.exec(name)?.[1]?.toLowerCase() ?? 'mp4';
+  return `${url}&filetype=${ext}`;
 }
 
 export function assetMarkdownLink(name: string, id: number, kind: string): string {
-  const url = assetUrl(id)
-  if (kind === 'video') {
-    const ext = /\.([a-z0-9]{2,5})$/i.exec(name)?.[1]?.toLowerCase() ?? 'mp4'
-    return `![${escapeMarkdownText(name)}](${url}&filetype=${ext})`
-  }
-  return `![${escapeMarkdownText(name)}](${url})`
+  return `![${escapeMarkdownText(name)}](${assetSourceUrl(id, name, kind)})`;
 }
 
 /**
@@ -131,28 +140,28 @@ export function assetMarkdownLink(name: string, id: number, kind: string): strin
 export async function copyText(text: string): Promise<boolean> {
   if (window.isSecureContext && navigator.clipboard) {
     try {
-      await navigator.clipboard.writeText(text)
-      return true
+      await navigator.clipboard.writeText(text);
+      return true;
     } catch {
       // fall through to the legacy path
     }
   }
 
   try {
-    const textarea = document.createElement('textarea')
-    textarea.value = text
-    textarea.setAttribute('readonly', '')
-    textarea.style.position = 'fixed'
-    textarea.style.top = '-9999px'
-    textarea.style.opacity = '0'
-    document.body.appendChild(textarea)
-    textarea.select()
-    textarea.setSelectionRange(0, text.length)
-    const ok = document.execCommand('copy')
-    document.body.removeChild(textarea)
-    return ok
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.top = '-9999px';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    textarea.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return ok;
   } catch {
-    return false
+    return false;
   }
 }
 
@@ -160,5 +169,5 @@ export async function migrationRequest<T>(
   action: string,
   options: RequestInitOptions = {},
 ): Promise<T> {
-  return moduleRequest<T>('migration', action, options)
+  return moduleRequest<T>('migration', action, options);
 }

@@ -2,6 +2,8 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "@milkdown/crepe/theme/common/style.css";
+@import "@milkdown/crepe/theme/classic.css";
 
 @plugin "@tailwindcss/typography";
 
@@ -309,29 +311,6 @@
     color: var(--tw-prose-captions);
   }
 
-  /*
-   * Image size + position directives (src/lib/markdown/image-directives.ts).
-   * The position class is lifted onto the <figure> by the renderer.
-   */
-  .md-img-center {
-    display: block;
-    margin-inline: auto;
-  }
-
-  .md-img-float-left {
-    float: left;
-    margin-right: 1rem;
-    margin-bottom: 0.5rem;
-    max-width: 45%;
-  }
-
-  .md-img-float-right {
-    float: right;
-    margin-left: 1rem;
-    margin-bottom: 0.5rem;
-    max-width: 45%;
-  }
-
   /* Syntax highlighting (rehype-highlight) token colors. */
   .md-codeblock .hljs {
     color: var(--foreground);
@@ -397,6 +376,41 @@
   }
 }
 
+/*
+ * Image size + position directives (src/lib/marked/plugins/image-directives.ts).
+ * Unlayered so they win over crepe's `.milkdown * { margin: 0 }` reset in the
+ * editor and the typography plugin's utilities layer in the article. The class
+ * stays on the <img> (the renderer no longer lifts it onto the <figure>).
+ */
+.md-img-center {
+  display: block;
+  margin-inline: auto;
+}
+
+.md-img-left {
+  display: block;
+  margin-right: auto;
+}
+
+.md-img-right {
+  display: block;
+  margin-left: auto;
+}
+
+.md-img-float-left {
+  float: left;
+  margin-right: 1rem;
+  margin-bottom: 0.5rem;
+  max-width: 45%;
+}
+
+.md-img-float-right {
+  float: right;
+  margin-left: 1rem;
+  margin-bottom: 0.5rem;
+  max-width: 45%;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   ::before,
@@ -415,4 +429,190 @@
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
+}
+
+/*
+ * Milkdown editor (src/lib/marked). The crepe `classic` palette is mapped
+ * onto the app's glass tokens so the editor matches the rest of the UI;
+ * dark mode is driven by the app's `.dark` class on <html>.
+ */
+.milkdown-editor {
+  min-height: 50vh;
+}
+
+.milkdown-editor .milkdown {
+  padding: 0;
+  color: var(--foreground);
+  background: color-mix(in oklch, var(--background) 95%, transparent);
+  --crepe-font-default: 'Geist Variable', sans-serif;
+  --crepe-font-title: 'Geist Variable', sans-serif;
+  --crepe-font-code: var(--font-mono);
+  --crepe-color-background: var(--background);
+  --crepe-color-on-background: var(--foreground);
+  --crepe-color-surface: var(--popover);
+  --crepe-color-surface-low: var(--muted);
+  --crepe-color-on-surface: var(--popover-foreground);
+  --crepe-color-on-surface-variant: color-mix(
+    in oklch,
+    var(--popover-foreground) 72%,
+    transparent
+  );
+  --crepe-color-outline: color-mix(in oklch, var(--foreground) 45%, transparent);
+  --crepe-color-primary: var(--primary);
+  --crepe-color-secondary: var(--muted);
+  --crepe-color-on-secondary: var(--foreground);
+  --crepe-color-inverse: var(--foreground);
+  --crepe-color-on-inverse: var(--background);
+  --crepe-color-inline-code: var(--foreground);
+  --crepe-color-error: var(--destructive);
+  --crepe-color-hover: color-mix(in oklch, var(--muted-foreground) 14%, var(--popover));
+  --crepe-color-selected: color-mix(in oklch, var(--accent) 45%, var(--popover));
+  --crepe-color-inline-area: color-mix(in oklch, var(--muted) 75%, var(--popover));
+}
+
+.milkdown-editor .milkdown .ProseMirror {
+  padding: 40px 90px;
+  outline: none;
+}
+
+.milkdown-editor .milkdown .ProseMirror-selectednode {
+  outline: 2px solid color-mix(in oklch, var(--ring) 60%, transparent);
+  border-radius: calc(var(--radius-sm));
+}
+
+/* Editor image node view (src/lib/marked/plugins/image-directives-view.ts).
+ * Mirrors the article render: a positioned (block) lone image gets rounded
+ * corners and a centered caption; inline images stay inline with no caption.
+ * The `md-img-*` position class stays on the <img> so its margin rules work.
+ */
+.milkdown-editor .milkdown .ProseMirror .md-image-view-lone {
+  display: block;
+}
+
+.milkdown-editor .milkdown .ProseMirror .md-image-view-lone > img {
+  display: block;
+  border-radius: var(--radius-lg);
+}
+
+.milkdown-editor .milkdown .ProseMirror .md-image-view-lone .md-image-caption {
+  display: block;
+  margin-top: 0.5rem;
+  text-align: center;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+}
+
+/* Floating image-directive editor (src/lib/marked/plugins/image-directives-tooltip.tsx).
+ * Portaled to <body> with fixed positioning so crepe's `.milkdown *` reset
+ * (margin/padding/border/background) can't override the popup's own styles.
+ */
+.md-image-directives-tooltip {
+  position: fixed;
+  z-index: 50;
+}
+
+.md-image-directives-tooltip[data-show='false'] {
+  display: none;
+}
+
+/* Mermaid diagram node (editable, in-editor) */
+.milkdown-diagram {
+  position: relative;
+  margin-block: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklch, var(--muted) 35%, transparent);
+  overflow: hidden;
+}
+
+.milkdown-diagram-body {
+  padding: 1rem;
+  overflow-x: auto;
+}
+
+.milkdown-diagram-body svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.milkdown-diagram-actions {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.milkdown-diagram:hover .milkdown-diagram-actions {
+  opacity: 1;
+}
+
+.milkdown-diagram-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius-sm));
+  background: color-mix(in oklch, var(--background) 80%, transparent);
+  color: var(--muted-foreground);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.milkdown-diagram-edit:hover {
+  color: var(--foreground);
+  background: color-mix(in oklch, var(--muted) 60%, transparent);
+}
+
+.milkdown-diagram-input {
+  width: 100%;
+  min-height: 8rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius-sm));
+  background: color-mix(in oklch, var(--background) 70%, transparent);
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+}
+
+.milkdown-diagram-input:focus {
+  border-color: var(--ring);
+}
+
+.milkdown-diagram-loading,
+.milkdown-diagram-empty {
+  color: var(--muted-foreground);
+  font-size: 0.85rem;
+}
+
+.milkdown-diagram-empty {
+  text-align: center;
+  padding: 1rem;
+}
+
+.milkdown-diagram-error {
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--muted-foreground);
+}
+
+/* Static-render helpers (postprocess output) */
+.md-math-display {
+  overflow-x: auto;
+}
+
+.md-copy {
+  cursor: pointer;
+}
+
+.md-img-link {
+  font-weight: 500;
 }

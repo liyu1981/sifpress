@@ -1,15 +1,14 @@
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { KeyRound, Loader2 } from 'lucide-react'
-import type { FormEvent } from 'react'
-
-import { ApiError } from '@/lib/api'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { useAuth } from '@/lib/auth'
-import { usePageTitle } from '@/hooks/use-page-title'
+import { KeyRound, Loader2 } from 'lucide-react';
+import type { FormEvent } from 'react';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { usePageTitle } from '@/hooks/use-page-title';
+import { ApiError } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 
 /**
  * Forced password change screen. The backend locks every action while
@@ -17,53 +16,47 @@ import { usePageTitle } from '@/hooks/use-page-title'
  * the only way out.
  */
 export function ChangePasswordPage() {
-  const { t } = useTranslation()
-  const { user, changePassword } = useAuth()
+  const { t } = useTranslation();
+  const { user, changePassword } = useAuth();
 
-  usePageTitle(t('changePassword.title'))
+  usePageTitle(t('changePassword.title'));
 
-  const [current, setCurrent] = useState('')
-  const [next, setNext] = useState('')
-  const [confirm, setConfirm] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [pending, setPending] = useState(false)
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+    event.preventDefault();
 
     if (pending) {
-      return
+      return;
     }
 
     if (next !== confirm) {
-      setError(t('changePassword.mismatch'))
-      return
+      setError(t('changePassword.mismatch'));
+      return;
     }
 
-    setPending(true)
-    setError(null)
+    setPending(true);
+    setError(null);
 
     try {
-      await changePassword(
-        next,
-        user?.must_change_password ? undefined : current,
-      )
+      await changePassword(next, user?.must_change_password ? undefined : current);
     } catch (err) {
       if (err instanceof ApiError && err.status === 422) {
-        setError(err.data.error ?? t('changePassword.error'))
+        setError(err.data.error ?? t('changePassword.error'));
       } else {
-        setError(t('changePassword.error'))
+        setError(t('changePassword.error'));
       }
-      setPending(false)
+      setPending(false);
     }
   }
 
   return (
     <div className="mx-auto flex w-full max-w-sm items-center justify-center py-16">
-      <form
-        onSubmit={handleSubmit}
-        className="glass-control w-full rounded-2xl p-8"
-      >
+      <form onSubmit={handleSubmit} className="glass-control w-full rounded-2xl p-8">
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
           <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <KeyRound className="size-6" />
@@ -73,9 +66,7 @@ export function ChangePasswordPage() {
             <h1 className="font-heading text-2xl font-bold tracking-tight">
               {t('changePassword.title')}
             </h1>
-            <p className="text-sm text-muted-foreground">
-              {t('changePassword.description')}
-            </p>
+            <p className="text-sm text-muted-foreground">{t('changePassword.description')}</p>
           </div>
         </div>
 
@@ -88,7 +79,7 @@ export function ChangePasswordPage() {
                 type="password"
                 autoComplete="current-password"
                 value={current}
-                onChange={(event) => setCurrent(event.target.value)}
+                onChange={event => setCurrent(event.target.value)}
                 required
               />
             </div>
@@ -100,12 +91,10 @@ export function ChangePasswordPage() {
               type="password"
               autoComplete="new-password"
               value={next}
-              onChange={(event) => setNext(event.target.value)}
+              onChange={event => setNext(event.target.value)}
               required
             />
-            <p className="text-xs text-muted-foreground">
-              {t('changePassword.hint')}
-            </p>
+            <p className="text-xs text-muted-foreground">{t('changePassword.hint')}</p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cp-confirm">{t('changePassword.confirm')}</Label>
@@ -114,7 +103,7 @@ export function ChangePasswordPage() {
               type="password"
               autoComplete="new-password"
               value={confirm}
-              onChange={(event) => setConfirm(event.target.value)}
+              onChange={event => setConfirm(event.target.value)}
               required
             />
           </div>
@@ -128,5 +117,5 @@ export function ChangePasswordPage() {
         </div>
       </form>
     </div>
-  )
+  );
 }

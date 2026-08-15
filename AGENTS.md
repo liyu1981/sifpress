@@ -12,6 +12,7 @@
   pnpm install        # installs from pnpm-lock.yaml
   pnpm add <pkg>      # add a dependency
   pnpm run typecheck  # tsc --noEmit
+  pnpm run format     # biome format --write .
   pnpm run build      # tsc --noEmit && vite build -> frontend/dist/
   ```
 
@@ -139,6 +140,28 @@ dist/               build artifacts (gitignored)
   resources, language persisted in localStorage and synced to
   `document.documentElement.lang`. Add keys in the `resources` object; use
   `useTranslation()` in components.
+- **Markdown editor + rendering** (`src/lib/marked/`): Milkdown
+  (`@milkdown/crepe`, pinned) wrapped as `MilkdownEditor` (WYSIWYG editor on
+  `/editor`) and `MarkdownView` (article display via `getHTML()` +
+  post-processing). `createMarkdownEditor()` in `shared.ts` is the single
+  source of truth for the schema — it builds the **same** editor for both
+  modes so edit and render can't drift.
+  - Custom plugins live in `src/lib/marked/plugins/`: `mermaid` (diagram
+    node + NodeView, uses the app's Mermaid), `image-directives`
+    (`![Alt|640]`/floats/`link`, extends the commonmark image schema),
+    `slug` handled by the built-in heading-id generator (ids in `getHTML`
+    output feed the TOC).
+  - **Feature ordering matters**: `codeMirror` must be `addFeature`d before
+    `latex` (the Latex feature throws otherwise).
+  - Crepe's UI chrome (toolbar, slash menu, tables…) is written in **Vue 3**
+    and bundled as a hard dep (~35–45 KB gz) — do not add `@milkdown/react`;
+    we mount `CrepeBuilder` directly.
+  - Article rendering pipeline: `parseFrontMatter` → `escapeTableCodePipes`
+    (tables with pipes in code spans) → `markdownToHtml` (hidden renderer
+    singleton + `getHTML()`) → `postProcessHtml` (block math → KaTeX,
+    mermaid SVG, video embeds, figure/caption lift, external links).
+  - Meta fields (title/slug/date/tags) live in dedicated editor inputs and
+    are assembled on save by `buildFrontMatter()` in `src/lib/front-matter.ts`.
 - **Glass design system** in `index.css` (`@layer components`):
   `glass-control` (frosted surfaces — applied by default to `Card`),
   `apple-panel` (chrome — used by the nav pill), `ambient-bg` (page
@@ -154,6 +177,13 @@ dist/               build artifacts (gitignored)
   libraries are unavailable and must not be installed. There is no
   browser-based verification; rely on `pnpm run typecheck`, `php build.php`,
   curl, and code inspection instead.
+- **Biome is the formatter for `frontend/src` and `frontend/vite.config.ts**
+  (config: `frontend/biome.json`; linter disabled — formatter only). Run
+  `pnpm run format` after editing TS/TSX. Enforced style: semicolons at
+  statement ends, trailing commas, single quotes, 2-space indent, 100-col
+  width. Scope is limited to `src/**/*.{ts,tsx}` + `vite.config.ts`; Biome
+  must NOT touch `index.css` (Tailwind v4 syntax breaks its CSS parser) or
+  other files.
 - **Prose typography overrides must be unlayered.** In Tailwind v4 the
   `@tailwindcss/typography` plugin emits its default `.prose` tokens into the
   `utilities` layer, which outranks `components`-layer rules no matter their

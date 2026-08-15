@@ -1,8 +1,8 @@
-import { useTheme } from "@/lib/theme"
-import { Toaster as Sonner, type ToasterProps } from "sonner"
+import { Toaster as Sonner, type ToasterProps } from 'sonner';
+import { useTheme } from '@/lib/theme';
 
 function Toaster(props: ToasterProps) {
-  const { theme } = useTheme()
+  const { theme } = useTheme();
 
   return (
     <Sonner
@@ -11,14 +11,14 @@ function Toaster(props: ToasterProps) {
       offset={16}
       toastOptions={{
         classNames: {
-          toast: "rounded-xl border border-border/60 bg-popover text-popover-foreground shadow-lg",
-          title: "text-sm font-medium",
-          description: "text-sm text-muted-foreground",
+          toast: 'rounded-xl border border-border/60 bg-popover text-popover-foreground shadow-lg',
+          title: 'text-sm font-medium',
+          description: 'text-sm text-muted-foreground',
         },
       }}
       {...props}
     />
-  )
+  );
 }
 
-export { Toaster }
+export { Toaster };

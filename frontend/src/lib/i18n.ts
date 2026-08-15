@@ -1,17 +1,18 @@
-import i18n from 'i18next'
-import { initReactI18next } from 'react-i18next'
+import i18n from 'i18next';
+import { initReactI18next } from 'react-i18next';
 
-const LANGUAGE_KEY = 'language'
+const LANGUAGE_KEY = 'language';
 
 const en = {
   app: 'Sifpress',
   nav: {
     home: 'Home',
     article: 'Articles',
-    assets: 'Assets',
-    settings: 'Settings',
+    assets: 'Assets management',
+    settings: 'System settings',
     login: 'Sign in',
     logout: 'Sign out',
+    accountMenu: 'Account menu',
   },
   theme: {
     toggle: 'Toggle theme (light / dark / system)',
@@ -56,8 +57,10 @@ const en = {
     filterPublished: 'Published',
     filterDraft: 'Drafts',
     searchPlaceholder: 'Search articles…',
+    searchTitle: 'Search',
     searching: 'Searching…',
     searchEmpty: 'No matches.',
+    byAuthor: 'by',
     empty: 'No pages yet.',
   },
   login: {
@@ -74,8 +77,7 @@ const en = {
   changePassword: {
     title: 'Change password',
     required: 'Action required',
-    description:
-      'The default password must be changed before you can use the app.',
+    description: 'The default password must be changed before you can use the app.',
     current: 'Current password',
     new: 'New password',
     confirm: 'Confirm new password',
@@ -93,10 +95,14 @@ const en = {
     notFoundBadge: '404',
     notFoundTitle: 'Page not found',
     forbiddenTitle: 'No edit access',
-    forbiddenDescription:
-      'Only the author, users with a grant, and admins can edit this page.',
+    forbiddenDescription: 'Only the author, users with a grant, and admins can edit this page.',
     titleField: 'Title',
     slugField: 'Slug',
+    dateField: 'Date',
+    tagsField: 'Tags',
+    tagsPlaceholder: 'Type a tag…',
+    tagsHint: 'Press space or Enter to add a tag.',
+    removeTag: 'Remove tag',
     statusField: 'Status',
     statusDraft: 'Draft',
     statusPublished: 'Published',
@@ -112,16 +118,14 @@ const en = {
     delete: 'Delete',
     deleteConfirm: 'Delete',
     deleteDialogTitle: 'Delete this page?',
-    deleteDialogMessage:
-      'This will permanently delete "{{title}}". This action cannot be undone.',
+    deleteDialogMessage: 'This will permanently delete "{{title}}". This action cannot be undone.',
     cancel: 'Cancel',
     deleteSuccess: 'Page deleted.',
     deleteFailed: 'Could not delete the page.',
     error: 'Could not save the page.',
     slugInvalid: 'Lowercase letters, digits, and hyphens only.',
     grantsTitle: 'Access permissions',
-    grantsDescription:
-      'Grant or revoke edit access for users with the pages.write permission.',
+    grantsDescription: 'Grant or revoke edit access for users with the pages.write permission.',
     grantUsername: 'Username',
     grantPermissionField: 'Permission',
     grantNote: 'Note',
@@ -139,17 +143,53 @@ const en = {
     websiteGuest: 'Website Guest',
     websiteAdmin: 'Website Admin',
     grantsEmpty: 'No grants yet.',
-    metaInvalid: 'The front matter block is missing or has invalid required fields.',
-    metaTitleRequired: 'Missing required field "title" in front matter.',
-    metaSlugRequired: 'Missing required field "slug" in front matter.',
-    metaDateInvalid: 'Front matter "date" must be in YYYY-MM-DD format.',
+    metaInvalid: 'Check the required fields above.',
+    metaTitleRequired: 'Title is required.',
+    metaSlugRequired: 'Slug is required.',
+    metaDateInvalid: 'Date must be in YYYY-MM-DD format.',
+    frontmatterTitle: 'Frontmatter',
+    fieldsTab: 'Fields',
+    rawTab: 'Raw',
+    rawHint: 'Edits apply when you switch back to Fields or save.',
+    rawInvalid: 'Could not parse frontmatter.',
+    bodyTitle: 'Content',
+    editorTab: 'Editor',
+    sourceTab: 'Source',
+    extraFieldsTitle: 'Extra fields',
+    extraFieldsEmpty: 'No extra fields yet.',
+    addField: 'Add field',
+    removeField: 'Remove field',
+    fieldKeyPlaceholder: 'key',
+    fieldValuePlaceholder: 'value',
     newHint:
-      'A front-matter template is pre-filled at the top — set the title, slug and date there; the status is the switch in the header.',
+      'Set the title, slug, date and tags in the header; the status is the switch in the header.',
+    imageDirectivesTitle: 'Image',
+    imageSrc: 'URL',
+    imageAlt: 'Alt / caption',
+    imageWidth: 'Width',
+    imageHeight: 'Height',
+    imagePosition: 'Position',
+    imagePositionNone: 'Inline',
+    imagePositionLeft: 'Left',
+    imagePositionCenter: 'Center',
+    imagePositionRight: 'Right',
+    imagePositionFloatLeft: 'Float left',
+    imagePositionFloatRight: 'Float right',
+    imageAsLink: 'Render as plain link',
+    imageUpload: 'Upload',
+    imageUploading: 'Uploading…',
+    imageMarkdown: 'Markdown',
+    imageTitleHint: 'Used as the image caption and alt text.',
+    videoDirectivesTitle: 'Video',
+    imageAutoplay: 'Autoplay',
+    mediaAssets: 'Assets',
+    mediaLoadMore: 'Load more',
+    mediaEmpty: 'No assets yet.',
   },
   settings: {
-    badge: 'Settings',
-    title: 'Settings',
-    description: 'Your account and, for admins, user management.',
+    badge: 'System settings',
+    title: 'System settings',
+    description: 'Your account, and system settings for admins.',
     tabAccount: 'Account',
     tabUsers: 'Users Admin',
     tabSystem: 'System Settings',
@@ -196,8 +236,7 @@ const en = {
   migration: {
     badge: 'Maintenance',
     title: 'Database needs migration',
-    description:
-      'The schema is behind the embedded migrations. Apply them to continue.',
+    description: 'The schema is behind the embedded migrations. Apply them to continue.',
     checking: 'Checking…',
     pending: 'pending',
     run: 'Run migrations',
@@ -211,7 +250,7 @@ const en = {
     back: 'Back home',
   },
   assets: {
-    title: 'Assets',
+    title: 'Assets management',
     description: 'Upload and manage images and short videos stored in the database.',
     total: '{{count}} assets',
     uploadTitle: 'Upload',
@@ -246,17 +285,18 @@ const en = {
     image: 'Image',
     video: 'Video',
   },
-}
+};
 
 const zh = {
   app: 'Sifpress',
   nav: {
     home: '首页',
     article: '文章',
-    assets: '资源',
-    settings: '设置',
+    assets: '资产管理',
+    settings: '系统设置',
     login: '登录',
     logout: '退出登录',
+    accountMenu: '账户菜单',
   },
   theme: {
     toggle: '切换主题（浅色 / 深色 / 跟随系统）',
@@ -278,8 +318,7 @@ const zh = {
   article: {
     badge: '博客',
     indexTitle: '文章',
-    indexDescription:
-      '关于单文件、markdown 驱动的博客的笔记——数学公式、图表和灵活的图像。',
+    indexDescription: '关于单文件、markdown 驱动的博客的笔记——数学公式、图表和灵活的图像。',
     reading: '阅读约 {{min}} 分钟',
     readMore: '阅读全文',
     toc: '本页目录',
@@ -301,8 +340,10 @@ const zh = {
     filterPublished: '已发布',
     filterDraft: '草稿',
     searchPlaceholder: '搜索文章…',
+    searchTitle: '搜索',
     searching: '搜索中…',
     searchEmpty: '没有匹配结果。',
+    byAuthor: '作者',
     empty: '还没有页面。',
   },
   login: {
@@ -340,6 +381,11 @@ const zh = {
     forbiddenDescription: '只有作者、被授权用户和管理员可以编辑此页面。',
     titleField: '标题',
     slugField: 'Slug',
+    dateField: '日期',
+    tagsField: '标签',
+    tagsPlaceholder: '输入标签…',
+    tagsHint: '按空格或回车添加标签。',
+    removeTag: '移除标签',
     statusField: '状态',
     statusDraft: '草稿',
     statusPublished: '已发布',
@@ -380,16 +426,52 @@ const zh = {
     websiteGuest: '网站访客',
     websiteAdmin: '网站管理员',
     grantsEmpty: '还没有授权。',
-    metaInvalid: 'front matter 块缺少必要字段或字段无效。',
-    metaTitleRequired: 'front matter 缺少必填字段 "title"。',
-    metaSlugRequired: 'front matter 缺少必填字段 "slug"。',
-    metaDateInvalid: 'front matter 的 "date" 必须是 YYYY-MM-DD 格式。',
-    newHint: '顶部已预填 front matter 模板——在那里设置标题、slug 和日期；状态由顶部的开关控制。',
+    metaInvalid: '请检查上方必填字段。',
+    metaTitleRequired: '标题为必填项。',
+    metaSlugRequired: 'Slug 为必填项。',
+    metaDateInvalid: '日期必须是 YYYY-MM-DD 格式。',
+    frontmatterTitle: 'Front Matter',
+    fieldsTab: '字段',
+    rawTab: '原始',
+    rawHint: '切换到「字段」或保存时生效。',
+    rawInvalid: '无法解析 front matter。',
+    bodyTitle: '内容',
+    editorTab: '编辑器',
+    sourceTab: '源码',
+    extraFieldsTitle: '额外字段',
+    extraFieldsEmpty: '暂无额外字段。',
+    addField: '添加字段',
+    removeField: '移除字段',
+    fieldKeyPlaceholder: '键',
+    fieldValuePlaceholder: '值',
+    newHint: '在头部设置标题、slug、日期和标签；状态由头部开关控制。',
+    imageDirectivesTitle: '图片',
+    imageSrc: 'URL',
+    imageAlt: 'Alt / 说明',
+    imageWidth: '宽度',
+    imageHeight: '高度',
+    imagePosition: '位置',
+    imagePositionNone: '行内',
+    imagePositionLeft: '靠左',
+    imagePositionCenter: '居中',
+    imagePositionRight: '靠右',
+    imagePositionFloatLeft: '左浮动',
+    imagePositionFloatRight: '右浮动',
+    imageAsLink: '渲染为纯链接',
+    imageUpload: '上传',
+    imageUploading: '上传中…',
+    imageMarkdown: 'Markdown',
+    imageTitleHint: '作为图片说明和替代文本。',
+    videoDirectivesTitle: '视频',
+    imageAutoplay: '自动播放',
+    mediaAssets: '资源',
+    mediaLoadMore: '加载更多',
+    mediaEmpty: '暂无资源。',
   },
   settings: {
-    badge: '设置',
-    title: '设置',
-    description: '你的账户，以及（管理员）用户管理。',
+    badge: '系统设置',
+    title: '系统设置',
+    description: '你的账户，以及（管理员）系统设置。',
     tabAccount: '账户',
     tabUsers: '用户管理',
     tabSystem: '系统设置',
@@ -450,7 +532,7 @@ const zh = {
     back: '返回首页',
   },
   assets: {
-    title: '资源',
+    title: '资产管理',
     description: '上传并管理存储在数据库中的图片和短视频。',
     total: '共 {{count}} 个资源',
     uploadTitle: '上传',
@@ -485,14 +567,14 @@ const zh = {
     image: '图片',
     video: '视频',
   },
-}
+};
 
 const resources = {
   en: { translation: en },
   zh: { translation: zh },
-}
+};
 
-const saved = localStorage.getItem(LANGUAGE_KEY)
+const saved = localStorage.getItem(LANGUAGE_KEY);
 
 i18n.use(initReactI18next).init({
   resources,
@@ -500,11 +582,11 @@ i18n.use(initReactI18next).init({
   fallbackLng: 'en',
   interpolation: { escapeValue: false },
   react: { useSuspense: false },
-})
+});
 
-i18n.on('languageChanged', (lng) => {
-  localStorage.setItem(LANGUAGE_KEY, lng)
-  document.documentElement.lang = lng
-})
+i18n.on('languageChanged', lng => {
+  localStorage.setItem(LANGUAGE_KEY, lng);
+  document.documentElement.lang = lng;
+});
 
-export default i18n
+export default i18n;
