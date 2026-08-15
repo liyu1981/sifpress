@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { TagsInput } from '@/components/tags-input'
 import { DeletePageMenu } from '@/components/delete-page-menu'
 import {
   buildFrontMatter,
@@ -59,17 +60,6 @@ interface SavePayload {
   content_md: string
   created_at: string
   updated_at: string
-}
-
-function parseTagsInput(raw: string): string[] {
-  return Array.from(
-    new Set(
-      raw
-        .split(',')
-        .map((tag) => tag.trim())
-        .filter((tag) => tag !== ''),
-    ),
-  )
 }
 
 interface ExtraField {
@@ -254,7 +244,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
   const [slugValue, setSlugValue] = useState('')
   const [date, setDate] = useState(editing ? '' : todayString())
   const [updatedDate, setUpdatedDate] = useState('')
-  const [tags, setTags] = useState('')
+  const [tags, setTags] = useState<string[]>([])
   const [extraFields, setExtraFields] = useState<ExtraField[]>([])
   const [extraOpen, setExtraOpen] = useState(false)
   const [published, setPublished] = useState(false)
@@ -295,8 +285,8 @@ export function EditorPage({ slug }: { slug: string | null }) {
       setDate(typeof data.date === 'string' ? data.date : '')
       setTags(
         Array.isArray(data.tags)
-          ? data.tags.filter((tag): tag is string => typeof tag === 'string').join(', ')
-          : '',
+          ? data.tags.filter((tag): tag is string => typeof tag === 'string')
+          : [],
       )
 
       const extras: ExtraField[] = Object.entries(data)
@@ -353,7 +343,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
       title: title.trim(),
       slug: slugValue.trim(),
       date: date.trim(),
-      tags: parseTagsInput(tags),
+      tags,
       extra: extraFields
         .map((field) => ({ key: field.key.trim(), value: field.value }))
         .filter((field) => field.key !== ''),
@@ -373,8 +363,8 @@ export function EditorPage({ slug }: { slug: string | null }) {
     setDate(typeof data.date === 'string' ? data.date : '')
     setTags(
       Array.isArray(data.tags)
-        ? data.tags.filter((tag): tag is string => typeof tag === 'string').join(', ')
-        : '',
+        ? data.tags.filter((tag): tag is string => typeof tag === 'string')
+        : [],
     )
 
     const extras: ExtraField[] = Object.entries(data)
@@ -836,11 +826,16 @@ export function EditorPage({ slug }: { slug: string | null }) {
                   <span className="text-xs font-medium text-muted-foreground">
                     {t('editor.tagsField')}
                   </span>
-                  <Input
+                  <TagsInput
                     value={tags}
-                    onChange={(event) => setTags(event.target.value)}
+                    onChange={setTags}
                     placeholder={t('editor.tagsPlaceholder')}
                   />
+                  {tags.length === 0 && (
+                    <span className="text-[0.65rem] leading-none text-muted-foreground">
+                      {t('editor.tagsHint')}
+                    </span>
+                  )}
                 </label>
               </div>
 
