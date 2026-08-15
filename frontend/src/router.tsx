@@ -9,10 +9,17 @@ import {
 } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Loader2, LogOut } from 'lucide-react'
+import { ChevronDown, Loader2, LogOut } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Toaster } from '@/components/ui/sonner'
 import { AmbientBackground } from '@/components/ambient-background'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -77,46 +84,46 @@ function AppHeader() {
             {t('nav.article')}
           </Link>
         </Button>
-        {user !== null && (
-          <Button asChild variant="ghost" size="sm">
-            <Link
-              to="/assets"
-              activeOptions={{ exact: true }}
-              activeProps={{ className: activeClass }}
-            >
-              {t('nav.assets')}
-            </Link>
-          </Button>
-        )}
-        {user !== null && (
-          <Button asChild variant="ghost" size="sm">
-            <Link
-              to="/settings"
-              activeOptions={{ exact: true }}
-              activeProps={{ className: activeClass }}
-            >
-              {t('nav.settings')}
-            </Link>
-          </Button>
-        )}
       </nav>
       <div className="flex items-center gap-1">
         <ThemeToggle />
         {user !== null ? (
-          <>
-            <img
-              src={user.avatar_url}
-              alt=""
-              className="size-7 shrink-0 rounded-full bg-muted object-cover"
-            />
-            <span className="hidden max-w-32 truncate px-2 text-sm text-muted-foreground sm:inline">
-              {user.name || user.username}
-            </span>
-            <Button variant="ghost" size="sm" onClick={handleLogout}>
-              <LogOut />
-              {t('nav.logout')}
-            </Button>
-          </>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center gap-2 rounded-full py-1 pr-2 pl-1 text-sm text-muted-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50 hover:bg-muted"
+                aria-label={t('nav.accountMenu')}
+              >
+                <img
+                  src={user.avatar_url}
+                  alt=""
+                  className="size-7 shrink-0 rounded-full bg-muted object-cover"
+                />
+                <span className="hidden max-w-32 truncate sm:inline">
+                  {user.name || user.username}
+                </span>
+                <ChevronDown className="size-3.5 shrink-0" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem asChild>
+                <Link to="/assets" activeOptions={{ exact: true }}>
+                  {t('nav.assets')}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/settings" activeOptions={{ exact: true }}>
+                  {t('nav.settings')}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => void handleLogout()}>
+                <LogOut />
+                {t('nav.logout')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : (
           <Button asChild variant="ghost" size="sm">
             <Link to="/login">{t('nav.login')}</Link>

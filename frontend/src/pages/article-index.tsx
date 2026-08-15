@@ -196,134 +196,150 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="space-y-2">
-          <h1 className="font-heading text-3xl font-bold tracking-tight">
-            {t('article.indexTitle')}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {t('article.indexDescription')}
-          </p>
-        </div>
-        {has('pages.write') && (
-          <Button asChild variant="glass" size="sm">
-            <Link to="/editor/new">
-              <FilePenLine />
-              {t('article.newPage')}
-            </Link>
-          </Button>
-        )}
+    <div className="mx-auto w-full max-w-5xl">
+      <header className="mb-6 space-y-2">
+        <h1 className="font-heading text-3xl font-bold tracking-tight">
+          {t('article.indexTitle')}
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          {t('article.indexDescription')}
+        </p>
       </header>
 
-      <div className="relative">
-        <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={t('article.searchPlaceholder')}
-          className="pl-8"
-        />
-      </div>
-
-      {!searching && canSeeDrafts && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs font-medium text-muted-foreground">
-            {t('article.visibilityField')}
-          </span>
-          {statusOptions.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setFilter(option.value)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                filter === option.value
-                  ? 'bg-accent text-accent-foreground'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {!searching && allTags.data !== undefined && allTags.data.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs font-medium text-muted-foreground">
-            {t('article.tagField')}
-          </span>
-          <button
-            type="button"
-            onClick={() => selectTag(undefined)}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              tag === undefined
-                ? 'bg-accent text-accent-foreground'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-            }`}
-          >
-            {t('article.allTags')}
-          </button>
-          {allTags.data.map((item) => (
-            <button
-              key={item.name}
-              type="button"
-              onClick={() => selectTag(item.name)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                tag === item.name
-                  ? 'bg-accent text-accent-foreground'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
-            >
-              {item.name}
-              <span className="ml-1 text-muted-foreground/70">{item.count}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {searching ? (
-        search.isLoading ? (
-          <p className="text-sm text-muted-foreground">{t('article.searching')}</p>
-        ) : search.data && search.data.items.length > 0 ? (
+      <div className="grid items-start gap-6 lg:grid-cols-[16rem_1fr]">
+        <aside className="min-w-0 lg:sticky lg:top-24">
           <div className="space-y-4">
-            {search.data.items.map((result) => (
-              <SearchCard key={result.slug} result={result} locale={i18n.language} />
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">{t('article.searchEmpty')}</p>
-        )
-      ) : list.isLoading || list.data === undefined ? (
-        <div className="space-y-6" aria-busy="true">
-          {Array.from({ length: 3 }, (_, i) => (
-            <div key={i} className="glass-control animate-pulse rounded-2xl">
-              <div className="space-y-3 p-6">
-                <div className="h-3 w-1/3 rounded bg-muted" />
-                <div className="h-5 w-3/4 rounded bg-muted" />
-                <div className="h-3 w-full rounded bg-muted" />
-                <div className="h-3 w-5/6 rounded bg-muted" />
+            {has('pages.write') && (
+              <Button asChild variant="glass" size="sm" className="w-full">
+                <Link to="/editor/new">
+                  <FilePenLine />
+                  {t('article.newPage')}
+                </Link>
+              </Button>
+            )}
+
+            <section className="glass-control rounded-2xl p-4">
+              <h2 className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                {t('article.searchTitle')}
+              </h2>
+              <div className="relative">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={t('article.searchPlaceholder')}
+                  className="pl-8"
+                />
               </div>
+            </section>
+
+            {!searching && canSeeDrafts && (
+              <section className="glass-control rounded-2xl p-4">
+                <h2 className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                  {t('article.visibilityField')}
+                </h2>
+                <div className="flex flex-col gap-1">
+                  {statusOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setFilter(option.value)}
+                      className={`rounded-lg px-3 py-1.5 text-left text-sm font-medium transition-colors ${
+                        filter === option.value
+                          ? 'bg-accent text-accent-foreground'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {!searching && allTags.data !== undefined && allTags.data.length > 0 && (
+              <section className="glass-control rounded-2xl p-4">
+                <h2 className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                  {t('article.tagField')}
+                </h2>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => selectTag(undefined)}
+                    className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                      tag === undefined
+                        ? 'bg-accent text-accent-foreground'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    }`}
+                  >
+                    {t('article.allTags')}
+                  </button>
+                  {allTags.data.map((item) => (
+                    <button
+                      key={item.name}
+                      type="button"
+                      onClick={() => selectTag(item.name)}
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                        tag === item.name
+                          ? 'bg-accent text-accent-foreground'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      }`}
+                    >
+                      {item.name}
+                      <span className="ml-1 text-muted-foreground/70">{item.count}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        </aside>
+
+        <main className="min-w-0">
+          {searching ? (
+            search.isLoading ? (
+              <p className="text-sm text-muted-foreground">{t('article.searching')}</p>
+            ) : search.data && search.data.items.length > 0 ? (
+              <div className="space-y-4">
+                {search.data.items.map((result) => (
+                  <SearchCard key={result.slug} result={result} locale={i18n.language} />
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">{t('article.searchEmpty')}</p>
+            )
+          ) : list.isLoading || list.data === undefined ? (
+            <div className="space-y-6" aria-busy="true">
+              {Array.from({ length: 3 }, (_, i) => (
+                <div key={i} className="glass-control animate-pulse rounded-2xl">
+                  <div className="space-y-3 p-6">
+                    <div className="h-3 w-1/3 rounded bg-muted" />
+                    <div className="h-5 w-3/4 rounded bg-muted" />
+                    <div className="h-3 w-full rounded bg-muted" />
+                    <div className="h-3 w-5/6 rounded bg-muted" />
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      ) : list.data.items.length === 0 ? (
-        <div className="glass-control rounded-2xl p-8 text-center">
-          <p className="text-sm text-muted-foreground">{t('article.empty')}</p>
-          {has('pages.write') && (
-            <Button asChild variant="glass" size="sm" className="mt-4">
-              <Link to="/editor/new">{t('article.newPage')}</Link>
-            </Button>
+          ) : list.data.items.length === 0 ? (
+            <div className="glass-control rounded-2xl p-8 text-center">
+              <p className="text-sm text-muted-foreground">{t('article.empty')}</p>
+              {has('pages.write') && (
+                <Button asChild variant="glass" size="sm" className="mt-4">
+                  <Link to="/editor/new">{t('article.newPage')}</Link>
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {list.data.items.map((article) => (
+                <ArticleCard key={article.slug} article={article} locale={i18n.language} />
+              ))}
+            </div>
           )}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {list.data.items.map((article) => (
-            <ArticleCard key={article.slug} article={article} locale={i18n.language} />
-          ))}
-        </div>
-      )}
+        </main>
+      </div>
     </div>
   )
 }
