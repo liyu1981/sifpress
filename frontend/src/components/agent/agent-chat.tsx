@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/select';
 import { buildAgent } from '@/lib/agent/agent';
 import { type ConfirmRequest, setConfirmHandler } from '@/lib/agent/confirm';
+import type { EditorMutationBridge } from '@/lib/agent/editor-mutations';
 import {
   getModel,
   listAvailableModels,
@@ -50,6 +51,7 @@ export interface AgentDraft {
 
 interface AgentChatProps {
   draft?: AgentDraft | null;
+  editor?: EditorMutationBridge | null;
   onClose?: () => void;
   className?: string;
 }
@@ -109,7 +111,7 @@ function formatTime(timestamp: number): string {
   });
 }
 
-export function AgentChat({ draft, onClose, className }: AgentChatProps) {
+export function AgentChat({ draft, editor, onClose, className }: AgentChatProps) {
   const { t, i18n } = useTranslation();
 
   const [sessions, setSessions] = useState<AgentSession[]>([]);
@@ -165,7 +167,7 @@ export function AgentChat({ draft, onClose, className }: AgentChatProps) {
     if (draftNow === null) {
       return base;
     }
-    return `${base}\n\n## Current draft the user is editing\n- slug: ${draftNow.slug}\n- title: ${draftNow.title}\n\n\`\`\`markdown\n${draftNow.content}\n\`\`\`\n\nWhen the user asks something about their draft, answer using this draft. Updates to it go through update_page.`;
+    return `${base}\n\n## Current draft the user is editing\n- slug: ${draftNow.slug}\n- title: ${draftNow.title}\n\n\`\`\`markdown\n${draftNow.content}\n\`\`\`\n\nWhen the user asks something about their draft, answer using this draft. Edits to the draft are applied to the open editor via update_frontmatter and set_content (they appear in the editor but are only saved when the user clicks Save).`;
   }, []);
 
   const defaultModel = useCallback((): { providerId: string; modelId: string } | undefined => {
@@ -269,13 +271,14 @@ export function AgentChat({ draft, onClose, className }: AgentChatProps) {
         thinkingLevel: sessionNow.thinkingLevel,
         messages: sessionNow.messages,
         sessionId: sessionNow.id,
+        editor: editor ?? undefined,
       });
       agentRef.current = instance;
       latestRef.current = sessionNow;
       subscribeAgent(instance, sessionNow);
       return instance;
     },
-    [subscribeAgent],
+    [editor, subscribeAgent],
   );
 
   const createNewSession = useCallback(async (): Promise<AgentSession | null> => {

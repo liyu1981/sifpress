@@ -1,6 +1,7 @@
 import { Agent, type AgentMessage, type ThinkingLevel } from '@earendil-works/pi-agent-core';
 import { getModel, getModels } from './models';
 import { buildAgentTools } from './tools';
+import type { EditorMutationBridge } from './editor-mutations';
 
 export interface AgentBuildOptions {
   providerId: string;
@@ -9,6 +10,7 @@ export interface AgentBuildOptions {
   thinkingLevel: ThinkingLevel;
   messages?: AgentMessage[];
   sessionId?: string;
+  editor?: EditorMutationBridge;
 }
 
 export function buildAgent(options: AgentBuildOptions): Agent {
@@ -21,7 +23,7 @@ export function buildAgent(options: AgentBuildOptions): Agent {
       systemPrompt: options.systemPrompt,
       model,
       thinkingLevel: options.thinkingLevel,
-      tools: buildAgentTools(),
+      tools: buildAgentTools(options.editor),
       messages: options.messages ?? [],
     },
     streamFn: getModels().streamSimple.bind(getModels()),

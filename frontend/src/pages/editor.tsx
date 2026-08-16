@@ -14,10 +14,11 @@ import {
   X,
 } from 'lucide-react';
 import type { FormEvent } from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DeletePageMenu } from '@/components/delete-page-menu';
 import { AgentChat, type AgentDraft } from '@/components/agent/agent-chat';
+import type { EditorMutationBridge } from '@/lib/agent/editor-mutations';
 import { TagsInput } from '@/components/tags-input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -251,6 +252,14 @@ export function EditorPage({ slug }: { slug: string | null }) {
   const [saveError, setSaveError] = useState<ApiError | null>(null);
   const editorRef = useRef<MilkdownEditorHandle>(null);
   const extraFieldIdRef = useRef(0);
+  const editorSnapshotRef = useRef({
+    title: '',
+    slug: '',
+    date: '',
+    tags: [] as string[],
+    extra: [] as ExtraField[],
+    body: '',
+  });
 
   const [body, setBody] = useState('');
   const [bodyTab, setBodyTab] = useState<'editor' | 'source'>('editor');
@@ -523,6 +532,67 @@ export function EditorPage({ slug }: { slug: string | null }) {
       queryClient.invalidateQueries({ queryKey: ['page-grants', page?.id] });
     },
   });
+
+  const editorBridge: EditorMutationBridge = useMemo(
+    () => ({
+      getFrontMatter: () => {
+        const snap = editorSnapshotRef.current;
+        return {
+          title: snap.title,
+          slug: snap.slug,
+          date: snap.date,
+          tags: snap.tags,
+          extra: snap.extra.map(field => ({ key: field.key, value: field.value })),
+        };
+      },
+      setFrontMatter: patch => {
+        if (patch.title !== undefined) {
+          setTitle(patch.title);
+          editorSnapshotRef.current = { ...editorSnapshotRef.current, title: patch.title };
+        }
+        if (patch.slug !== undefined) {
+          setSlugValue(patch.slug);
+          editorSnapshotRef.current = { ...editorSnapshotRef.current, slug: patch.slug };
+        }
+        if (patch.date !== undefined) {
+          setDate(patch.date);
+          editorSnapshotRef.current = { ...editorSnapshotRef.current, date: patch.date };
+        }
+        if (patch.tags !== undefined) {
+          setTags(patch.tags);
+          editorSnapshotRef.current = { ...editorSnapshotRef.current, tags: patch.tags };
+        }
+        if (patch.extra !== undefined) {
+          const extras: ExtraField[] = patch.extra.map(field => {
+            extraFieldIdRef.current += 1;
+            return { id: extraFieldIdRef.current, key: field.key, value: field.value };
+          });
+          setExtraFields(extras);
+          setExtraOpen(extras.length > 0);
+          editorSnapshotRef.current = { ...editorSnapshotRef.current, extra: extras };
+        }
+      },
+      getContent: () => editorRef.current?.getMarkdown() ?? editorSnapshotRef.current.body,
+      setContent: markdown => {
+        editorRef.current?.setMarkdown(markdown);
+        editorSnapshotRef.current = { ...editorSnapshotRef.current, body: markdown };
+        setBody(markdown);
+        setSourceBody(markdown);
+      },
+    }),
+    [],
+  );
+
+  useEffect(() => {
+    editorSnapshotRef.current = {
+      title,
+      slug: slugValue,
+      date,
+      tags,
+      extra: extraFields,
+      body,
+    };
+  }, [body, date, extraFields, slugValue, tags, title]);
 
   if (editing && pageQuery.isLoading) {
     return (
@@ -952,7 +1022,12 @@ export function EditorPage({ slug }: { slug: string | null }) {
 
       {agentOpen && (
         <aside className="fixed top-24 bottom-4 z-40 w-80 left-[min(calc((100vw-64rem)/2+64rem+0.75rem),calc(100vw-21rem))] shadow-[0_24px_80px_-16px_rgba(0,0,0,0.45)]">
-          <AgentChat draft={agentDraft} className="h-full" onClose={() => setAgentOpen(false)} />
+          <AgentChat
+            draft={agentDraft}
+            editor={editorBridge}
+            className="h-full"
+            onClose={() => setAgentOpen(false)}
+          />
         </aside>
       )}
     </>

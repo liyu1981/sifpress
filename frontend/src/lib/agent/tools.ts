@@ -1,7 +1,7 @@
 import { Type, type TSchema } from '@earendil-works/pi-ai';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { pagesApi, tagsApi, type PageStatus } from '@/lib/pages';
-import { requestConfirm } from './confirm';
+import type { EditorMutationBridge, FrontMatterPatch } from './editor-mutations';
 
 const MAX_FETCH_CHARS = 12000;
 const MAX_OUTPUT_CHARS = 12000;
@@ -53,7 +53,7 @@ function tool<S extends TSchema>(t: AgentTool<S>): AgentTool<S> {
   return t;
 }
 
-export function buildAgentTools(): AgentTool<any>[] {
+export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[] {
   const searchContent = tool({
     name: 'search_content',
     label: 'Search content',
@@ -150,79 +150,81 @@ export function buildAgentTools(): AgentTool<any>[] {
     },
   });
 
-  const createPage = tool({
-    name: 'create_page',
-    label: 'Create page',
+  const updateFrontMatter = tool({
+    name: 'update_frontmatter',
+    label: 'Update frontmatter',
     description:
-      "Create a new page in the user's blog with the given title, slug, markdown body, and status. Requires the user to confirm the action first. Use the full markdown body as the final content.",
+      "Update the open editor's frontmatter section fields: title, slug, date, tags, and any extra fields. Mutates the editor UI only — the user still clicks Save to persist. Read read_page or the draft to see current values first.",
     parameters: Type.Object({
-      slug: Type.String({ description: 'URL slug (lowercase letters, digits, hyphens)' }),
-      title: Type.String({ description: 'Page title' }),
-      content_md: Type.String({ description: 'Full markdown body' }),
-      status: Type.String({ description: 'draft or published' }),
+      title: Type.Optional(Type.String({ description: 'New title' })),
+      slug: Type.Optional(Type.String({ description: 'New slug' })),
+      date: Type.Optional(Type.String({ description: 'New date (YYYY-MM-DD)' })),
+      tags: Type.Optional(
+        Type.Array(Type.String({ description: 'New tags' }), {
+          description: 'Replace the full tags list',
+        }),
+      ),
+      extra: Type.Optional(
+        Type.Array(
+          Type.Object({
+            key: Type.String({ description: 'Extra field key (e.g. cover)' }),
+            value: Type.String({ description: 'Extra field value' }),
+          }),
+          { description: 'Replace the full extra-fields list' },
+        ),
+      ),
     }),
-    executionMode: 'sequential',
     execute: async (_id, args) => {
-      const status: PageStatus = args.status === 'published' ? 'published' : 'draft';
-      const confirmed = await requestConfirm(
-        'create',
-        `Create page "${args.title}" (${status})`,
-        truncate(args.content_md, 2000),
-      );
-      if (!confirmed) {
-        throw new Error('User declined to create the page.');
+      if (editor === undefined) {
+        throw new Error('No editor is open — update_frontmatter requires the editor page.');
       }
-      const page = await pagesApi.create({
-        slug: args.slug,
-        title: args.title,
-        content_md: args.content_md,
-        status,
-      });
-      return textBlocks(
-        `Created page #${page.id} "${page.title}" at slug /${page.slug} (${page.status}).`,
-      );
+      const current = editor.getFrontMatter();
+      const patch: FrontMatterPatch = {};
+      if (args.title !== undefined) {
+        patch.title = args.title;
+      }
+      if (args.slug !== undefined) {
+        patch.slug = args.slug;
+      }
+      if (args.date !== undefined) {
+        patch.date = args.date;
+      }
+      if (args.tags !== undefined) {
+        patch.tags = args.tags;
+      }
+      if (args.extra !== undefined) {
+        patch.extra = args.extra;
+      }
+      editor.setFrontMatter(patch);
+      const next = editor.getFrontMatter();
+      const lines = [
+        `Updated frontmatter in the editor (not yet saved):\n- title: ${next.title}\n- slug: ${next.slug}\n- date: ${next.date || '—'}\n- tags: ${next.tags.join(', ') || 'none'}${
+          next.extra.length > 0
+            ? `\n- extra: ${next.extra.map(f => `${f.key}=${f.value}`).join(', ')}`
+            : ''
+        }`,
+      ];
+      if (current.title !== next.title || current.slug !== next.slug) {
+        lines.push(`Previous: title "${current.title}", slug "${current.slug}".`);
+      }
+      return textBlocks(...lines);
     },
   });
 
-  const updatePage = tool({
-    name: 'update_page',
-    label: 'Update page',
+  const setContent = tool({
+    name: 'set_content',
+    label: 'Set content',
     description:
-      "Update an existing page's title, slug, markdown body, and/or status by id or slug. Requires the user to confirm the action first. Prefer read_page first to see the current content.",
+      "Replace the open editor's content section (the markdown body) with the given markdown. Mutates the editor UI only — the user still clicks Save to persist. The editor's WYSIWYG view reflects this immediately.",
     parameters: Type.Object({
-      id: Type.Optional(Type.Number({ description: 'Page id (either id or slug is required)' })),
-      slug: Type.Optional(
-        Type.String({ description: 'Page slug (either id or slug is required)' }),
-      ),
-      title: Type.Optional(Type.String({ description: 'New title' })),
-      content_md: Type.Optional(Type.String({ description: 'New full markdown body' })),
-      status: Type.Optional(Type.String({ description: 'New status: draft or published' })),
+      content_md: Type.String({ description: 'New full markdown body for the content section' }),
     }),
-    executionMode: 'sequential',
     execute: async (_id, args) => {
-      if (args.id === undefined && args.slug === undefined) {
-        throw new Error('update_page requires either id or slug');
+      if (editor === undefined) {
+        throw new Error('No editor is open — set_content requires the editor page.');
       }
-      const pageId = args.id ?? (await pagesApi.get({ slug: args.slug })).id;
-      const confirmed = await requestConfirm(
-        'update',
-        `Update page #${pageId}${args.title !== undefined ? ` → "${args.title}"` : ''}`,
-        args.content_md !== undefined
-          ? truncate(args.content_md, 2000)
-          : 'Update metadata only (title/status).',
-      );
-      if (!confirmed) {
-        throw new Error('User declined to update the page.');
-      }
-      const status =
-        args.status === 'published' || args.status === 'draft' ? args.status : undefined;
-      const page = await pagesApi.update({
-        id: pageId,
-        ...(args.title !== undefined ? { title: args.title } : {}),
-        ...(args.content_md !== undefined ? { content_md: args.content_md } : {}),
-        ...(status !== undefined ? { status } : {}),
-      });
-      return textBlocks(`Updated page #${page.id} "${page.title}" (${page.status}).`);
+      editor.setContent(args.content_md);
+      return textBlocks('Replaced the content section in the editor (not yet saved).');
     },
   });
 
@@ -232,7 +234,7 @@ export function buildAgentTools(): AgentTool<any>[] {
     listPages,
     listTags,
     fetchUrl,
-    createPage,
-    updatePage,
+    updateFrontMatter,
+    setContent,
   ] as unknown as AgentTool<any>[];
 }

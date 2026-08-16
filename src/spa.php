@@ -71,11 +71,19 @@ function serve_spa(string $route): never
         $meta .= '<meta name="app-maintenance" content="1">';
     }
 
-    $html = str_replace(
-        '</head>',
-        $meta . '</head>',
-        $html
-    );
+    /*
+     * Inject the meta block only into the real document <head>, i.e. the
+     * LAST </head> in the served page. The inlined JS bundle (embedded in
+     * <body>) contains literal "</head>" inside its own string literals
+     * (DOM parsers, React host config), so replacing every occurrence
+     * would corrupt the JS with raw HTML attributes and break parsing.
+     * Because the whole bundle lives after </head>, the last occurrence is
+     * always the genuine document head close.
+     */
+    $pos = strrpos($html, '</head>');
+    if ($pos !== false) {
+        $html = substr_replace($html, $meta . '</head>', $pos, strlen('</head>'));
+    }
 
     echo $html;
     exit;
