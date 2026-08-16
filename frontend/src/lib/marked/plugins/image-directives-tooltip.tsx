@@ -6,7 +6,7 @@ import type { EditorState, PluginView } from '@milkdown/kit/prose/state';
 import { NodeSelection } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { ChevronDown, Film, Loader2, Plus } from 'lucide-react';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { isVideoSource } from '@/components/markdown/video';
 import { Button } from '@/components/ui/button';
@@ -108,30 +108,43 @@ function ImageDirectivePopup({ node, onCommit, onUpload }: ImageDirectivePopupPr
 
   const isLink = attrs.asLink;
   const isVideo = !isLink && isVideoSource(attrs.src);
+  const kind: 'image' | 'video' = isVideo ? 'video' : 'image';
+
+  const [loadedKind, setLoadedKind] = useState<'image' | 'video' | null>(null);
 
   const loadAssets = useCallback(
     async (page: number): Promise<void> => {
       setAssetsLoading(true);
       try {
         const result = await assetsApi.list({
-          kind: isVideo ? 'video' : 'image',
+          kind,
           page,
           per_page: ASSETS_PER_PAGE,
         });
         setAssets(prev => (page === 1 ? result.items : [...prev, ...result.items]));
         setAssetsTotal(result.total);
         setAssetsPage(page);
+        setLoadedKind(kind);
       } finally {
         setAssetsLoading(false);
       }
     },
-    [isVideo],
+    [kind],
   );
+
+  useEffect(() => {
+    if (loadedKind !== null && loadedKind !== kind && assetsOpen) {
+      void loadAssets(1);
+    }
+  }, [kind, loadedKind, assetsOpen, loadAssets]);
 
   const toggleAssets = (): void => {
     setAssetsOpen(open => {
       const next = !open;
-      if (next && assets.length === 0) {
+      // The popup's React state outlives node selections (the view mounts the
+      // root once), so a grid previously loaded for an image node would show
+      // image assets inside a video popup. Reload when the kind changed.
+      if (next && (assets.length === 0 || loadedKind !== kind)) {
         void loadAssets(1);
       }
       return next;
