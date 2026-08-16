@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   ArrowLeft,
+  Bot,
   ChevronDown,
   Loader2,
   Lock,
@@ -597,6 +598,14 @@ export function EditorPage({ slug }: { slug: string | null }) {
                   </Button>
                 </DeletePageMenu>
               )}
+            {editing && page !== null && (
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/agent" search={{ draft: page.slug }}>
+                  <Bot />
+                  {t('agent.askAgent')}
+                </Link>
+              </Button>
+            )}
             <Button type="submit" size="sm" disabled={save.isPending}>
               {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
               {t('editor.save')}
