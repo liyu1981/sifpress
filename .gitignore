@@ -37,6 +37,7 @@ composer.lock
 # =========================================================================
 # Environment & Sensitive Files (NEVER COMMIT)
 # =========================================================================
+.adminpasswd
 .env
 .env.accounts
 .env.local

@@ -132,7 +132,7 @@ export function AgentChat({ draft, onClose, className }: AgentChatProps) {
     draftRef.current = draft ?? null;
   }, [draft]);
 
-  const latest = sessions[0];
+  const latest = sessions[sessions.length - 1];
 
   const toolLabels = useMemo(() => {
     const map = new Map<string, string>();
@@ -143,14 +143,14 @@ export function AgentChat({ draft, onClose, className }: AgentChatProps) {
   }, []);
 
   const patchLatest = useCallback((messages: AgentMessage[]) => {
-    setSessions(prev => prev.map((s, i) => (i === 0 ? { ...s, messages } : s)));
+    setSessions(prev => prev.map((s, i) => (i === prev.length - 1 ? { ...s, messages } : s)));
   }, []);
 
   const persistSession = useCallback(async (sessionNow: AgentSession, messages: AgentMessage[]) => {
     const updated: AgentSession = { ...sessionNow, messages, updatedAt: Date.now() };
     await saveSession(updated);
     setSessions(prev =>
-      [updated, ...prev.filter(s => s.id !== updated.id)].sort((a, b) => b.updatedAt - a.updatedAt),
+      [updated, ...prev.filter(s => s.id !== updated.id)].sort((a, b) => a.updatedAt - b.updatedAt),
     );
   }, []);
 
@@ -301,7 +301,19 @@ export function AgentChat({ draft, onClose, className }: AgentChatProps) {
       messages: [],
     };
     await saveSession(next);
-    setSessions(prev => [next, ...prev]);
+    setSessions(prev =>
+      [...prev.filter(s => s.id !== next.id), next].sort((a, b) => a.updatedAt - b.updatedAt),
+    );
+    setCollapsed(prev => {
+      const expanded = new Set<string>(prev);
+      for (const s of sessions) {
+        if (s.id !== next.id) {
+          expanded.add(s.id);
+        }
+      }
+      expanded.delete(next.id);
+      return expanded;
+    });
     latestRef.current = next;
     await buildForSession(next);
     setStreaming(false);
@@ -309,7 +321,7 @@ export function AgentChat({ draft, onClose, className }: AgentChatProps) {
     setToolChips([]);
     setRunError(null);
     return next;
-  }, [buildForSession, defaultModel, i18n.language, t]);
+  }, [buildForSession, defaultModel, i18n.language, sessions, t]);
 
   useEffect(() => {
     if (initialized.current) {
@@ -320,10 +332,13 @@ export function AgentChat({ draft, onClose, className }: AgentChatProps) {
     void (async () => {
       await refreshModels().catch(() => undefined);
       const all = await listSessionsFull();
+      all.sort((a, b) => a.updatedAt - b.updatedAt);
       if (all.length > 0) {
         setSessions(all);
-        latestRef.current = all[0];
-        await buildForSession(all[0]);
+        const newest = all[all.length - 1];
+        latestRef.current = newest;
+        setCollapsed(new Set(all.slice(0, -1).map(s => s.id)));
+        await buildForSession(newest);
       } else {
         await createNewSession();
       }
@@ -385,9 +400,10 @@ export function AgentChat({ draft, onClose, className }: AgentChatProps) {
       const remaining = sessions.filter(s => s.id !== id);
       await deleteSession(id);
       setSessions(remaining);
-      if (id === sessions[0]?.id) {
-        if (remaining[0] !== undefined) {
-          await buildForSession(remaining[0]);
+      if (id === sessions[sessions.length - 1]?.id) {
+        if (remaining.length > 0) {
+          const newest = remaining[remaining.length - 1];
+          await buildForSession(newest);
         } else {
           agentRef.current?.abort();
           agentRef.current = null;
@@ -398,23 +414,17 @@ export function AgentChat({ draft, onClose, className }: AgentChatProps) {
     [buildForSession, sessions],
   );
 
-  const toggleCollapsed = useCallback(
-    (id: string) => {
-      if (id === sessions[0]?.id) {
-        return;
+  const toggleCollapsed = useCallback((id: string) => {
+    setCollapsed(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
       }
-      setCollapsed(prev => {
-        const next = new Set(prev);
-        if (next.has(id)) {
-          next.delete(id);
-        } else {
-          next.add(id);
-        }
-        return next;
-      });
-    },
-    [sessions],
-  );
+      return next;
+    });
+  }, []);
 
   const changeModel = useCallback(
     (providerId: string, modelId: string) => {
@@ -537,7 +547,7 @@ export function AgentChat({ draft, onClose, className }: AgentChatProps) {
           </div>
         )}
         {sessions.map((s, index) => {
-          const isLatest = index === 0;
+          const isLatest = index === sessions.length - 1;
           const isCollapsed = collapsed.has(s.id);
           return (
             <div key={s.id} className="glass-control overflow-hidden rounded-xl">
