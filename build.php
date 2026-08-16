@@ -128,7 +128,7 @@ function run(string $command, string $cwd): void
  * Inline every stylesheet and script that references a built asset
  * in dist/. The result is a fully self-contained HTML document.
  */
-function inline_assets(string $html, string $dist): string
+function inline_assets(string $html, string $dist, bool $dev): string
 {
     $html = preg_replace_callback(
         '/<link\b[^>]*\bhref="([^"]+)"[^>]*>/i',
@@ -222,7 +222,7 @@ function inline_assets(string $html, string $dist): string
 
     $html = preg_replace_callback(
         '/<script\b[^>]*\bsrc="([^"]+)"[^>]*>/i',
-        function (array $match) use ($dist): string {
+        function (array $match) use ($dist, $dev): string {
             $tag = $match[0];
             $src = $match[1];
 
@@ -248,7 +248,23 @@ function inline_assets(string $html, string $dist): string
             // a single closing tag.
             $cleaned = preg_replace('/\bsrc="[^"]*"/i', '', $tag);
 
-            return $cleaned . $js . '</script>';
+            $js = $cleaned . $js . '</script>';
+
+            // Dev builds carry a source map. Embed it as a data URI so the
+            // inlined bundle still resolves readable stack traces no matter
+            // where the single file is served from.
+            if ($dev && preg_match('/\/\/# sourceMappingURL=(index-[A-Za-z0-9_-]+\.js\.map)/', $js, $m)) {
+                $map = $dist . '/assets/' . $m[1];
+                if (is_file($map)) {
+                    $data = file_get_contents($map);
+                    if ($data !== false) {
+                        $uri = 'data:application/json;charset=utf-8;base64,' . base64_encode($data);
+                        $js = str_replace('//# sourceMappingURL=' . $m[1], '//# sourceMappingURL=' . $uri, $js);
+                    }
+                }
+            }
+
+            return $js;
         },
         $html
     );
@@ -274,11 +290,13 @@ foreach ($parts as $part) {
     }
 }
 
+$frontendBuild = $mode === 'release' || $mode === 'rel' ? 'pnpm run build:release' : 'pnpm run build:dev';
+
 if (!is_dir($frontend . '/node_modules')) {
     run('pnpm install', $frontend);
 }
 
-run('pnpm run build', $frontend);
+run($frontendBuild, $frontend);
 
 if (!is_dir($frontendDist)) {
     throw new RuntimeException('Vite dist directory was not generated');
@@ -313,7 +331,7 @@ if ($html === null) {
  * rule's `(?<title>…)` group) with no closing tag, which would otherwise
  * make the regex scan the whole bundle and hit the PCRE backtrack limit.
  */
-$html = inline_assets($html, $frontendDist);
+$html = inline_assets($html, $frontendDist, $mode === 'release' || $mode === 'rel' ? false : true);
 $html = preg_replace('/<title[^>]*>.*?<\/title>/is', '', $html, 1);
 
 if ($html === null) {

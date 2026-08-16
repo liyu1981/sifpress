@@ -7,9 +7,11 @@ browser SPA, operates on the user's local content (and the web), and keeps its
 state (conversations, keys, sessions) on the device.
 
 **Decisions locked in review:** Tier 1 auth (local keys only), a broad provider
-set, read **and** write tools, best-effort `fetch_url`, a standalone `/agent`
-page with editor context injection, and browser-only IndexedDB persistence.
-Remaining minor open questions are at the end.
+set, read **and** write tools, best-effort `fetch_url`, an in-editor agent panel
+(sessions as accordions, no separate page) with the current draft injected as
+context, agent settings in System settings with a per-provider test-connection
+button, and browser-only IndexedDB persistence. Remaining minor open questions
+are at the end.
 
 ---
 
@@ -146,24 +148,28 @@ is deliberately excluded from v1.
 
 ## 6. UI
 
-- New SPA route `/agent` in `frontend/src/router.tsx` (nav entry alongside the
-  existing routes), following the glass design system (`glass-control` /
-  `apple-panel` / `ambient-bg`) and shadcn components.
-- **Layout**: left = conversation list (create/rename/delete), main = chat
-  transcript + composer.
-- **Editor context injection**: opening the agent from `/editor` seeds a new
-  conversation with the current draft injected into the system prompt
-  (`read_only`: the draft is provided as context; `update_page` still needs the
-  confirm gate).
+- **In-editor panel, no separate page.** The agent lives in a collapsible
+  right-hand rail on the editor page: a thin vertical toggle button sits beside
+  the content section and expands/collapses the agent panel (following the glass
+  design system).
+- **Sessions as accordions.** The panel lists persistent sessions as accordions
+  (title + expand/collapse + delete); the newest session is always expanded and
+  marked "Active". The composer at the bottom of the panel always targets the
+  latest session; older sessions are view-only archives.
+- **Editor context injection**: the current draft (slug/title/markdown body) is
+  injected into the agent's system prompt on every send, so the agent always
+  sees the latest draft state. `update_page` still needs the confirm gate.
 - **Streaming**: subscribe to agent events — `message_update` text deltas render
   into the active bubble; `tool_execution_start/end` render compact tool chips
   (write tools get a highlighted "pending confirm" chip); abort button wired to
   `agent.abort()`.
 - **Assistant replies rendered with the existing `MarkdownView`**
   (`src/lib/marked/view.tsx`) so mermaid/KaTeX/images work in chat.
-- **Settings**: provider + model selector (custom OpenAI-compatible/Ollama first
-  and default, base URL configurable), per-provider API key inputs (stored via
-  CredentialStore), thinking level.
+- **Settings live in System settings** (`/settings` → system tab): per-provider
+  API key inputs (stored via CredentialStore), a **Test connection** button per
+  provider (issues a minimal completion via `models.completeSimple`), Ollama
+  base URL config, and a refresh-models button.
+- **Model/thinking selectors** appear compactly above the composer.
 - **i18n**: en/zh keys in `src/lib/i18n.ts` (existing pattern).
 
 ---
@@ -171,18 +177,20 @@ is deliberately excluded from v1.
 ## 7. Repository layout (new pieces)
 
 ```
-frontend/src/agent/
-  lib/
-    models.ts        # createModels + provider set + localStorage CredentialStore
-    store.ts         # IndexedDB session/message adapter (no deps)
-    agent.ts         # buildAgent(): Agent + tools + event wiring
-    tools.ts         # pages.* + fetch_url AgentTool definitions
-    confirm.ts       # write-confirm gate (modal promise) injected into write tools
-  pages/agent.tsx    # /agent route page
-  components/        # chat transcript, composer, tool chips, confirm dialog, settings (as needed)
-frontend/src/router.tsx   # + /agent route
-frontend/src/lib/i18n.ts  # + en/zh keys
-frontend/package.json     # + @earendil-works/pi-ai, pi-agent-core (exact pins)
+frontend/src/lib/agent/
+  models.ts        # createModels + provider set + localStorage CredentialStore + testConnection
+  store.ts         # IndexedDB session/message adapter (no deps)
+  agent.ts         # buildAgent(): Agent + tools + event wiring
+  tools.ts         # pages.* + fetch_url AgentTool definitions
+  confirm.ts       # write-confirm gate (modal promise) injected into write tools
+frontend/src/components/agent/
+  agent-chat.tsx       # reusable chat panel (sessions as accordions, composer)
+  agent-settings.tsx   # settings card mounted on the /settings system tab
+  confirm-dialog.tsx   # shared write-confirm modal
+frontend/src/pages/editor.tsx     # vertical toggle button + AgentChat rail
+frontend/src/pages/settings.tsx   # AgentSettingsCard in the system tab
+frontend/src/lib/i18n.ts          # en/zh keys
+frontend/package.json             # + @earendil-works/pi-ai, pi-agent-core (exact pins)
 
 # Phase 2 (optional, not in v1):
 src/proxy.php        # ?module=proxy: LLM relay + fetch relay (CORS workaround)

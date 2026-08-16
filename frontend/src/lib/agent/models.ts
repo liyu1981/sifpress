@@ -104,7 +104,43 @@ export function getOllamaBaseUrl(): string {
 export function setOllamaBaseUrl(url: string): void {
   const normalized = url.trim().replace(/\/+$/, '') || DEFAULT_OLLAMA_BASE_URL;
   localStorage.setItem(OLLAMA_BASE_URL_KEY, normalized);
+  unverify(OLLAMA_PROVIDER_ID);
   rebuildModels();
+}
+
+const VERIFIED_KEY = 'agent.verified.providers';
+
+function readVerified(): string[] {
+  try {
+    const raw = localStorage.getItem(VERIFIED_KEY);
+    if (raw === null) {
+      return [];
+    }
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeVerified(ids: string[]): void {
+  localStorage.setItem(VERIFIED_KEY, JSON.stringify(ids));
+}
+
+/** Providers whose connection was verified by a successful test. */
+export function isVerified(providerId: string): boolean {
+  return readVerified().includes(providerId);
+}
+
+function markVerified(providerId: string): void {
+  const ids = readVerified();
+  if (!ids.includes(providerId)) {
+    writeVerified([...ids, providerId]);
+  }
+}
+
+function unverify(providerId: string): void {
+  writeVerified(readVerified().filter(id => id !== providerId));
 }
 
 export function hasCredential(providerId: string): boolean {
@@ -116,10 +152,12 @@ export async function saveApiKey(providerId: string, key: string): Promise<void>
     type: 'api_key' as const,
     key: key.trim(),
   }));
+  unverify(providerId);
 }
 
 export async function clearApiKey(providerId: string): Promise<void> {
   await credentialStore.delete(providerId);
+  unverify(providerId);
 }
 
 function ollamaModel(id: string, baseUrl: string): Model<'openai-completions'> {
@@ -134,26 +172,40 @@ function ollamaModel(id: string, baseUrl: string): Model<'openai-completions'> {
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 128000,
     maxTokens: 32000,
+    compat: {
+      supportsDeveloperRole: false,
+      supportsReasoningEffort: false,
+    },
   };
 }
-
-const DEFAULT_OLLAMA_MODELS = ['llama3.1:8b', 'qwen3:8b', 'qwen3:14b', 'gemma3:4b'];
 
 async function fetchOllamaModels(
   apiBase: string,
   v1Url: string,
   signal: AbortSignal,
 ): Promise<Model<'openai-completions'>[]> {
-  const response = await fetch(`${apiBase}/api/tags`, { signal });
-  if (!response.ok) {
-    throw new Error(`Ollama responded with HTTP ${response.status}`);
+  let ids: string[] = [];
+  try {
+    const response = await fetch(`${v1Url}/models`, { signal });
+    if (response.ok) {
+      const data = (await response.json()) as { data?: Array<{ id: string }> };
+      ids = (data?.data ?? []).map(m => m.id);
+    }
+  } catch {
+    // fall through to the native Ollama endpoint
   }
-  const data = (await response.json()) as {
-    models?: Array<{ name: string }>;
-  };
-  return (data.models ?? [])
-    .filter(m => !/embed|vision|clip/i.test(m.name))
-    .map(m => ollamaModel(m.name, v1Url));
+  if (ids.length === 0) {
+    try {
+      const response = await fetch(`${apiBase}/api/tags`, { signal });
+      if (response.ok) {
+        const data = (await response.json()) as { models?: Array<{ name: string }> };
+        ids = (data?.models ?? []).map(m => m.name);
+      }
+    } catch {
+      // ignore — the list stays on its static defaults
+    }
+  }
+  return ids.filter(id => !/embed|vision|clip/i.test(id)).map(id => ollamaModel(id, v1Url));
 }
 
 function buildOllamaProvider(baseUrl: string) {
@@ -165,10 +217,10 @@ function buildOllamaProvider(baseUrl: string) {
     auth: {
       apiKey: {
         name: 'Ollama (local)',
-        resolve: async () => ({ auth: {} }),
+        resolve: async () => ({ auth: { apiKey: 'local' } }),
       },
     },
-    models: DEFAULT_OLLAMA_MODELS.map(id => ollamaModel(id, v1Url)),
+    models: [],
     fetchModels: async ({ signal }) => fetchOllamaModels(baseUrl, v1Url, signal),
     api: openAICompletionsApi(),
   });
@@ -214,8 +266,73 @@ export function listModels(): Array<{ provider: string; providerName: string; mo
   return out;
 }
 
+/**
+ * Models from providers whose connection was verified with a successful test.
+ * This is the only list the agent UI should offer, so unconfigured providers
+ * never show up in the model selector.
+ */
+export function listAvailableModels(): Array<{
+  provider: string;
+  providerName: string;
+  model: Model<Api>;
+}> {
+  const modelsAll = getModels();
+  const out: Array<{ provider: string; providerName: string; model: Model<Api> }> = [];
+  for (const provider of modelsAll.getProviders()) {
+    if (!isVerified(provider.id)) {
+      continue;
+    }
+    for (const model of modelsAll.getModels(provider.id)) {
+      out.push({ provider: provider.id, providerName: provider.name, model });
+    }
+  }
+  return out;
+}
+
 export function refreshModels(): Promise<void> {
   return getModels()
     .refresh()
     .then(() => undefined);
+}
+
+/**
+ * Minimal connection test for a provider. Cloud providers resolve auth and
+ * issue a tiny completion on their first model. The local OpenAI-compatible
+ * provider probes `GET /v1/models` instead, so connectivity and keyless auth
+ * are verified without depending on a specific model being loaded. Rejects
+ * with a human-readable message on failure.
+ */
+export async function testConnection(providerId: string): Promise<string> {
+  const models = getModels();
+  const auth = await models.getAuth(providerId);
+  if (auth === undefined) {
+    throw new Error('not_configured');
+  }
+  if (providerId === OLLAMA_PROVIDER_ID) {
+    const v1Url = models.getProvider(providerId)?.baseUrl;
+    if (v1Url === undefined) {
+      throw new Error('no_model');
+    }
+    const base = v1Url.replace(/\/v1\/?$/, '');
+    const response = await fetch(`${base}/v1/models`, { signal: AbortSignal.timeout(15000) });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const data = (await response.json()) as { data?: Array<{ id: string }> };
+    const count = data?.data?.length ?? 0;
+    markVerified(providerId);
+    return count > 0 ? `${count} model${count === 1 ? '' : 's'}` : 'reachable';
+  }
+  const model = models.getModels(providerId)[0];
+  if (model === undefined) {
+    throw new Error('no_model');
+  }
+  const response = await models.completeSimple(model, {
+    messages: [{ role: 'user', content: 'Reply with exactly: ok', timestamp: Date.now() }],
+  });
+  if (response.stopReason === 'error' || response.stopReason === 'aborted') {
+    throw new Error(response.errorMessage ?? `request_failed_${response.stopReason}`);
+  }
+  markVerified(providerId);
+  return model.id;
 }

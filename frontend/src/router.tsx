@@ -25,7 +25,6 @@ import {
 import { Toaster } from '@/components/ui/sonner';
 import { useAuth } from '@/lib/auth';
 import { DEMO_PAGE_SLUG, systemApi } from '@/lib/pages';
-import { AgentPage } from '@/pages/agent';
 import { ArticleDetailPage } from '@/pages/article-detail';
 import { ArticleIndexPage } from '@/pages/article-index';
 import { AssetsPage } from '@/pages/assets';
@@ -77,15 +76,6 @@ function AppHeader() {
             activeProps={{ className: activeClass }}
           >
             {t('nav.article')}
-          </Link>
-        </Button>
-        <Button asChild variant="ghost" size="sm">
-          <Link
-            to="/agent"
-            activeOptions={{ exact: true }}
-            activeProps={{ className: activeClass }}
-          >
-            {t('nav.agent')}
           </Link>
         </Button>
       </nav>
@@ -167,10 +157,7 @@ function RootLayout() {
   }
 
   const needsAuth =
-    pathname === '/settings' ||
-    pathname === '/assets' ||
-    pathname === '/agent' ||
-    pathname.startsWith('/editor');
+    pathname === '/settings' || pathname === '/assets' || pathname.startsWith('/editor');
 
   let content: ReactNode;
 
@@ -286,20 +273,6 @@ export const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
-export const agentRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/agent',
-  component: AgentRouteComponent,
-  validateSearch: (search): { draft?: string } => ({
-    ...(typeof search.draft === 'string' && search.draft !== '' ? { draft: search.draft } : {}),
-  }),
-});
-
-function AgentRouteComponent() {
-  const { draft } = agentRoute.useSearch();
-  return <AgentPage draftSlug={draft} />;
-}
-
 export const assetsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/assets',
@@ -321,7 +294,6 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   settingsRoute,
   assetsRoute,
-  agentRoute,
   notFoundRoute,
 ]);
 

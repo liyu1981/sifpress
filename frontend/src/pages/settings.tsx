@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
+import { AgentSettingsCard } from '@/components/agent/agent-settings';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -858,6 +859,14 @@ export function SettingsPage() {
               {t('settings.tabSystem')}
             </span>
           </TabsTrigger>
+          <TabsTrigger
+            value="agent"
+            className="group justify-end rounded-full border-transparent px-0 data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent dark:data-[state=active]:shadow-none"
+          >
+            <span className="rounded-full px-3 py-1.5 transition-colors group-data-[state=active]:bg-accent group-data-[state=active]:text-accent-foreground">
+              {t('settings.tabAgent')}
+            </span>
+          </TabsTrigger>
           {user !== null && user.roles.includes('admin') && (
             <TabsTrigger
               value="update"
@@ -904,8 +913,12 @@ export function SettingsPage() {
           </TabsContent>
         )}
 
-        <TabsContent value="system">
+        <TabsContent value="system" className="space-y-6">
           <SystemSettingsCard />
+        </TabsContent>
+
+        <TabsContent value="agent" className="space-y-6">
+          <AgentSettingsCard />
         </TabsContent>
 
         {user !== null && user.roles.includes('admin') && (

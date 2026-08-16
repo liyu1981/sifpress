@@ -17,6 +17,7 @@ import type { FormEvent } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DeletePageMenu } from '@/components/delete-page-menu';
+import { AgentChat, type AgentDraft } from '@/components/agent/agent-chat';
 import { TagsInput } from '@/components/tags-input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -262,6 +263,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
   const [rawError, setRawError] = useState<string | null>(null);
 
   const [accessOpen, setAccessOpen] = useState(false);
+  const [agentOpen, setAgentOpen] = useState(false);
   const [grantUsername, setGrantUsername] = useState('');
   const [grantPermission, setGrantPermission] = useState<'edit' | 'view'>('edit');
   const [grantNote, setGrantNote] = useState('');
@@ -565,366 +567,394 @@ export function EditorPage({ slug }: { slug: string | null }) {
 
   const messages = errorMessages(saveError);
 
+  const agentDraft: AgentDraft | null =
+    editing && page !== null
+      ? { slug: page.slug, title: page.title, content: body }
+      : body.trim() !== ''
+        ? {
+            slug: slugValue.trim() !== '' ? slugValue.trim() : 'untitled',
+            title: title.trim() !== '' ? title.trim() : t('agent.untitled'),
+            content: body,
+          }
+        : null;
+
   return (
-    <div className="w-full">
-      <form onSubmit={handleSave} className="w-full space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="font-heading text-3xl font-bold tracking-tight">
-            {editing ? t('editor.editTitle') : t('editor.newTitle')}
-          </h1>
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="flex cursor-pointer items-center gap-2">
-              <Switch
-                checked={published}
-                onCheckedChange={setPublished}
-                aria-label={t('editor.statusField')}
-              />
-              <span className="text-sm font-medium">
-                {published ? t('editor.statusPublished') : t('editor.statusDraft')}
-              </span>
-            </label>
-            {editing &&
-              page !== null &&
-              user !== null &&
-              (isAdmin || page.created_by === user.id) && (
-                <DeletePageMenu
-                  pageId={page.id}
-                  title={page.title}
-                  onDeleted={() => navigate({ to: '/article' })}
-                >
-                  <Button type="button" variant="destructive" size="sm">
-                    <Trash2 />
-                    {t('editor.delete')}
-                  </Button>
-                </DeletePageMenu>
-              )}
-            {editing && page !== null && (
-              <Button asChild variant="ghost" size="sm">
-                <Link to="/agent" search={{ draft: page.slug }}>
-                  <Bot />
-                  {t('agent.askAgent')}
-                </Link>
+    <>
+      <div className="w-full">
+        <form onSubmit={handleSave} className="w-full space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h1 className="font-heading text-3xl font-bold tracking-tight">
+              {editing ? t('editor.editTitle') : t('editor.newTitle')}
+            </h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex cursor-pointer items-center gap-2">
+                <Switch
+                  checked={published}
+                  onCheckedChange={setPublished}
+                  aria-label={t('editor.statusField')}
+                />
+                <span className="text-sm font-medium">
+                  {published ? t('editor.statusPublished') : t('editor.statusDraft')}
+                </span>
+              </label>
+              {editing &&
+                page !== null &&
+                user !== null &&
+                (isAdmin || page.created_by === user.id) && (
+                  <DeletePageMenu
+                    pageId={page.id}
+                    title={page.title}
+                    onDeleted={() => navigate({ to: '/article' })}
+                  >
+                    <Button type="button" variant="destructive" size="sm">
+                      <Trash2 />
+                      {t('editor.delete')}
+                    </Button>
+                  </DeletePageMenu>
+                )}
+              <Button type="submit" size="sm" disabled={save.isPending}>
+                {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
+                {t('editor.save')}
               </Button>
-            )}
-            <Button type="submit" size="sm" disabled={save.isPending}>
-              {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
-              {t('editor.save')}
-            </Button>
+              {!agentOpen && (
+                <Button
+                  type="button"
+                  variant="glass"
+                  size="sm"
+                  onClick={() => setAgentOpen(value => !value)}
+                  className="rounded-full"
+                  aria-expanded={agentOpen}
+                >
+                  <Bot />
+                  {t('agent.title')}
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
 
-        {!editing && <p className="text-sm text-muted-foreground">{t('editor.newHint')}</p>}
+          {!editing && <p className="text-sm text-muted-foreground">{t('editor.newHint')}</p>}
 
-        {editing && page !== null && canManageGrants && (
-          <div className="glass-control rounded-2xl">
-            <button
-              type="button"
-              onClick={() => setAccessOpen(value => !value)}
-              className="flex w-full items-center justify-between gap-3 p-4 text-left"
-            >
-              <span className="flex items-center gap-2 text-sm font-medium">
-                <ShieldCheck className="size-4 text-muted-foreground" />
-                {t('editor.grantsTitle')}
-              </span>
-              <ChevronDown
-                className={`size-4 text-muted-foreground transition-transform ${
-                  accessOpen ? 'rotate-180' : ''
-                }`}
-              />
-            </button>
+          {editing && page !== null && canManageGrants && (
+            <div className="glass-control rounded-2xl">
+              <button
+                type="button"
+                onClick={() => setAccessOpen(value => !value)}
+                className="flex w-full items-center justify-between gap-3 p-4 text-left"
+              >
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <ShieldCheck className="size-4 text-muted-foreground" />
+                  {t('editor.grantsTitle')}
+                </span>
+                <ChevronDown
+                  className={`size-4 text-muted-foreground transition-transform ${
+                    accessOpen ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
 
-            {accessOpen && (
-              <div className="space-y-3 border-t border-border/60 p-4">
-                <p className="text-xs text-muted-foreground">{t('editor.grantsDescription')}</p>
+              {accessOpen && (
+                <div className="space-y-3 border-t border-border/60 p-4">
+                  <p className="text-xs text-muted-foreground">{t('editor.grantsDescription')}</p>
 
-                <div className="overflow-x-auto rounded-xl border-2 border-black/25 dark:border-border">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b-2 border-black/25 text-left text-xs text-muted-foreground dark:border-border">
-                        <th className="px-3 py-2 font-medium">{t('editor.grantUsername')}</th>
-                        <th className="px-3 py-2 font-medium">
-                          {t('editor.grantPermissionField')}
-                        </th>
-                        <th className="px-3 py-2 font-medium">{t('editor.grantNote')}</th>
-                        <th className="px-3 py-2 font-medium" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="border-b border-black/25 dark:border-border">
-                        <td className="px-3 py-2">
-                          <Input
-                            value={grantUsername}
-                            onChange={event => setGrantUsername(event.target.value)}
-                            placeholder={t('editor.grantPlaceholder')}
-                            className="h-8"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <Select
-                            value={grantPermission}
-                            onValueChange={value => setGrantPermission(value as 'edit' | 'view')}
-                          >
-                            <SelectTrigger
-                              className="h-8 w-full min-w-[6.5rem]"
-                              aria-label={t('editor.grantPermissionField')}
+                  <div className="overflow-x-auto rounded-xl border-2 border-black/25 dark:border-border">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b-2 border-black/25 text-left text-xs text-muted-foreground dark:border-border">
+                          <th className="px-3 py-2 font-medium">{t('editor.grantUsername')}</th>
+                          <th className="px-3 py-2 font-medium">
+                            {t('editor.grantPermissionField')}
+                          </th>
+                          <th className="px-3 py-2 font-medium">{t('editor.grantNote')}</th>
+                          <th className="px-3 py-2 font-medium" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b border-black/25 dark:border-border">
+                          <td className="px-3 py-2">
+                            <Input
+                              value={grantUsername}
+                              onChange={event => setGrantUsername(event.target.value)}
+                              placeholder={t('editor.grantPlaceholder')}
+                              className="h-8"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <Select
+                              value={grantPermission}
+                              onValueChange={value => setGrantPermission(value as 'edit' | 'view')}
                             >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="edit">{t('editor.permissionEdit')}</SelectItem>
-                              <SelectItem value="view">{t('editor.permissionView')}</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </td>
-                        <td className="px-3 py-2">
-                          <Input
-                            value={grantNote}
-                            onChange={event => setGrantNote(event.target.value)}
-                            placeholder={t('editor.grantNotePlaceholder')}
-                            className="h-8"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <div className="flex justify-end">
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={handleAddGrant}
-                              disabled={grant.isPending || grantUsername.trim() === ''}
-                            >
-                              <UserPlus />
-                              {t('editor.grantAdd')}
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-
-                      {grantsQuery.data?.map((g, index) => (
-                        <GrantRow
-                          key={g.username}
-                          grant={g}
-                          index={index}
-                          onSave={permission =>
-                            grant.mutate({
-                              username: g.username,
-                              permission,
-                            })
-                          }
-                          onRevoke={() => revoke.mutate(g.username)}
-                          saving={grant.isPending || revoke.isPending}
-                        />
-                      ))}
-                      {grantsQuery.data?.length === 0 && (
-                        <tr>
-                          <td colSpan={4} className="py-2 text-sm text-muted-foreground">
-                            {t('editor.grantsEmpty')}
+                              <SelectTrigger
+                                className="h-8 w-full min-w-[6.5rem]"
+                                aria-label={t('editor.grantPermissionField')}
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="edit">{t('editor.permissionEdit')}</SelectItem>
+                                <SelectItem value="view">{t('editor.permissionView')}</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          <td className="px-3 py-2">
+                            <Input
+                              value={grantNote}
+                              onChange={event => setGrantNote(event.target.value)}
+                              placeholder={t('editor.grantNotePlaceholder')}
+                              className="h-8"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex justify-end">
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={handleAddGrant}
+                                disabled={grant.isPending || grantUsername.trim() === ''}
+                              >
+                                <UserPlus />
+                                {t('editor.grantAdd')}
+                              </Button>
+                            </div>
                           </td>
                         </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
 
-                {grantError !== null && (
-                  <p className="text-sm text-destructive">
-                    {grantError.data.error ?? t('editor.grantError')}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+                        {grantsQuery.data?.map((g, index) => (
+                          <GrantRow
+                            key={g.username}
+                            grant={g}
+                            index={index}
+                            onSave={permission =>
+                              grant.mutate({
+                                username: g.username,
+                                permission,
+                              })
+                            }
+                            onRevoke={() => revoke.mutate(g.username)}
+                            saving={grant.isPending || revoke.isPending}
+                          />
+                        ))}
+                        {grantsQuery.data?.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="py-2 text-sm text-muted-foreground">
+                              {t('editor.grantsEmpty')}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
 
-        {messages.length > 0 && (
-          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-            {messages.map(message => (
-              <p key={message}>{message}</p>
-            ))}
-          </div>
-        )}
-
-        <div className="glass-control overflow-hidden rounded-2xl shadow-[0_10px_24px_-8px_rgba(0,0,0,0.28)] dark:shadow-[0_10px_24px_-8px_rgba(0,0,0,0.6)]">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
-            <span className="text-sm font-medium">{t('editor.frontmatterTitle')}</span>
-            <SegmentedControl
-              value={frontTab}
-              onChange={switchFrontTab}
-              options={[
-                { value: 'fields', label: t('editor.fieldsTab') },
-                { value: 'raw', label: t('editor.rawTab') },
-              ]}
-            />
-          </div>
-
-          {frontTab === 'fields' ? (
-            <div className="p-4">
-              <div className="flex flex-wrap items-end gap-3">
-                <label className="flex min-w-0 flex-1 flex-col gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {t('editor.titleField')}
-                  </span>
-                  <Input
-                    value={title}
-                    onChange={event => setTitle(event.target.value)}
-                    placeholder={t('editor.titleField')}
-                    className="h-9"
-                  />
-                </label>
-                <label className="flex w-full flex-col gap-1.5 sm:w-56">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {t('editor.slugField')}
-                  </span>
-                  <Input
-                    value={slugValue}
-                    onChange={event => setSlugValue(event.target.value)}
-                    placeholder="my-post-slug"
-                    className="h-9"
-                  />
-                </label>
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 gap-3 border-t border-border/60 pt-4 sm:grid-cols-3">
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {t('editor.updatedAtField')}
-                  </span>
-                  <Input
-                    value={updatedDate}
-                    onChange={event => setUpdatedDate(event.target.value)}
-                    placeholder={t('editor.updatedAtHint')}
-                  />
-                </label>
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {t('editor.createdAtField')}
-                  </span>
-                  <Input
-                    value={date}
-                    onChange={event => setDate(event.target.value)}
-                    placeholder="YYYY-MM-DD"
-                  />
-                </label>
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {t('editor.tagsField')}
-                  </span>
-                  <TagsInput
-                    value={tags}
-                    onChange={setTags}
-                    placeholder={t('editor.tagsPlaceholder')}
-                  />
-                  {tags.length === 0 && (
-                    <span className="text-[0.65rem] leading-none text-muted-foreground">
-                      {t('editor.tagsHint')}
-                    </span>
+                  {grantError !== null && (
+                    <p className="text-sm text-destructive">
+                      {grantError.data.error ?? t('editor.grantError')}
+                    </p>
                   )}
-                </label>
-              </div>
-
-              <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/60 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setExtraOpen(value => !value)}
-                  className="flex items-center gap-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-                  aria-expanded={extraOpen}
-                >
-                  <ChevronDown
-                    className={`size-3.5 transition-transform ${extraOpen ? 'rotate-180' : ''}`}
-                  />
-                  {t('editor.extraFieldsTitle')}
-                </button>
-                <Button type="button" variant="outline" size="xs" onClick={addExtraField}>
-                  <Plus />
-                  {t('editor.addField')}
-                </Button>
-              </div>
-
-              {extraOpen && (
-                <div className="mt-3 space-y-2">
-                  {extraFields.length === 0 && (
-                    <p className="text-xs text-muted-foreground">{t('editor.extraFieldsEmpty')}</p>
-                  )}
-                  {extraFields.map(field => (
-                    <div key={field.id} className="flex items-center gap-2">
-                      <Input
-                        value={field.key}
-                        onChange={event => updateExtraField(field.id, { key: event.target.value })}
-                        placeholder={t('editor.fieldKeyPlaceholder')}
-                        className="h-8 w-32"
-                      />
-                      <Input
-                        value={field.value}
-                        onChange={event =>
-                          updateExtraField(field.id, { value: event.target.value })
-                        }
-                        placeholder={t('editor.fieldValuePlaceholder')}
-                        className="h-8 flex-1"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="xs"
-                        onClick={() => removeExtraField(field.id)}
-                        aria-label={t('editor.removeField')}
-                      >
-                        <X className="size-4" />
-                      </Button>
-                    </div>
-                  ))}
                 </div>
               )}
             </div>
-          ) : (
-            <div className="p-4">
-              <textarea
-                aria-label={t('editor.rawTab')}
-                value={rawFront}
-                onChange={event => {
-                  setRawFront(event.target.value);
-                  setRawDirty(true);
-                }}
-                className="h-64 w-full resize-y rounded-xl border border-input bg-background p-3 font-mono text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
-                spellCheck={false}
-              />
-              {rawError !== null && <p className="mt-2 text-sm text-destructive">{rawError}</p>}
-              <p className="mt-2 text-xs text-muted-foreground">{t('editor.rawHint')}</p>
+          )}
+
+          {messages.length > 0 && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+              {messages.map(message => (
+                <p key={message}>{message}</p>
+              ))}
             </div>
           )}
-        </div>
 
-        <div className="glass-control overflow-hidden rounded-2xl">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-4 py-2">
-            <span className="text-sm font-medium">{t('editor.bodyTitle')}</span>
-            <SegmentedControl
-              value={bodyTab}
-              onChange={switchBodyTab}
-              options={[
-                { value: 'editor', label: t('editor.editorTab') },
-                { value: 'source', label: t('editor.sourceTab') },
-              ]}
-            />
-          </div>
+          <div className="glass-control overflow-hidden rounded-2xl shadow-[0_10px_24px_-8px_rgba(0,0,0,0.28)] dark:shadow-[0_10px_24px_-8px_rgba(0,0,0,0.6)]">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
+              <span className="text-sm font-medium">{t('editor.frontmatterTitle')}</span>
+              <SegmentedControl
+                value={frontTab}
+                onChange={switchFrontTab}
+                options={[
+                  { value: 'fields', label: t('editor.fieldsTab') },
+                  { value: 'raw', label: t('editor.rawTab') },
+                ]}
+              />
+            </div>
 
-          <div className={bodyTab === 'editor' ? 'block' : 'hidden'}>
-            {(!editing || loaded) && (
-              <MilkdownEditor ref={editorRef} defaultValue={body} onUpload={handleUpload} />
+            {frontTab === 'fields' ? (
+              <div className="p-4">
+                <div className="flex flex-wrap items-end gap-3">
+                  <label className="flex min-w-0 flex-1 flex-col gap-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {t('editor.titleField')}
+                    </span>
+                    <Input
+                      value={title}
+                      onChange={event => setTitle(event.target.value)}
+                      placeholder={t('editor.titleField')}
+                      className="h-9"
+                    />
+                  </label>
+                  <label className="flex w-full flex-col gap-1.5 sm:w-56">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {t('editor.slugField')}
+                    </span>
+                    <Input
+                      value={slugValue}
+                      onChange={event => setSlugValue(event.target.value)}
+                      placeholder="my-post-slug"
+                      className="h-9"
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 border-t border-border/60 pt-4 sm:grid-cols-3">
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {t('editor.updatedAtField')}
+                    </span>
+                    <Input
+                      value={updatedDate}
+                      onChange={event => setUpdatedDate(event.target.value)}
+                      placeholder={t('editor.updatedAtHint')}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {t('editor.createdAtField')}
+                    </span>
+                    <Input
+                      value={date}
+                      onChange={event => setDate(event.target.value)}
+                      placeholder="YYYY-MM-DD"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {t('editor.tagsField')}
+                    </span>
+                    <TagsInput
+                      value={tags}
+                      onChange={setTags}
+                      placeholder={t('editor.tagsPlaceholder')}
+                    />
+                    {tags.length === 0 && (
+                      <span className="text-[0.65rem] leading-none text-muted-foreground">
+                        {t('editor.tagsHint')}
+                      </span>
+                    )}
+                  </label>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/60 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setExtraOpen(value => !value)}
+                    className="flex items-center gap-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+                    aria-expanded={extraOpen}
+                  >
+                    <ChevronDown
+                      className={`size-3.5 transition-transform ${extraOpen ? 'rotate-180' : ''}`}
+                    />
+                    {t('editor.extraFieldsTitle')}
+                  </button>
+                  <Button type="button" variant="outline" size="xs" onClick={addExtraField}>
+                    <Plus />
+                    {t('editor.addField')}
+                  </Button>
+                </div>
+
+                {extraOpen && (
+                  <div className="mt-3 space-y-2">
+                    {extraFields.length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {t('editor.extraFieldsEmpty')}
+                      </p>
+                    )}
+                    {extraFields.map(field => (
+                      <div key={field.id} className="flex items-center gap-2">
+                        <Input
+                          value={field.key}
+                          onChange={event =>
+                            updateExtraField(field.id, { key: event.target.value })
+                          }
+                          placeholder={t('editor.fieldKeyPlaceholder')}
+                          className="h-8 w-32"
+                        />
+                        <Input
+                          value={field.value}
+                          onChange={event =>
+                            updateExtraField(field.id, { value: event.target.value })
+                          }
+                          placeholder={t('editor.fieldValuePlaceholder')}
+                          className="h-8 flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => removeExtraField(field.id)}
+                          aria-label={t('editor.removeField')}
+                        >
+                          <X className="size-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-4">
+                <textarea
+                  aria-label={t('editor.rawTab')}
+                  value={rawFront}
+                  onChange={event => {
+                    setRawFront(event.target.value);
+                    setRawDirty(true);
+                  }}
+                  className="h-64 w-full resize-y rounded-xl border border-input bg-background p-3 font-mono text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+                  spellCheck={false}
+                />
+                {rawError !== null && <p className="mt-2 text-sm text-destructive">{rawError}</p>}
+                <p className="mt-2 text-xs text-muted-foreground">{t('editor.rawHint')}</p>
+              </div>
             )}
           </div>
 
-          {bodyTab === 'source' && (
-            <textarea
-              aria-label={t('editor.sourceTab')}
-              value={sourceBody}
-              onChange={event => {
-                setSourceBody(event.target.value);
-                setSourceDirty(true);
-              }}
-              className="min-h-[60vh] w-full resize-y bg-transparent p-4 font-mono text-sm leading-6 outline-none"
-              spellCheck={false}
-            />
-          )}
-        </div>
-      </form>
-    </div>
+          <div className="glass-control overflow-hidden rounded-2xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-4 py-2">
+              <span className="text-sm font-medium">{t('editor.bodyTitle')}</span>
+              <SegmentedControl
+                value={bodyTab}
+                onChange={switchBodyTab}
+                options={[
+                  { value: 'editor', label: t('editor.editorTab') },
+                  { value: 'source', label: t('editor.sourceTab') },
+                ]}
+              />
+            </div>
+
+            <div className={bodyTab === 'editor' ? 'block' : 'hidden'}>
+              {(!editing || loaded) && (
+                <MilkdownEditor ref={editorRef} defaultValue={body} onUpload={handleUpload} />
+              )}
+            </div>
+
+            {bodyTab === 'source' && (
+              <textarea
+                aria-label={t('editor.sourceTab')}
+                value={sourceBody}
+                onChange={event => {
+                  setSourceBody(event.target.value);
+                  setSourceDirty(true);
+                }}
+                className="min-h-[60vh] w-full resize-y bg-transparent p-4 font-mono text-sm leading-6 outline-none"
+                spellCheck={false}
+              />
+            )}
+          </div>
+        </form>
+      </div>
+
+      {agentOpen && (
+        <aside className="fixed top-24 bottom-4 z-40 w-80 left-[min(calc((100vw-64rem)/2+64rem+0.75rem),calc(100vw-21rem))] shadow-[0_24px_80px_-16px_rgba(0,0,0,0.45)]">
+          <AgentChat draft={agentDraft} className="h-full" onClose={() => setAgentOpen(false)} />
+        </aside>
+      )}
+    </>
   );
 }

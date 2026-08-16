@@ -59,6 +59,16 @@ export async function listSessions(): Promise<AgentSessionSummary[]> {
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
+export async function listSessionsFull(): Promise<AgentSession[]> {
+  const db = await openDb();
+  const tx = db.transaction(STORE, 'readonly');
+  const request = tx.objectStore(STORE).getAll() as IDBRequest<AgentSession[]>;
+  const sessions = await txResult(request);
+  await txDone(tx);
+  db.close();
+  return sessions.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
 export async function getSession(id: string): Promise<AgentSession | undefined> {
   const db = await openDb();
   const tx = db.transaction(STORE, 'readonly');
