@@ -10,6 +10,7 @@ import {
 } from '@tanstack/react-router';
 import { ChevronDown, Loader2, LogOut } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AmbientBackground } from '@/components/ambient-background';
 import { MigrationScreen } from '@/components/migration-screen';
@@ -34,7 +35,7 @@ import { EditorPage } from '@/pages/editor';
 import { HomePage } from '@/pages/home';
 import { LoginPage } from '@/pages/login';
 import { NotFoundPage } from '@/pages/not-found';
-import { SettingsPage } from '@/pages/settings';
+import { SettingsPage, AccountManagementPage } from '@/pages/settings';
 
 const basePath = window.location.pathname;
 
@@ -103,6 +104,11 @@ function AppHeader() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuItem asChild>
+                <Link to="/account" activeOptions={{ exact: true }}>
+                  {t('nav.account')}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
                 <Link to="/assets" activeOptions={{ exact: true }}>
                   {t('nav.assets')}
                 </Link>
@@ -148,6 +154,16 @@ function RootLayout() {
     siteName: settings.data?.site_name ?? undefined,
   });
 
+  useEffect(() => {
+    const url = window.location.pathname + window.location.search;
+    if (typeof window.gtag === 'function') {
+      window.gtag('event', 'page_view', { page_path: url });
+    }
+    if (typeof window.plausible === 'function') {
+      window.plausible('pageview', { url });
+    }
+  }, [pathname]);
+
   const migration = useQuery({
     queryKey: ['system', 'status'],
     queryFn: systemApi.status,
@@ -170,7 +186,10 @@ function RootLayout() {
   }
 
   const needsAuth =
-    pathname === '/settings' || pathname === '/assets' || pathname.startsWith('/editor');
+    pathname === '/settings' ||
+    pathname === '/assets' ||
+    pathname === '/account' ||
+    pathname.startsWith('/editor');
 
   let content: ReactNode;
 
@@ -280,6 +299,12 @@ function EditorRouteComponent() {
   return <EditorPage slug={editorRoute.useParams().slug} />;
 }
 
+export const accountRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/account',
+  component: AccountManagementPage,
+});
+
 export const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/settings',
@@ -305,6 +330,7 @@ const routeTree = rootRoute.addChildren([
   editorNewRoute,
   editorRoute,
   loginRoute,
+  accountRoute,
   settingsRoute,
   assetsRoute,
   notFoundRoute,

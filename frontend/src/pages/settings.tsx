@@ -1315,145 +1315,171 @@ function UpdateCard() {
   const data = status.data;
 
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardAction>
-          <ArrowDownToLine className="size-5 text-muted-foreground" />
-        </CardAction>
-        <CardTitle>{t('update.title')}</CardTitle>
-        <CardDescription>{t('update.description')}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {data === undefined ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
-            {t('update.checking')}
+    <>
+      <Card size="sm">
+        <CardHeader>
+          <CardAction>
+            <Globe className="size-5 text-muted-foreground" />
+          </CardAction>
+          <CardTitle>{t('update.aboutTitle')}</CardTitle>
+          <CardDescription>{t('update.aboutDescription')}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <p className="font-heading text-lg font-semibold">{t('update.aboutName')}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t('update.aboutText')}</p>
           </div>
-        ) : (
-          <>
-            <dl className="space-y-2 text-sm">
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-muted-foreground">{t('update.current')}</dt>
-                <dd className="font-medium">{data.current_version}</dd>
-              </div>
-              {data.latest_version !== null && (
+          <a
+            href="https://github.com/liyu1981/sifpress"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm text-foreground transition-colors hover:text-muted-foreground hover:underline"
+          >
+            <ExternalLink className="size-3.5" />
+            {t('update.aboutGithub')}
+          </a>
+        </CardContent>
+      </Card>
+
+      <Card size="sm">
+        <CardHeader>
+          <CardAction>
+            <ArrowDownToLine className="size-5 text-muted-foreground" />
+          </CardAction>
+          <CardTitle>{t('update.title')}</CardTitle>
+          <CardDescription>{t('update.description')}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {data === undefined ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              {t('update.checking')}
+            </div>
+          ) : (
+            <>
+              <dl className="space-y-2 text-sm">
                 <div className="flex items-center justify-between gap-4">
-                  <dt className="text-muted-foreground">{t('update.latest')}</dt>
-                  <dd className="font-medium">{data.latest_version}</dd>
+                  <dt className="text-muted-foreground">{t('update.current')}</dt>
+                  <dd className="font-medium">{data.current_version}</dd>
                 </div>
+                {data.latest_version !== null && (
+                  <div className="flex items-center justify-between gap-4">
+                    <dt className="text-muted-foreground">{t('update.latest')}</dt>
+                    <dd className="font-medium">{data.latest_version}</dd>
+                  </div>
+                )}
+              </dl>
+
+              {data.fetch_error !== null ? (
+                <p className="text-sm text-destructive">
+                  {data.fetch_error === 'network'
+                    ? t('update.fetchNetwork')
+                    : t('update.fetchBadJson')}
+                </p>
+              ) : data.update_available ? (
+                <p className="text-sm font-medium text-amber-600">{t('update.available')}</p>
+              ) : data.ahead ? (
+                <p className="text-sm text-muted-foreground">{t('update.ahead')}</p>
+              ) : (
+                <p className="text-sm text-emerald-600">{t('update.upToDate')}</p>
               )}
-            </dl>
 
-            {data.fetch_error !== null ? (
-              <p className="text-sm text-destructive">
-                {data.fetch_error === 'network'
-                  ? t('update.fetchNetwork')
-                  : t('update.fetchBadJson')}
-              </p>
-            ) : data.update_available ? (
-              <p className="text-sm font-medium text-amber-600">{t('update.available')}</p>
-            ) : data.ahead ? (
-              <p className="text-sm text-muted-foreground">{t('update.ahead')}</p>
-            ) : (
-              <p className="text-sm text-emerald-600">{t('update.upToDate')}</p>
-            )}
+              {data.update_available && (
+                <>
+                  {data.manifest?.notes != null && data.manifest.notes !== '' && (
+                    <p className="text-sm text-muted-foreground">{data.manifest.notes}</p>
+                  )}
 
-            {data.update_available && (
-              <>
-                {data.manifest?.notes != null && data.manifest.notes !== '' && (
-                  <p className="text-sm text-muted-foreground">{data.manifest.notes}</p>
-                )}
-
-                {data.can_upgrade ? (
-                  <div className="flex items-center gap-2">
-                    {!confirmOpen ? (
-                      <Button type="button" size="sm" onClick={() => setConfirmOpen(true)}>
-                        <ArrowDownToLine />
-                        {t('update.upgrade')}
-                      </Button>
-                    ) : (
-                      <>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setConfirmOpen(false)}
-                          disabled={run.isPending}
-                        >
-                          {t('editor.cancel')}
+                  {data.can_upgrade ? (
+                    <div className="flex items-center gap-2">
+                      {!confirmOpen ? (
+                        <Button type="button" size="sm" onClick={() => setConfirmOpen(true)}>
+                          <ArrowDownToLine />
+                          {t('update.upgrade')}
                         </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="default"
-                          onClick={() => run.mutate()}
-                          disabled={run.isPending}
-                        >
-                          {run.isPending ? (
-                            <Loader2 className="animate-spin" />
-                          ) : (
-                            <ArrowDownToLine />
+                      ) : (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setConfirmOpen(false)}
+                            disabled={run.isPending}
+                          >
+                            {t('editor.cancel')}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="default"
+                            onClick={() => run.mutate()}
+                            disabled={run.isPending}
+                          >
+                            {run.isPending ? (
+                              <Loader2 className="animate-spin" />
+                            ) : (
+                              <ArrowDownToLine />
+                            )}
+                            {run.isPending ? t('update.upgrading') : t('update.upgrade')}
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-3 rounded-xl bg-muted/40 p-4 text-sm">
+                      <p className="font-medium">{t('update.manualTitle')}</p>
+                      <p className="text-muted-foreground">{t('update.manualHint')}</p>
+                      {data.manifest?.url != null && (
+                        <p className="flex flex-wrap items-center gap-2">
+                          <Button asChild variant="outline" size="sm">
+                            <a href={data.manifest.url} target="_blank" rel="noopener noreferrer">
+                              <ArrowDownToLine />
+                              {t('update.downloadUrl')}
+                            </a>
+                          </Button>
+                          {data.manifest.md5 !== '' && (
+                            <code className="break-all rounded bg-muted px-2 py-1 text-xs">
+                              {data.manifest.md5}
+                            </code>
                           )}
-                          {run.isPending ? t('update.upgrading') : t('update.upgrade')}
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-3 rounded-xl bg-muted/40 p-4 text-sm">
-                    <p className="font-medium">{t('update.manualTitle')}</p>
-                    <p className="text-muted-foreground">{t('update.manualHint')}</p>
-                    {data.manifest?.url != null && (
-                      <p className="flex flex-wrap items-center gap-2">
-                        <Button asChild variant="outline" size="sm">
-                          <a href={data.manifest.url} target="_blank" rel="noopener noreferrer">
-                            <ArrowDownToLine />
-                            {t('update.downloadUrl')}
-                          </a>
-                        </Button>
-                        {data.manifest.md5 !== '' && (
-                          <code className="break-all rounded bg-muted px-2 py-1 text-xs">
-                            {data.manifest.md5}
-                          </code>
-                        )}
+                        </p>
+                      )}
+                      <ol className="list-inside list-decimal space-y-1 text-xs text-muted-foreground">
+                        <li>{t('update.manualStepBackup')}</li>
+                        <li>{t('update.manualStepDownload')}</li>
+                        <li>{t('update.manualStepVerify')}</li>
+                        <li>{t('update.manualStepReplace')}</li>
+                        <li>{t('update.manualStepReload')}</li>
+                      </ol>
+                      <p className="text-xs text-muted-foreground">
+                        {t('update.selfPath')}:{' '}
+                        <code className="rounded bg-muted px-1.5 py-0.5">{data.self_path}</code>
                       </p>
-                    )}
-                    <ol className="list-inside list-decimal space-y-1 text-xs text-muted-foreground">
-                      <li>{t('update.manualStepBackup')}</li>
-                      <li>{t('update.manualStepDownload')}</li>
-                      <li>{t('update.manualStepVerify')}</li>
-                      <li>{t('update.manualStepReplace')}</li>
-                      <li>{t('update.manualStepReload')}</li>
-                    </ol>
-                    <p className="text-xs text-muted-foreground">
-                      {t('update.selfPath')}:{' '}
-                      <code className="rounded bg-muted px-1.5 py-0.5">{data.self_path}</code>
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </>
   );
 }
 
-export function SettingsPage() {
+export function AccountManagementPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
 
-  usePageTitle(t('settings.title'));
+  usePageTitle(t('account.pageTitle'));
 
   const canManageUsers = user?.permissions.includes('users.manage') ?? false;
-  const canManageSettings = user?.permissions.includes('settings.manage') ?? false;
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6">
       <header className="space-y-2">
-        <h1 className="font-heading text-3xl font-bold tracking-tight">{t('settings.title')}</h1>
-        <p className="text-sm text-muted-foreground">{t('settings.description')}</p>
+        <h1 className="font-heading text-3xl font-bold tracking-tight">{t('account.pageTitle')}</h1>
+        <p className="text-sm text-muted-foreground">{t('account.pageDescription')}</p>
       </header>
 
       <Tabs defaultValue="account" className="gap-6 md:flex-row">
@@ -1463,7 +1489,7 @@ export function SettingsPage() {
             className="group justify-end rounded-full border-transparent px-0 data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent dark:data-[state=active]:shadow-none"
           >
             <span className="rounded-full px-3 py-1.5 transition-colors group-data-[state=active]:bg-accent group-data-[state=active]:text-accent-foreground">
-              {t('settings.tabAccount')}
+              {t('account.tabAccount')}
             </span>
           </TabsTrigger>
           {canManageUsers && (
@@ -1472,10 +1498,67 @@ export function SettingsPage() {
               className="group justify-end rounded-full border-transparent px-0 data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent dark:data-[state=active]:shadow-none"
             >
               <span className="rounded-full px-3 py-1.5 transition-colors group-data-[state=active]:bg-accent group-data-[state=active]:text-accent-foreground">
-                {t('settings.tabUsers')}
+                {t('account.tabUsers')}
               </span>
             </TabsTrigger>
           )}
+        </TabsList>
+
+        <TabsContent value="account" className="space-y-6">
+          {user !== null && (
+            <Card size="sm">
+              <CardHeader>
+                <CardAction>
+                  <UserRound className="size-5 text-muted-foreground" />
+                </CardAction>
+                <CardTitle>{t('settings.profileTitle')}</CardTitle>
+                <CardDescription>
+                  {user.username}
+                  {user.email ? ` · ${user.email}` : ''}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                {user.roles.map(role => (
+                  <Badge key={role} variant="secondary">
+                    {role}
+                  </Badge>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          <ProfileCard />
+
+          <ChangePasswordForm />
+        </TabsContent>
+
+        {canManageUsers && (
+          <TabsContent value="users">
+            <UsersCard />
+          </TabsContent>
+        )}
+      </Tabs>
+    </div>
+  );
+}
+
+export function SettingsPage() {
+  const { t } = useTranslation();
+  const { user } = useAuth();
+
+  usePageTitle(t('settings.title'));
+
+  const canManageSettings = user?.permissions.includes('settings.manage') ?? false;
+
+  return (
+    <div className="mx-auto w-full max-w-5xl space-y-6">
+      <header className="space-y-2">
+        <h1 className="font-heading text-3xl font-bold tracking-tight">{t('settings.title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('settings.description')}</p>
+      </header>
+
+      <Tabs defaultValue="system" className="gap-6 md:flex-row">
+        <TabsList className="w-fit flex-row gap-1 bg-transparent p-0 dark:bg-transparent md:h-auto md:w-44 md:flex-col md:items-stretch md:self-start">
           <TabsTrigger
             value="system"
             className="group justify-end rounded-full border-transparent px-0 data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent dark:data-[state=active]:shadow-none"
@@ -1523,40 +1606,6 @@ export function SettingsPage() {
             </TabsTrigger>
           )}
         </TabsList>
-
-        <TabsContent value="account" className="space-y-6">
-          {user !== null && (
-            <Card size="sm">
-              <CardHeader>
-                <CardAction>
-                  <UserRound className="size-5 text-muted-foreground" />
-                </CardAction>
-                <CardTitle>{t('settings.profileTitle')}</CardTitle>
-                <CardDescription>
-                  {user.username}
-                  {user.email ? ` · ${user.email}` : ''}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
-                {user.roles.map(role => (
-                  <Badge key={role} variant="secondary">
-                    {role}
-                  </Badge>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          <ProfileCard />
-
-          <ChangePasswordForm />
-        </TabsContent>
-
-        {canManageUsers && (
-          <TabsContent value="users">
-            <UsersCard />
-          </TabsContent>
-        )}
 
         <TabsContent value="system" className="space-y-6">
           <SystemSettingsCard />
