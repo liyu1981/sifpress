@@ -52,6 +52,7 @@ function serve_spa(string $route): never
     $meta .= '<meta name="app-version" content="' .
         htmlspecialchars(APP_VERSION, ENT_QUOTES | ENT_HTML5, 'UTF-8') .
         '">';
+    $meta .= '<script>window.APP_VERSION=' . json_encode(APP_VERSION) . ';</script>';
 
     /*
      * Rich SEO meta (title, description, OG/Twitter, canonical, JSON-LD)

@@ -1,10 +1,11 @@
 import { fileURLToPath, URL } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
+import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), tailwindcss()],
+  plugins: [TanStackRouterVite({ quoteStyle: 'single' }), react(), tailwindcss()],
   base: './',
   define: {
     'process.env.NODE_ENV': JSON.stringify(mode === 'dev' ? 'development' : 'production'),

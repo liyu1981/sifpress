@@ -85,8 +85,20 @@ src/                PHP source fragments (edit these)
   router.php        main router
 frontend/           React app (pnpm)
   src/              TypeScript + React + Tailwind v4
-    router.tsx      TanStack Router tree + ?u= rewrites (edit for new routes)
-    pages/          one file per route
+    routes/         file-based routes (TanStack Router)
+      __root.tsx    root layout (AppHeader, footer, auth gate)
+      index.tsx     /
+      article.tsx   /article (with ?tag= search)
+      article.$slug.tsx  /article/$slug
+      login.tsx     /login
+      editor/       /editor/*
+      account.tsx   /account
+      settings.tsx  /settings
+      assets.tsx    /assets
+      $.tsx         catch-all 404
+    routeTree.gen.ts  auto-generated route tree (do not edit)
+    router.tsx      createRouter + ?u= rewrite config
+    pages/          page components
     lib/            api.ts (fetch wrappers), utils.ts (cn)
     components/ui/  shadcn/ui components
   components.json   shadcn config (style "radix-nova", aliases @/*)
@@ -122,10 +134,14 @@ dist/               build artifacts (gitignored)
 
 - **TypeScript (strict) + React 19 + Tailwind CSS v4 + shadcn/ui** (Radix
   primitives, "nova" preset). Installed via `pnpm dlx shadcn@latest`.
-- **TanStack Router** handles SPA routing. The browser URL
-  `?u=editor/123` is mapped to the internal path `/editor/123` via the
-  router's `rewrite` option in `src/router.tsx` (`input`/`output` functions);
-  route changes use `pushState`, so back/forward work.
+- **TanStack Router** handles SPA routing with **file-based route
+  definitions** in `src/routes/`. The browser URL `?u=editor/123` is mapped
+  to the internal path `/editor/123` via the router's `rewrite` option in
+  `src/router.tsx` (`input`/`output` functions); route changes use
+  `pushState`, so back/forward work. The route tree is auto-generated into
+  `src/routeTree.gen.ts` by `@tanstack/router-plugin` — never edit it
+  directly. Search params are validated with `zod` (e.g. `?tag=` on
+  `/article`).
 - **TanStack Query** is used for all API calls. Fetch wrappers live in
   `src/lib/api.ts`; they hit
   `window.location.pathname?module=api&action=...` so the bundle works at any
