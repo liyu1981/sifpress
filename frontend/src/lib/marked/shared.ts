@@ -22,6 +22,7 @@ import {
   insertDiagramInputRule,
   remarkMermaidPlugin,
 } from './plugins/mermaid';
+import { diagramTooltip, configureDiagramTooltip } from './plugins/diagram-tooltip';
 
 export interface MarkdownEditorConfig {
   root?: Node | string | null;
@@ -89,7 +90,9 @@ export function createMarkdownEditor(config: MarkdownEditorConfig): CrepeBuilder
     builder.editor
       .use(imageDirectivesView)
       .config(configureImageDirectiveTooltip(onUpload))
-      .use(imageDirectiveTooltip);
+      .use(imageDirectiveTooltip)
+      .config(configureDiagramTooltip())
+      .use(diagramTooltip);
   }
 
   return builder;

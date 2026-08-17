@@ -74,19 +74,7 @@ function createDiagramView(node: Node, view: EditorView, getPos: () => number | 
   body.className = 'milkdown-diagram-body';
   root.appendChild(body);
 
-  const actions = document.createElement('div');
-  actions.className = 'milkdown-diagram-actions';
-  root.appendChild(actions);
-
-  const editButton = document.createElement('button');
-  editButton.type = 'button';
-  editButton.className = 'milkdown-diagram-edit';
-  editButton.textContent = '✎';
-  editButton.title = 'Edit diagram';
-  actions.appendChild(editButton);
-
   let chart = (node.attrs.value as string) ?? '';
-  let editing = false;
   let cancelled = false;
 
   const renderSvg = (): void => {
@@ -126,59 +114,8 @@ function createDiagramView(node: Node, view: EditorView, getPos: () => number | 
     body.appendChild(hint);
   };
 
-  const startEdit = (): void => {
-    editing = true;
-    actions.style.display = 'none';
-    body.textContent = '';
-
-    const textarea = document.createElement('textarea');
-    textarea.className = 'milkdown-diagram-input';
-    textarea.value = chart;
-    textarea.spellcheck = false;
-    body.appendChild(textarea);
-    textarea.focus();
-    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
-
-    const commit = (): void => {
-      if (!editing) {
-        return;
-      }
-      editing = false;
-      actions.style.display = '';
-      const next = textarea.value;
-      try {
-        const pos = getPos();
-        if (pos === undefined) {
-          return;
-        }
-        view.dispatch(
-          view.state.tr.setNodeMarkup(pos, undefined, {
-            ...node.attrs,
-            value: next,
-          }),
-        );
-      } catch {
-        // node no longer in the document
-      }
-      setChart(next);
-    };
-
-    textarea.addEventListener('keydown', event => {
-      if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        commit();
-      }
-    });
-    textarea.addEventListener('blur', commit);
-  };
-
-  editButton.addEventListener('click', startEdit);
-
   const setChart = (next: string): void => {
     chart = next;
-    if (editing) {
-      return;
-    }
     if (chart.trim() === '') {
       renderEmpty();
     } else {
@@ -187,9 +124,7 @@ function createDiagramView(node: Node, view: EditorView, getPos: () => number | 
   };
 
   const unregister = registerDiagramRerender(() => {
-    if (!editing) {
-      setChart(chart);
-    }
+    setChart(chart);
   });
 
   setChart(chart);
@@ -208,10 +143,7 @@ function createDiagramView(node: Node, view: EditorView, getPos: () => number | 
       return true;
     },
     stopEvent(event: Event) {
-      const target = event.target as HTMLElement;
-      return (
-        root.contains(target) && (target.tagName === 'TEXTAREA' || target.tagName === 'BUTTON')
-      );
+      return false;
     },
     destroy() {
       cancelled = true;

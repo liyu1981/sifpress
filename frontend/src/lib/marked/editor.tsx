@@ -73,15 +73,16 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
         return;
       }
 
-      let wasShown = false;
+      let wasEqShown = false;
+      let wasDiagShown = false;
 
       const observer = new MutationObserver(() => {
-        const edit = container.querySelector('.milkdown-latex-inline-edit');
-        const isShown = edit?.getAttribute('data-show') === 'true';
+        const eqEdit = container.querySelector('.milkdown-latex-inline-edit');
+        const eqShown = eqEdit?.getAttribute('data-show') === 'true';
 
-        if (isShown && !wasShown) {
+        if (eqShown && !wasEqShown) {
           setTimeout(() => {
-            const prose = edit?.querySelector('.ProseMirror');
+            const prose = eqEdit?.querySelector('.ProseMirror');
             if (prose instanceof HTMLElement) {
               prose.focus();
               const range = document.createRange();
@@ -93,8 +94,21 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
             }
           }, 100);
         }
+        wasEqShown = eqShown;
 
-        wasShown = isShown;
+        const diagTooltip = container.querySelector('.milkdown-diagram-tooltip');
+        const diagShown = diagTooltip?.getAttribute('data-show') === 'true';
+
+        if (diagShown && !wasDiagShown) {
+          setTimeout(() => {
+            const textarea = diagTooltip?.querySelector('.milkdown-diagram-tooltip-input');
+            if (textarea instanceof HTMLTextAreaElement) {
+              textarea.focus();
+              textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+            }
+          }, 100);
+        }
+        wasDiagShown = diagShown;
       });
 
       observer.observe(container, {
