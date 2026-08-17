@@ -67,6 +67,45 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
       setMermaidTheme(resolved);
     }, [resolved]);
 
+    useEffect(() => {
+      const container = containerRef.current;
+      if (!container) {
+        return;
+      }
+
+      let wasShown = false;
+
+      const observer = new MutationObserver(() => {
+        const edit = container.querySelector('.milkdown-latex-inline-edit');
+        const isShown = edit?.getAttribute('data-show') === 'true';
+
+        if (isShown && !wasShown) {
+          setTimeout(() => {
+            const prose = edit?.querySelector('.ProseMirror');
+            if (prose instanceof HTMLElement) {
+              prose.focus();
+              const range = document.createRange();
+              range.selectNodeContents(prose);
+              range.collapse(false);
+              const sel = window.getSelection();
+              sel?.removeAllRanges();
+              sel?.addRange(range);
+            }
+          }, 100);
+        }
+
+        wasShown = isShown;
+      });
+
+      observer.observe(container, {
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['data-show'],
+      });
+
+      return () => observer.disconnect();
+    }, []);
+
     return (
       <div
         ref={containerRef}
