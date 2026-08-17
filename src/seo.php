@@ -57,6 +57,10 @@ function settings_payload(): array
         'twitter_handle' => setting_get('twitter_handle', ''),
         'enable_sitemap' => setting_get('enable_sitemap', '1'),
         'robots_content' => setting_get('robots_content', ''),
+        'favicon_asset_id' => setting_get('favicon_asset_id', ''),
+        'apple_touch_icon_asset_id' => setting_get('apple_touch_icon_asset_id', ''),
+        'favicon_version' => setting_get('favicon_version', '0'),
+        'favicon_mime' => setting_get('favicon_mime', 'image/svg+xml'),
     ];
 }
 

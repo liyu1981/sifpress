@@ -162,12 +162,33 @@ export interface SeoSettings {
   twitter_handle: string;
   enable_sitemap: '0' | '1';
   robots_content: string;
+  favicon_asset_id: string;
+  apple_touch_icon_asset_id: string;
+  favicon_version: string;
+  favicon_mime: string;
 }
 
 export const settingsApi = {
   get: () => apiRequest<{ settings: SeoSettings }>('settings.get').then(r => r.settings),
   update: (input: Partial<SeoSettings>) =>
     apiRequest<{ ok: true }>('settings.update', {
+      method: 'PATCH',
+      body: input,
+    }),
+};
+
+export interface TrackingSettings {
+  enabled: '0' | '1';
+  provider: string;
+  id: string;
+  script_url: string;
+  anonymize_ip: '0' | '1';
+}
+
+export const trackingApi = {
+  get: () => apiRequest<{ tracking: TrackingSettings }>('tracking.get').then(r => r.tracking),
+  update: (input: Partial<TrackingSettings>) =>
+    apiRequest<{ ok: true }>('tracking.update', {
       method: 'PATCH',
       body: input,
     }),

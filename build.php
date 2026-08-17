@@ -77,6 +77,8 @@ $parts = [
     'api.php',
     'asset.php',
     'seo.php',
+    'tracking.php',
+    'favicon.php',
     'spa.php',
     'embed.php',
     'migrations.php',

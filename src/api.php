@@ -562,6 +562,71 @@ function api_settings_get(string $method): never
     json_response(['settings' => settings_payload()]);
 }
 
+function api_tracking_get(string $method): never
+{
+    if ($method !== 'GET') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    json_response(['tracking' => tracking_payload()]);
+}
+
+function api_tracking_update(string $method): never
+{
+    if ($method !== 'PATCH') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_permission('settings.manage');
+
+    $body = read_json_body();
+    $rules = [
+        'enabled'      => ['enum' => ['0', '1']],
+        'provider'     => ['enum' => ['gtag', 'plausible', 'fathom', 'matomo', ''], 'max' => 32],
+        'id'           => ['max' => 200],
+        'script_url'   => ['max' => 500, 'url' => true],
+        'anonymize_ip' => ['enum' => ['0', '1']],
+    ];
+
+    $sets = [];
+    $errors = [];
+
+    foreach ($rules as $key => $rule) {
+        if (!array_key_exists($key, $body)) {
+            continue;
+        }
+
+        $value = trim((string) $body[$key]);
+
+        if (isset($rule['enum']) && !in_array($value, $rule['enum'], true)) {
+            $errors[$key] = ['must be ' . implode(' or ', $rule['enum'])];
+            continue;
+        }
+
+        if (isset($rule['url']) && $value !== '' && !filter_var($value, FILTER_VALIDATE_URL)) {
+            $errors[$key] = ['invalid URL'];
+            continue;
+        }
+
+        if (isset($rule['max']) && mb_strlen($value) > $rule['max']) {
+            $errors[$key] = ['must be at most ' . $rule['max'] . ' characters'];
+            continue;
+        }
+
+        $sets[$key] = $value;
+    }
+
+    if ($errors !== []) {
+        json_response(['error' => 'validation failed', 'errors' => $errors], 422);
+    }
+
+    foreach ($sets as $key => $value) {
+        setting_set($key, $value);
+    }
+
+    json_response(['ok' => true]);
+}
+
 function api_settings_update(string $method): never
 {
     if ($method !== 'PATCH') {
@@ -579,6 +644,8 @@ function api_settings_update(string $method): never
         'twitter_handle' => ['max' => 32, 'handle' => true],
         'enable_sitemap' => ['enum' => ['0', '1']],
         'robots_content' => ['max' => 2000],
+        'favicon_asset_id' => ['max' => 20],
+        'apple_touch_icon_asset_id' => ['max' => 20],
     ];
 
     $sets = [];
@@ -621,6 +688,23 @@ function api_settings_update(string $method): never
 
     foreach ($sets as $key => $value) {
         setting_set($key, $value);
+    }
+
+    if (isset($sets['favicon_asset_id']) || isset($sets['apple_touch_icon_asset_id'])) {
+        $current = (string) setting_get('favicon_version', '0');
+        setting_set('favicon_version', (string) ((int) $current + 1));
+    }
+
+    if (isset($sets['favicon_asset_id'])) {
+        $favId = (int) $sets['favicon_asset_id'];
+        if ($favId > 0) {
+            $favRow = db()->query('SELECT mime FROM assets WHERE id = ' . $favId)->fetch();
+            if ($favRow !== false) {
+                setting_set('favicon_mime', (string) $favRow['mime']);
+            }
+        } else {
+            setting_set('favicon_mime', 'image/svg+xml');
+        }
     }
 
     json_response(['ok' => true]);
@@ -1963,6 +2047,7 @@ function handle_api(string $action, string $method): never
         'auth.me',
         'system.status',
         'settings.get',
+        'tracking.get',
         'pages.list',
         'pages.get',
         'pages.search',
@@ -1992,6 +2077,7 @@ function handle_api(string $action, string $method): never
                     'auth.profile', 'auth.avatar',
                     'system.status',
                     'settings.get', 'settings.update',
+                    'tracking.get', 'tracking.update',
                     'pages.list', 'pages.get', 'pages.create', 'pages.update',
                     'pages.delete', 'pages.search', 'pages.grants', 'pages.grant',
                     'pages.revokeGrant',
@@ -2028,6 +2114,12 @@ function handle_api(string $action, string $method): never
 
         case 'settings.update':
             api_settings_update($method);
+
+        case 'tracking.get':
+            api_tracking_get($method);
+
+        case 'tracking.update':
+            api_tracking_update($method);
 
         case 'pages.list':
             api_pages_list($method);

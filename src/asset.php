@@ -400,4 +400,6 @@ function handle_asset(string $method): never
     if (is_resource($stream)) {
         fpassthru($stream);
     }
+
+    exit;
 }

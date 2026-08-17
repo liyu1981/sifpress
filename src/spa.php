@@ -92,6 +92,30 @@ function serve_spa(string $route): never
      * Because the whole bundle lives after </head>, the last occurrence is
      * always the genuine document head close.
      */
+    $tracking = tracking_head_tags();
+    if ($tracking !== '') {
+        $meta .= $tracking;
+    }
+
+    if (!db_needs_migration()) {
+        $faviconId = (string) setting_get('favicon_asset_id', '');
+        $appleId = (string) setting_get('apple_touch_icon_asset_id', '');
+        $faviconVersion = (string) setting_get('favicon_version', '0');
+
+        if ($faviconId !== '' && $faviconId !== '0') {
+            $faviconUrl = base_url() . '?module=asset&id=' . $faviconId . '&v=' . $faviconVersion;
+            $faviconMime = (string) setting_get('favicon_mime', 'image/svg+xml');
+            $meta .= '<link rel="icon" type="' . seo_esc($faviconMime) . '" href="' . seo_esc($faviconUrl) . '">';
+        } else {
+            $meta .= '<link rel="icon" type="image/svg+xml" href="' . seo_esc(base_url() . '?module=favicon') . '">';
+        }
+
+        if ($appleId !== '' && $appleId !== '0') {
+            $appleUrl = base_url() . '?module=asset&id=' . $appleId . '&v=' . $faviconVersion;
+            $meta .= '<link rel="apple-touch-icon" href="' . seo_esc($appleUrl) . '">';
+        }
+    }
+
     $pos = strrpos($html, '</head>');
     if ($pos !== false) {
         $html = substr_replace($html, $meta . '</head>', $pos, strlen('</head>'));

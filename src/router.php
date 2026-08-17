@@ -34,6 +34,10 @@ if ($module === 'seo') {
     handle_seo((string) request_param('action', 'robots'), $method);
 }
 
+if ($module === 'favicon') {
+    handle_favicon();
+}
+
 // ___BEGIN_DEV_ROUTE___
 if ($module === 'dev') {
     handle_dev((string) request_param('action', 'status'), $method);

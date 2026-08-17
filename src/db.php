@@ -194,6 +194,42 @@ function seed_rbac(): void
 }
 
 /**
+ * Idempotent default-favicon seed: inserts a "Shifu" SVG into the assets
+ * table and links it as the site favicon + apple-touch-icon. Runs once;
+ * subsequent calls are no-ops.
+ */
+function seed_favicon(): void
+{
+    $pdo = db();
+
+    $check = $pdo->query("SELECT value FROM settings WHERE key = 'favicon_asset_id'")->fetch();
+
+    if ($check === false || ((string) $check['value']) !== '') {
+        return;
+    }
+
+    $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">'
+        . '<rect width="180" height="180" rx="40" fill="#6366f1"/>'
+        . '<text x="90" y="90" font-family="-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif" '
+        . 'font-size="110" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="central">S</text></svg>';
+
+    $stmt = $pdo->prepare(
+        'INSERT INTO assets (name, mime, kind, size_bytes, data, is_public) VALUES (?, ?, ?, ?, ?, 1)'
+    );
+    $stmt->execute(['default-favicon.svg', 'image/svg+xml', 'image', strlen($svg), $svg]);
+    $id = (int) $pdo->lastInsertId();
+
+    $pdo->prepare("UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'favicon_asset_id'")
+        ->execute([(string) $id]);
+    $pdo->prepare("UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'apple_touch_icon_asset_id'")
+        ->execute([(string) $id]);
+    $pdo->prepare("UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'favicon_version'")
+        ->execute([(string) time()]);
+    $pdo->prepare("UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'favicon_mime'")
+        ->execute(['image/svg+xml']);
+}
+
+/**
  * Idempotent default-admin bootstrap: only when the users table is empty.
  * Credentials default to admin / admin and can be overridden with the
  * ADMIN_PASSWORD env var. The account is flagged must_change_password so

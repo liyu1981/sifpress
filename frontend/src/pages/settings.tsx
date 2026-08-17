@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowDownToLine,
+  BarChart3,
   ChevronDown,
   ExternalLink,
   Globe,
+  Image,
   Loader2,
   Save,
   Search,
@@ -30,17 +32,27 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { ApiError } from '@/lib/api';
 import { makeAvatarThumb } from '@/lib/assets';
 import { useAuth } from '@/lib/auth';
 import {
+  assetsApi,
   authApi,
   type RoleListItem,
   rolesApi,
   type SeoSettings,
   settingsApi,
+  type TrackingSettings,
+  trackingApi,
   type UserListItem,
   usersApi,
 } from '@/lib/pages';
@@ -853,6 +865,184 @@ function SeoSettingsCard() {
   );
 }
 
+function TrackingSettingsCard() {
+  const { t } = useTranslation();
+  const [form, setForm] = useState<TrackingSettings | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  const query = useQuery({
+    queryKey: ['tracking-settings'],
+    queryFn: trackingApi.get,
+  });
+
+  useEffect(() => {
+    if (query.data !== undefined && form === null) {
+      setForm(query.data);
+    }
+  }, [query.data, form]);
+
+  const save = useMutation({
+    mutationFn: (input: Partial<TrackingSettings>) => trackingApi.update(input),
+    onSuccess: () => {
+      setError(null);
+      setDone(true);
+    },
+    onError: err => {
+      setDone(false);
+      setError(
+        err instanceof ApiError
+          ? (err.data.error ?? t('tracking.settingsError'))
+          : t('tracking.settingsError'),
+      );
+    },
+  });
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setDone(false);
+
+    if (form === null) {
+      return;
+    }
+
+    save.mutate({
+      enabled: form.enabled,
+      provider: form.provider,
+      id: form.id.trim(),
+      script_url: form.script_url.trim(),
+      anonymize_ip: form.anonymize_ip,
+    });
+  }
+
+  if (query.isLoading || form === null) {
+    return (
+      <Card size="sm">
+        <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" />
+          {t('settings.loading')}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const showId = form.provider !== '';
+
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardAction>
+          <BarChart3 className="size-5 text-muted-foreground" />
+        </CardAction>
+        <CardTitle>{t('tracking.title')}</CardTitle>
+        <CardDescription>{t('tracking.description')}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium">{t('tracking.enabledField')}</p>
+              <p className="text-xs text-muted-foreground">{t('tracking.enabledHint')}</p>
+            </div>
+            <Switch
+              checked={form.enabled === '1'}
+              onCheckedChange={checked =>
+                setForm(prev => (prev !== null ? { ...prev, enabled: checked ? '1' : '0' } : prev))
+              }
+              aria-label={t('tracking.enabledField')}
+            />
+          </div>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-muted-foreground">
+              {t('tracking.providerField')}
+            </span>
+            <Select
+              value={form.provider}
+              onValueChange={value =>
+                setForm(prev => (prev !== null ? { ...prev, provider: value } : prev))
+              }
+            >
+              <SelectTrigger className="h-9 w-full">
+                <SelectValue placeholder={t('tracking.providerPlaceholder')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="gtag">{t('tracking.providerGtag')}</SelectItem>
+                <SelectItem value="plausible">{t('tracking.providerPlausible')}</SelectItem>
+                <SelectItem value="fathom">{t('tracking.providerFathom')}</SelectItem>
+                <SelectItem value="matomo">{t('tracking.providerMatomo')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </label>
+
+          {showId && (
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">
+                {t('tracking.idField')}
+              </span>
+              <Input
+                value={form.id}
+                onChange={event =>
+                  setForm(prev => (prev !== null ? { ...prev, id: event.target.value } : prev))
+                }
+                placeholder={t('tracking.idPlaceholder')}
+                className="h-9"
+              />
+              <p className="text-xs text-muted-foreground">{t('tracking.idHint')}</p>
+            </label>
+          )}
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-muted-foreground">
+              {t('tracking.scriptUrlField')}
+            </span>
+            <Input
+              value={form.script_url}
+              onChange={event =>
+                setForm(prev =>
+                  prev !== null ? { ...prev, script_url: event.target.value } : prev,
+                )
+              }
+              placeholder={t('tracking.scriptUrlPlaceholder')}
+              className="h-9"
+            />
+            <p className="text-xs text-muted-foreground">{t('tracking.scriptUrlHint')}</p>
+          </label>
+
+          {form.provider === 'gtag' && (
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium">{t('tracking.anonymizeIpField')}</p>
+                <p className="text-xs text-muted-foreground">{t('tracking.anonymizeIpHint')}</p>
+              </div>
+              <Switch
+                checked={form.anonymize_ip === '1'}
+                onCheckedChange={checked =>
+                  setForm(prev =>
+                    prev !== null ? { ...prev, anonymize_ip: checked ? '1' : '0' } : prev,
+                  )
+                }
+                aria-label={t('tracking.anonymizeIpField')}
+              />
+            </div>
+          )}
+
+          {error !== null && <p className="text-sm text-destructive">{error}</p>}
+          {done && <p className="text-sm text-muted-foreground">{t('tracking.saved')}</p>}
+
+          <div className="flex justify-end">
+            <Button type="submit" size="sm" disabled={save.isPending}>
+              {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
+              {t('tracking.save')}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
 function SystemSettingsCard() {
   const { i18n, t } = useTranslation();
   const current = i18n.language?.startsWith('zh') ? 'zh' : 'en';
@@ -887,6 +1077,206 @@ function SystemSettingsCard() {
             ))}
           </div>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+const FAVICON_ACCEPT = 'image/png,image/jpeg,image/webp,image/avif,image/gif';
+
+function FaviconCard() {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [uploading, setUploading] = useState<'favicon' | 'apple' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const faviconInputRef = useRef<HTMLInputElement>(null);
+  const appleInputRef = useRef<HTMLInputElement>(null);
+
+  const query = useQuery({
+    queryKey: ['seo-settings'],
+    queryFn: settingsApi.get,
+  });
+
+  const faviconId = query.data?.favicon_asset_id ?? '';
+  const appleId = query.data?.apple_touch_icon_asset_id ?? '';
+  const faviconVersion = query.data?.favicon_version ?? '0';
+
+  function faviconUrl(id: string): string {
+    if (id === '' || id === '0') {
+      return '';
+    }
+    const params = new URLSearchParams({ module: 'asset', id, t: faviconVersion });
+    return `${window.location.pathname}?${params.toString()}`;
+  }
+
+  async function handleUpload(type: 'favicon' | 'apple', file: File) {
+    setUploading(type);
+    setError(null);
+    setDone(false);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const result = await assetsApi.create(formData);
+      const assetId = String(result.asset.id);
+
+      if (type === 'favicon') {
+        await settingsApi.update({ favicon_asset_id: assetId });
+      } else {
+        await settingsApi.update({ apple_touch_icon_asset_id: assetId });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['seo-settings'] });
+      setDone(true);
+    } catch {
+      setError(t('favicon.uploadError'));
+    } finally {
+      setUploading(null);
+    }
+  }
+
+  function handleFileChange(type: 'favicon' | 'apple', event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (file === undefined) return;
+    void handleUpload(type, file);
+  }
+
+  async function handleRemove(type: 'favicon' | 'apple') {
+    setError(null);
+    setDone(false);
+
+    try {
+      if (type === 'favicon') {
+        await settingsApi.update({ favicon_asset_id: '' });
+      } else {
+        await settingsApi.update({ apple_touch_icon_asset_id: '' });
+      }
+      queryClient.invalidateQueries({ queryKey: ['seo-settings'] });
+      setDone(true);
+    } catch {
+      setError(t('favicon.error'));
+    }
+  }
+
+  if (query.isLoading) {
+    return (
+      <Card size="sm">
+        <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" />
+          {t('settings.loading')}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardAction>
+          <Image className="size-5 text-muted-foreground" />
+        </CardAction>
+        <CardTitle>{t('favicon.title')}</CardTitle>
+        <CardDescription>{t('favicon.description')}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-3">
+          <Label>{t('favicon.faviconLabel')}</Label>
+          <div className="flex items-center gap-4">
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/50">
+              {faviconId !== '' && faviconId !== '0' ? (
+                <img src={faviconUrl(faviconId)} alt="" className="size-8 rounded object-contain" />
+              ) : (
+                <Image className="size-5 text-muted-foreground" />
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  ref={faviconInputRef}
+                  type="file"
+                  accept={FAVICON_ACCEPT}
+                  className="hidden"
+                  onChange={event => handleFileChange('favicon', event)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={uploading !== null}
+                  onClick={() => faviconInputRef.current?.click()}
+                >
+                  {uploading === 'favicon' ? <Loader2 className="animate-spin" /> : <Upload />}
+                  {uploading === 'favicon' ? t('favicon.uploading') : t('favicon.upload')}
+                </Button>
+                {faviconId !== '' && faviconId !== '0' && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={uploading !== null}
+                    onClick={() => handleRemove('favicon')}
+                  >
+                    {t('favicon.remove')}
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">{t('favicon.faviconHint')}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3 border-t border-border/60 pt-4">
+          <Label>{t('favicon.appleTouchLabel')}</Label>
+          <div className="flex items-center gap-4">
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/50">
+              {appleId !== '' && appleId !== '0' ? (
+                <img src={faviconUrl(appleId)} alt="" className="size-8 rounded object-contain" />
+              ) : (
+                <Image className="size-5 text-muted-foreground" />
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  ref={appleInputRef}
+                  type="file"
+                  accept={FAVICON_ACCEPT}
+                  className="hidden"
+                  onChange={event => handleFileChange('apple', event)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={uploading !== null}
+                  onClick={() => appleInputRef.current?.click()}
+                >
+                  {uploading === 'apple' ? <Loader2 className="animate-spin" /> : <Upload />}
+                  {uploading === 'apple' ? t('favicon.uploading') : t('favicon.upload')}
+                </Button>
+                {appleId !== '' && appleId !== '0' && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={uploading !== null}
+                    onClick={() => handleRemove('apple')}
+                  >
+                    {t('favicon.remove')}
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">{t('favicon.appleTouchHint')}</p>
+            </div>
+          </div>
+        </div>
+
+        <p className="text-xs text-muted-foreground">{t('favicon.formats')}</p>
+
+        {error !== null && <p className="text-sm text-destructive">{error}</p>}
+        {done && <p className="text-sm text-muted-foreground">{t('favicon.saved')}</p>}
       </CardContent>
     </Card>
   );
@@ -1112,6 +1502,16 @@ export function SettingsPage() {
               </span>
             </TabsTrigger>
           )}
+          {canManageSettings && (
+            <TabsTrigger
+              value="tracking"
+              className="group justify-end rounded-full border-transparent px-0 data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent dark:data-[state=active]:shadow-none"
+            >
+              <span className="rounded-full px-3 py-1.5 transition-colors group-data-[state=active]:bg-accent group-data-[state=active]:text-accent-foreground">
+                {t('tracking.tab')}
+              </span>
+            </TabsTrigger>
+          )}
           {user !== null && user.roles.includes('admin') && (
             <TabsTrigger
               value="update"
@@ -1160,6 +1560,7 @@ export function SettingsPage() {
 
         <TabsContent value="system" className="space-y-6">
           <SystemSettingsCard />
+          <FaviconCard />
         </TabsContent>
 
         <TabsContent value="agent" className="space-y-6">
@@ -1169,6 +1570,12 @@ export function SettingsPage() {
         {canManageSettings && (
           <TabsContent value="seo" className="space-y-6">
             <SeoSettingsCard />
+          </TabsContent>
+        )}
+
+        {canManageSettings && (
+          <TabsContent value="tracking" className="space-y-6">
+            <TrackingSettingsCard />
           </TabsContent>
         )}
 
