@@ -493,12 +493,12 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
     }
     return (
       <div key={index} className="flex items-start gap-2">
-        <div className="glass-control mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-lg">
+        <div className="glass-control-opaque mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-lg">
           <Bot className="size-3.5 text-muted-foreground" />
         </div>
         <div className="min-w-0 max-w-[88%] space-y-1.5">
           {text !== '' && (
-            <div className="glass-control rounded-2xl px-3 py-2">
+            <div className="glass-control-opaque rounded-2xl px-3 py-2">
               <MarkdownView content={text} />
             </div>
           )}
@@ -516,7 +516,7 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
   return (
     <div
       className={cn(
-        'glass-control flex h-full min-h-0 flex-col overflow-hidden rounded-2xl',
+        'glass-control-opaque flex h-full min-h-0 flex-col overflow-hidden rounded-2xl',
         className,
       )}
     >
@@ -553,7 +553,7 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
           const isLatest = index === sessions.length - 1;
           const isCollapsed = collapsed.has(s.id);
           return (
-            <div key={s.id} className="glass-control overflow-hidden rounded-xl">
+            <div key={s.id} className="glass-control-opaque overflow-hidden rounded-xl">
               <div className="flex items-center gap-1 border-b border-border/40 p-1.5 pr-2">
                 <button
                   type="button"
@@ -594,7 +594,7 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
                   )}
                   {isLatest && streamingText !== '' && (
                     <div className="flex items-start gap-2">
-                      <div className="glass-control mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-lg">
+                      <div className="glass-control-opaque mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-lg">
                         <Bot className="size-3.5 text-muted-foreground" />
                       </div>
                       <div className="min-w-0 max-w-[88%] rounded-2xl border border-border/40 bg-muted/40 px-3 py-2">
@@ -677,7 +677,7 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
             event.preventDefault();
             void handleSend();
           }}
-          className="flex items-end gap-1.5"
+          className="flex items-stretch gap-1.5"
         >
           <textarea
             value={input}

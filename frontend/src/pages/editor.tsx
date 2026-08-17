@@ -759,19 +759,6 @@ export function EditorPage({ slug }: { slug: string | null }) {
                 {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
                 {t('editor.save')}
               </Button>
-              {!agentOpen && (
-                <Button
-                  type="button"
-                  variant="glass"
-                  size="sm"
-                  onClick={() => setAgentOpen(value => !value)}
-                  className="rounded-full"
-                  aria-expanded={agentOpen}
-                >
-                  <Bot />
-                  {t('agent.title')}
-                </Button>
-              )}
             </div>
           </div>
 
@@ -1184,12 +1171,27 @@ export function EditorPage({ slug }: { slug: string | null }) {
         </form>
       </div>
 
+      {!agentOpen && (
+        <button
+          type="button"
+          onClick={() => setAgentOpen(true)}
+          className="glass-control fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35)] transition-transform hover:scale-105 active:scale-95 dark:shadow-[0_8px_32px_-4px_rgba(0,0,0,0.6)]"
+          aria-expanded={agentOpen}
+        >
+          <Bot className="size-4" />
+          {t('agent.title')}
+        </button>
+      )}
+
       {agentOpen && (
-        <aside className="fixed top-24 bottom-4 z-40 w-80 left-[min(calc((100vw-64rem)/2+64rem+0.75rem),calc(100vw-21rem))] shadow-[0_24px_80px_-16px_rgba(0,0,0,0.45)]">
+        <aside
+          className="fixed bottom-0 left-1/2 z-50 flex -translate-x-1/2 flex-col shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.35)] dark:shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.6)]"
+          style={{ width: 'min(80vw, 51.2rem)' }}
+        >
           <AgentChat
             draft={agentDraft}
             editor={editorBridge}
-            className="h-full"
+            className="h-[70vh] rounded-b-none"
             onClose={() => setAgentOpen(false)}
           />
         </aside>
