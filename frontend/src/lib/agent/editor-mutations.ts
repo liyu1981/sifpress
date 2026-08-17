@@ -12,6 +12,14 @@ export interface EditorFrontMatter {
   date: string;
   tags: string[];
   extra: Array<{ key: string; value: string }>;
+  seo: {
+    seo_title: string;
+    description: string;
+    keywords: string;
+    og_image: string;
+    canonical: string;
+    noindex: boolean;
+  };
 }
 
 export type FrontMatterPatch = Partial<EditorFrontMatter>;

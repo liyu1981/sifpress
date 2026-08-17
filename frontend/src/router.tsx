@@ -23,8 +23,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Toaster } from '@/components/ui/sonner';
+import { usePageMeta } from '@/hooks/use-page-meta';
 import { useAuth } from '@/lib/auth';
-import { DEMO_PAGE_SLUG, systemApi } from '@/lib/pages';
+import { DEMO_PAGE_SLUG, settingsApi, systemApi } from '@/lib/pages';
 import { ArticleDetailPage } from '@/pages/article-detail';
 import { ArticleIndexPage } from '@/pages/article-index';
 import { AssetsPage } from '@/pages/assets';
@@ -133,6 +134,18 @@ function RootLayout() {
   const { status, user } = useAuth();
   const pathname = useRouterState({
     select: state => state.location.pathname,
+  });
+
+  const settings = useQuery({
+    queryKey: ['seo-settings'],
+    queryFn: settingsApi.get,
+    staleTime: 60_000,
+  });
+
+  usePageMeta({
+    title: `${t('nav.article')} — ${settings.data?.site_name ?? 'Sifpress'}`,
+    description: settings.data?.site_description ?? '',
+    siteName: settings.data?.site_name ?? undefined,
   });
 
   const migration = useQuery({

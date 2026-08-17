@@ -8,11 +8,12 @@ import { TableOfContents, useArticleHeadings, useScrollSpy } from '@/components/
 import { ReadingProgress } from '@/components/reading-progress';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { usePageTitle } from '@/hooks/use-page-title';
+import { usePageMeta } from '@/hooks/use-page-meta';
 import { avatarUrl } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { estimateReadingMinutes, formatDate } from '@/lib/format';
 import { frontMatterString, parseFrontMatter } from '@/lib/front-matter';
+import { log } from '@/lib/logger';
 import { MarkdownView } from '@/lib/marked';
 import { pagesApi } from '@/lib/pages';
 import { cn } from '@/lib/utils';
@@ -84,10 +85,27 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
 
   const article = useQuery({
     queryKey: ['page', slug],
-    queryFn: () => pagesApi.get({ slug }),
+    queryFn: () => {
+      log('[DETAIL] pages.get START slug=%s', slug);
+      return pagesApi.get({ slug }).then(p => {
+        log('[DETAIL] pages.get RESOLVED slug=%s title=%s contentLen=%d', slug, p?.title, p?.content_md?.length);
+        return p;
+      });
+    },
   });
 
-  usePageTitle(article.data?.title ?? t('article.loadingTitle'));
+  usePageMeta(
+    article.data !== undefined && article.data !== null
+      ? {
+          title: article.data.seo.title,
+          description: article.data.seo.description,
+          image: article.data.seo.og_image,
+          canonical: article.data.seo.canonical,
+          noindex: article.data.seo.noindex,
+          type: 'article',
+        }
+      : { title: t('article.loadingTitle') },
+  );
 
   const headings = useArticleHeadings(
     contentRef,
@@ -96,7 +114,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
   const activeId = useScrollSpy(headings);
 
   const prevNext = useQuery({
-    queryKey: ['pages'],
+    queryKey: ['pages', { per_page: 50 }],
     queryFn: () => pagesApi.list({ per_page: 50 }),
   });
 

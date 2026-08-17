@@ -37,6 +37,16 @@ export interface Page {
   created_at: string;
   updated_at: string;
   can_edit: boolean;
+  seo: PageSeo;
+}
+
+export interface PageSeo {
+  title: string;
+  description: string;
+  og_image: string;
+  canonical: string;
+  noindex: boolean;
+  keywords: string;
 }
 
 export interface PageListItem {
@@ -142,6 +152,25 @@ export interface PageInput {
 
 export const systemApi = {
   status: () => apiRequest<SystemStatus>('system.status'),
+};
+
+export interface SeoSettings {
+  site_name: string;
+  site_description: string;
+  site_url: string;
+  default_og_image: string;
+  twitter_handle: string;
+  enable_sitemap: '0' | '1';
+  robots_content: string;
+}
+
+export const settingsApi = {
+  get: () => apiRequest<{ settings: SeoSettings }>('settings.get').then(r => r.settings),
+  update: (input: Partial<SeoSettings>) =>
+    apiRequest<{ ok: true }>('settings.update', {
+      method: 'PATCH',
+      body: input,
+    }),
 };
 
 export const authApi = {

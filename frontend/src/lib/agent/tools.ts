@@ -173,6 +173,16 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
           { description: 'Replace the full extra-fields list' },
         ),
       ),
+      seo: Type.Optional(
+        Type.Object({
+          seo_title: Type.Optional(Type.String({ description: 'SEO <title> override' })),
+          description: Type.Optional(Type.String({ description: 'Meta description' })),
+          keywords: Type.Optional(Type.String({ description: 'Comma-separated keywords' })),
+          og_image: Type.Optional(Type.String({ description: 'Open Graph image URL' })),
+          canonical: Type.Optional(Type.String({ description: 'Canonical URL override' })),
+          noindex: Type.Optional(Type.Boolean({ description: 'Suppress search indexing' })),
+        }),
+      ),
     }),
     execute: async (_id, args) => {
       if (editor === undefined) {
@@ -195,6 +205,9 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
       if (args.extra !== undefined) {
         patch.extra = args.extra;
       }
+      if (args.seo !== undefined) {
+        patch.seo = { ...current.seo, ...args.seo };
+      }
       editor.setFrontMatter(patch);
       const next = editor.getFrontMatter();
       const lines = [
@@ -202,7 +215,7 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
           next.extra.length > 0
             ? `\n- extra: ${next.extra.map(f => `${f.key}=${f.value}`).join(', ')}`
             : ''
-        }`,
+        }${next.seo.description !== '' ? `\n- description: ${next.seo.description}` : ''}`,
       ];
       if (current.title !== next.title || current.slug !== next.slug) {
         lines.push(`Previous: title "${current.title}", slug "${current.slug}".`);

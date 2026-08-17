@@ -30,6 +30,10 @@ if ($module === 'update') {
     handle_update((string) request_param('action', 'status'), $method);
 }
 
+if ($module === 'seo') {
+    handle_seo((string) request_param('action', 'robots'), $method);
+}
+
 // ___BEGIN_DEV_ROUTE___
 if ($module === 'dev') {
     handle_dev((string) request_param('action', 'status'), $method);

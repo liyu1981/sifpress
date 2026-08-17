@@ -34,7 +34,12 @@ import { Switch } from '@/components/ui/switch';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { ApiError, assetSourceUrl } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { buildFrontMatter, parseFrontMatter, STANDARD_FRONT_MATTER_KEYS } from '@/lib/front-matter';
+import {
+  buildFrontMatter,
+  frontMatterString,
+  parseFrontMatter,
+  RESERVED_FRONT_MATTER_KEYS,
+} from '@/lib/front-matter';
 import { MilkdownEditor, type MilkdownEditorHandle } from '@/lib/marked';
 import { escapeTableCodePipes } from '@/lib/marked/preprocess';
 import { assetsApi, type Grant, pagesApi } from '@/lib/pages';
@@ -247,6 +252,13 @@ export function EditorPage({ slug }: { slug: string | null }) {
   const [tags, setTags] = useState<string[]>([]);
   const [extraFields, setExtraFields] = useState<ExtraField[]>([]);
   const [extraOpen, setExtraOpen] = useState(false);
+  const [seoTitle, setSeoTitle] = useState('');
+  const [seoDescription, setSeoDescription] = useState('');
+  const [seoKeywords, setSeoKeywords] = useState('');
+  const [seoOgImage, setSeoOgImage] = useState('');
+  const [seoCanonical, setSeoCanonical] = useState('');
+  const [seoNoindex, setSeoNoindex] = useState(false);
+  const [seoOpen, setSeoOpen] = useState(false);
   const [published, setPublished] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [saveError, setSaveError] = useState<ApiError | null>(null);
@@ -258,6 +270,14 @@ export function EditorPage({ slug }: { slug: string | null }) {
     date: '',
     tags: [] as string[],
     extra: [] as ExtraField[],
+    seo: {
+      seo_title: '',
+      description: '',
+      keywords: '',
+      og_image: '',
+      canonical: '',
+      noindex: false,
+    },
     body: '',
   });
 
@@ -298,8 +318,15 @@ export function EditorPage({ slug }: { slug: string | null }) {
           : [],
       );
 
+      setSeoTitle(frontMatterString(data, 'seo_title') ?? '');
+      setSeoDescription(frontMatterString(data, 'description') ?? '');
+      setSeoKeywords(frontMatterString(data, 'keywords') ?? '');
+      setSeoOgImage(frontMatterString(data, 'og_image') ?? '');
+      setSeoCanonical(frontMatterString(data, 'canonical') ?? '');
+      setSeoNoindex(data.noindex === true);
+
       const extras: ExtraField[] = Object.entries(data)
-        .filter(([key]) => !STANDARD_FRONT_MATTER_KEYS.has(key))
+        .filter(([key]) => !RESERVED_FRONT_MATTER_KEYS.has(key))
         .map(([key, value]) => {
           extraFieldIdRef.current += 1;
           return { id: extraFieldIdRef.current, key, value: scalarToString(value) };
@@ -354,6 +381,14 @@ export function EditorPage({ slug }: { slug: string | null }) {
       extra: extraFields
         .map(field => ({ key: field.key.trim(), value: field.value }))
         .filter(field => field.key !== ''),
+      seo: {
+        seo_title: seoTitle.trim(),
+        description: seoDescription.trim(),
+        keywords: seoKeywords.trim(),
+        og_image: seoOgImage.trim(),
+        canonical: seoCanonical.trim(),
+        noindex: seoNoindex,
+      },
     });
 
   const applyRawFront = (raw: string): boolean => {
@@ -374,8 +409,15 @@ export function EditorPage({ slug }: { slug: string | null }) {
         : [],
     );
 
+    setSeoTitle(frontMatterString(data, 'seo_title') ?? '');
+    setSeoDescription(frontMatterString(data, 'description') ?? '');
+    setSeoKeywords(frontMatterString(data, 'keywords') ?? '');
+    setSeoOgImage(frontMatterString(data, 'og_image') ?? '');
+    setSeoCanonical(frontMatterString(data, 'canonical') ?? '');
+    setSeoNoindex(data.noindex === true);
+
     const extras: ExtraField[] = Object.entries(data)
-      .filter(([key]) => !STANDARD_FRONT_MATTER_KEYS.has(key))
+      .filter(([key]) => !RESERVED_FRONT_MATTER_KEYS.has(key))
       .map(([key, value]) => {
         extraFieldIdRef.current += 1;
         return { id: extraFieldIdRef.current, key, value: scalarToString(value) };
@@ -543,6 +585,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
           date: snap.date,
           tags: snap.tags,
           extra: snap.extra.map(field => ({ key: field.key, value: field.value })),
+          seo: snap.seo,
         };
       },
       setFrontMatter: patch => {
@@ -571,6 +614,15 @@ export function EditorPage({ slug }: { slug: string | null }) {
           setExtraOpen(extras.length > 0);
           editorSnapshotRef.current = { ...editorSnapshotRef.current, extra: extras };
         }
+        if (patch.seo !== undefined) {
+          setSeoTitle(patch.seo.seo_title ?? '');
+          setSeoDescription(patch.seo.description ?? '');
+          setSeoKeywords(patch.seo.keywords ?? '');
+          setSeoOgImage(patch.seo.og_image ?? '');
+          setSeoCanonical(patch.seo.canonical ?? '');
+          setSeoNoindex(patch.seo.noindex ?? false);
+          editorSnapshotRef.current = { ...editorSnapshotRef.current, seo: patch.seo };
+        }
       },
       getContent: () => editorRef.current?.getMarkdown() ?? editorSnapshotRef.current.body,
       setContent: markdown => {
@@ -590,9 +642,30 @@ export function EditorPage({ slug }: { slug: string | null }) {
       date,
       tags,
       extra: extraFields,
+      seo: {
+        seo_title: seoTitle,
+        description: seoDescription,
+        keywords: seoKeywords,
+        og_image: seoOgImage,
+        canonical: seoCanonical,
+        noindex: seoNoindex,
+      },
       body,
     };
-  }, [body, date, extraFields, slugValue, tags, title]);
+  }, [
+    body,
+    date,
+    extraFields,
+    seoCanonical,
+    seoDescription,
+    seoKeywords,
+    seoNoindex,
+    seoOgImage,
+    seoTitle,
+    slugValue,
+    tags,
+    title,
+  ]);
 
   if (editing && pageQuery.isLoading) {
     return (
@@ -909,6 +982,97 @@ export function EditorPage({ slug }: { slug: string | null }) {
                     )}
                   </label>
                 </div>
+
+                <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/60 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setSeoOpen(value => !value)}
+                    className="flex items-center gap-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+                    aria-expanded={seoOpen}
+                  >
+                    <ChevronDown
+                      className={`size-3.5 transition-transform ${seoOpen ? 'rotate-180' : ''}`}
+                    />
+                    {t('editor.seoTitle')}
+                  </button>
+                  {seoOpen && (
+                    <label className="flex cursor-pointer items-center gap-2">
+                      <Switch
+                        checked={seoNoindex}
+                        onCheckedChange={setSeoNoindex}
+                        aria-label={t('editor.seoNoindex')}
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        {t('editor.seoNoindex')}
+                      </span>
+                    </label>
+                  )}
+                </div>
+
+                {seoOpen && (
+                  <div className="mt-3 space-y-3 border-t border-border/60 pt-3">
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {t('editor.seoTitleField')}
+                      </span>
+                      <Input
+                        value={seoTitle}
+                        onChange={event => setSeoTitle(event.target.value)}
+                        placeholder={t('editor.seoTitlePlaceholder')}
+                        className="h-8"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {t('editor.seoDescriptionField')}
+                      </span>
+                      <textarea
+                        value={seoDescription}
+                        onChange={event => setSeoDescription(event.target.value)}
+                        placeholder={t('editor.seoDescriptionPlaceholder')}
+                        className="min-h-20 w-full resize-y rounded-xl border border-input bg-background p-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+                      />
+                      <span className="text-[0.65rem] leading-none text-muted-foreground">
+                        {t('editor.seoDescriptionCount', { count: seoDescription.length })}
+                      </span>
+                    </label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          {t('editor.seoKeywordsField')}
+                        </span>
+                        <Input
+                          value={seoKeywords}
+                          onChange={event => setSeoKeywords(event.target.value)}
+                          placeholder={t('editor.seoKeywordsPlaceholder')}
+                          className="h-8"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          {t('editor.seoOgImageField')}
+                        </span>
+                        <Input
+                          value={seoOgImage}
+                          onChange={event => setSeoOgImage(event.target.value)}
+                          placeholder="https://example.com/og.png"
+                          className="h-8"
+                        />
+                      </label>
+                    </div>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {t('editor.seoCanonicalField')}
+                      </span>
+                      <Input
+                        value={seoCanonical}
+                        onChange={event => setSeoCanonical(event.target.value)}
+                        placeholder={t('editor.seoCanonicalPlaceholder')}
+                        className="h-8"
+                      />
+                    </label>
+                  </div>
+                )}
 
                 <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/60 pt-4">
                   <button

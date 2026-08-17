@@ -2,9 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowDownToLine,
   ChevronDown,
+  ExternalLink,
   Globe,
   Loader2,
   Save,
+  Search,
   ShieldCheck,
   Upload,
   UserPlus,
@@ -27,12 +29,21 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { ApiError } from '@/lib/api';
 import { makeAvatarThumb } from '@/lib/assets';
 import { useAuth } from '@/lib/auth';
-import { authApi, type RoleListItem, rolesApi, type UserListItem, usersApi } from '@/lib/pages';
+import {
+  authApi,
+  type RoleListItem,
+  rolesApi,
+  type SeoSettings,
+  settingsApi,
+  type UserListItem,
+  usersApi,
+} from '@/lib/pages';
 import { updateApi } from '@/lib/update';
 import { cn } from '@/lib/utils';
 
@@ -619,6 +630,229 @@ function UsersCard() {
   );
 }
 
+function SeoSettingsCard() {
+  const { t } = useTranslation();
+  const [form, setForm] = useState<SeoSettings | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  const query = useQuery({
+    queryKey: ['seo-settings'],
+    queryFn: settingsApi.get,
+  });
+
+  useEffect(() => {
+    if (query.data !== undefined && form === null) {
+      setForm(query.data);
+    }
+  }, [query.data, form]);
+
+  const save = useMutation({
+    mutationFn: (input: Partial<SeoSettings>) => settingsApi.update(input),
+    onSuccess: () => {
+      setError(null);
+      setDone(true);
+    },
+    onError: err => {
+      setDone(false);
+      setError(
+        err instanceof ApiError
+          ? (err.data.error ?? t('seo.settingsError'))
+          : t('seo.settingsError'),
+      );
+    },
+  });
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setDone(false);
+
+    if (form === null) {
+      return;
+    }
+
+    save.mutate({
+      site_name: form.site_name.trim(),
+      site_description: form.site_description.trim(),
+      site_url: form.site_url.trim(),
+      default_og_image: form.default_og_image.trim(),
+      twitter_handle: form.twitter_handle.trim(),
+      enable_sitemap: form.enable_sitemap,
+      robots_content: form.robots_content,
+    });
+  }
+
+  if (query.isLoading || form === null) {
+    return (
+      <Card size="sm">
+        <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" />
+          {t('settings.loading')}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const seoUrl = (action: 'sitemap' | 'robots'): string => {
+    const base = `${window.location.pathname}?module=seo&action=${action}`;
+    return base;
+  };
+
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardAction>
+          <Search className="size-5 text-muted-foreground" />
+        </CardAction>
+        <CardTitle>{t('seo.settingsTitle')}</CardTitle>
+        <CardDescription>{t('seo.settingsDescription')}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">
+                {t('seo.siteNameField')}
+              </span>
+              <Input
+                value={form.site_name}
+                onChange={event =>
+                  setForm(prev =>
+                    prev !== null ? { ...prev, site_name: event.target.value } : prev,
+                  )
+                }
+                placeholder="Sifpress"
+                className="h-9"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">
+                {t('seo.siteUrlField')}
+              </span>
+              <Input
+                value={form.site_url}
+                onChange={event =>
+                  setForm(prev =>
+                    prev !== null ? { ...prev, site_url: event.target.value } : prev,
+                  )
+                }
+                placeholder="https://example.com/index.php"
+                className="h-9"
+              />
+            </label>
+          </div>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-muted-foreground">
+              {t('seo.siteDescriptionField')}
+            </span>
+            <textarea
+              value={form.site_description}
+              onChange={event =>
+                setForm(prev =>
+                  prev !== null ? { ...prev, site_description: event.target.value } : prev,
+                )
+              }
+              placeholder={t('seo.siteDescriptionPlaceholder')}
+              className="min-h-20 w-full resize-y rounded-xl border border-input bg-background p-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+            />
+          </label>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">
+                {t('seo.defaultOgImageField')}
+              </span>
+              <Input
+                value={form.default_og_image}
+                onChange={event =>
+                  setForm(prev =>
+                    prev !== null ? { ...prev, default_og_image: event.target.value } : prev,
+                  )
+                }
+                placeholder="https://example.com/og.png"
+                className="h-9"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">
+                {t('seo.twitterHandleField')}
+              </span>
+              <Input
+                value={form.twitter_handle}
+                onChange={event =>
+                  setForm(prev =>
+                    prev !== null ? { ...prev, twitter_handle: event.target.value } : prev,
+                  )
+                }
+                placeholder="@sifpress"
+                className="h-9"
+              />
+            </label>
+          </div>
+
+          <div className="flex items-center justify-between rounded-xl border border-border/60 p-3">
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium">{t('seo.enableSitemapField')}</p>
+              <p className="text-xs text-muted-foreground">{t('seo.enableSitemapHint')}</p>
+            </div>
+            <Switch
+              checked={form.enable_sitemap === '1'}
+              onCheckedChange={checked =>
+                setForm(prev =>
+                  prev !== null ? { ...prev, enable_sitemap: checked ? '1' : '0' } : prev,
+                )
+              }
+              aria-label={t('seo.enableSitemapField')}
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-1.5">
+            <Button asChild variant="outline" size="xs">
+              <a href={seoUrl('sitemap')} target="_blank" rel="noopener noreferrer">
+                <ExternalLink />
+                {t('seo.viewSitemap')}
+              </a>
+            </Button>
+            <Button asChild variant="outline" size="xs">
+              <a href={seoUrl('robots')} target="_blank" rel="noopener noreferrer">
+                <ExternalLink />
+                {t('seo.viewRobots')}
+              </a>
+            </Button>
+          </div>
+
+          {error !== null && <p className="text-sm text-destructive">{error}</p>}
+          {done && <p className="text-sm text-muted-foreground">{t('seo.saved')}</p>}
+
+          <div className="flex justify-end">
+            <Button type="submit" size="sm" disabled={save.isPending}>
+              {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
+              {t('seo.save')}
+            </Button>
+          </div>
+        </form>
+
+        <label className="flex flex-col gap-1.5 border-t border-border/60 pt-4">
+          <span className="text-xs font-medium text-muted-foreground">{t('seo.robotsField')}</span>
+          <textarea
+            value={form.robots_content}
+            onChange={event =>
+              setForm(prev =>
+                prev !== null ? { ...prev, robots_content: event.target.value } : prev,
+              )
+            }
+            placeholder={t('seo.robotsPlaceholder')}
+            className="min-h-24 w-full resize-y rounded-xl border border-input bg-background p-3 font-mono text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+            spellCheck={false}
+          />
+        </label>
+      </CardContent>
+    </Card>
+  );
+}
+
 function SystemSettingsCard() {
   const { i18n, t } = useTranslation();
   const current = i18n.language?.startsWith('zh') ? 'zh' : 'en';
@@ -823,6 +1057,7 @@ export function SettingsPage() {
   usePageTitle(t('settings.title'));
 
   const canManageUsers = user?.permissions.includes('users.manage') ?? false;
+  const canManageSettings = user?.permissions.includes('settings.manage') ?? false;
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6">
@@ -867,6 +1102,16 @@ export function SettingsPage() {
               {t('settings.tabAgent')}
             </span>
           </TabsTrigger>
+          {canManageSettings && (
+            <TabsTrigger
+              value="seo"
+              className="group justify-end rounded-full border-transparent px-0 data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent dark:data-[state=active]:shadow-none"
+            >
+              <span className="rounded-full px-3 py-1.5 transition-colors group-data-[state=active]:bg-accent group-data-[state=active]:text-accent-foreground">
+                {t('seo.tab')}
+              </span>
+            </TabsTrigger>
+          )}
           {user !== null && user.roles.includes('admin') && (
             <TabsTrigger
               value="update"
@@ -920,6 +1165,12 @@ export function SettingsPage() {
         <TabsContent value="agent" className="space-y-6">
           <AgentSettingsCard />
         </TabsContent>
+
+        {canManageSettings && (
+          <TabsContent value="seo" className="space-y-6">
+            <SeoSettingsCard />
+          </TabsContent>
+        )}
 
         {user !== null && user.roles.includes('admin') && (
           <TabsContent value="update">

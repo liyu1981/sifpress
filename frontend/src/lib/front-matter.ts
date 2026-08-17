@@ -46,9 +46,37 @@ export interface BuildFrontMatterInput {
   date?: string;
   tags?: string[];
   extra?: Array<{ key: string; value: string }>;
+  seo?: BuildSeoInput;
+}
+
+export interface BuildSeoInput {
+  seo_title?: string;
+  description?: string;
+  keywords?: string;
+  og_image?: string;
+  canonical?: string;
+  noindex?: boolean;
 }
 
 export const STANDARD_FRONT_MATTER_KEYS = new Set(['title', 'slug', 'date', 'tags']);
+
+/**
+ * Reserved SEO keys with dedicated editor fields. Excluded from the
+ * generic extra-fields list so they can't be duplicated there.
+ */
+export const SEO_FRONT_MATTER_KEYS = new Set([
+  'seo_title',
+  'description',
+  'keywords',
+  'og_image',
+  'canonical',
+  'noindex',
+]);
+
+export const RESERVED_FRONT_MATTER_KEYS = new Set([
+  ...STANDARD_FRONT_MATTER_KEYS,
+  ...SEO_FRONT_MATTER_KEYS,
+]);
 
 function quoteYamlScalar(value: string): string {
   const clean = value.replace(/\r?\n/g, ' ').trim();
@@ -98,6 +126,7 @@ export function buildFrontMatter({
   date = '',
   tags = [],
   extra = [],
+  seo,
 }: BuildFrontMatterInput): string {
   const lines = ['---'];
   lines.push(`title: ${quoteYamlScalar(title)}`);
@@ -109,7 +138,22 @@ export function buildFrontMatter({
 
   const seen = new Set(STANDARD_FRONT_MATTER_KEYS);
 
-  for (const field of [...extra].sort((a, b) => a.key.localeCompare(b.key))) {
+  const all: Array<{ key: string; value: string }> = [...extra];
+
+  if (seo !== undefined) {
+    for (const [key, value] of Object.entries(seo)) {
+      if (!SEO_FRONT_MATTER_KEYS.has(key)) {
+        continue;
+      }
+      if (key === 'noindex') {
+        all.push({ key, value: value ? 'true' : 'false' });
+      } else if (typeof value === 'string' && value.trim() !== '') {
+        all.push({ key, value });
+      }
+    }
+  }
+
+  for (const field of all.sort((a, b) => a.key.localeCompare(b.key))) {
     const key = field.key.trim();
 
     if (key === '' || seen.has(key) || !/^[A-Za-z0-9_-]+$/.test(key)) {

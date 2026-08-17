@@ -1,16 +1,26 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { usePageTitle } from '@/hooks/use-page-title';
-import { DEMO_PAGE_SLUG, pagesApi } from '@/lib/pages';
+import { usePageMeta } from '@/hooks/use-page-meta';
+import { DEMO_PAGE_SLUG, pagesApi, settingsApi } from '@/lib/pages';
 import { ArticleDetailPage } from '@/pages/article-detail';
+import { log } from '@/lib/logger';
 
 export function HomePage() {
   const { t } = useTranslation();
 
-  usePageTitle(t('home.title'));
+  const settings = useQuery({
+    queryKey: ['seo-settings'],
+    queryFn: settingsApi.get,
+  });
+
+  usePageMeta({
+    title: settings.data?.site_name ?? 'Sifpress',
+    description: settings.data?.site_description ?? '',
+    siteName: settings.data?.site_name ?? undefined,
+  });
 
   const latest = useQuery({
-    queryKey: ['pages'],
+    queryKey: ['pages', { status: 'published', per_page: 1 }],
     queryFn: () => pagesApi.list({ status: 'published', per_page: 1 }),
   });
 
@@ -33,13 +43,9 @@ export function HomePage() {
   const first = latest.data.items[0];
 
   if (first === undefined) {
-    /*
-     * No published articles yet — fall back to the virtual markdown
-     * reference page so a fresh install has something meaningful on
-     * the home page.
-     */
     return <ArticleDetailPage slug={DEMO_PAGE_SLUG} />;
   }
 
+  log('[HOME] rendering ArticleDetailPage slug=%s', first.slug);
   return <ArticleDetailPage slug={first.slug} />;
 }

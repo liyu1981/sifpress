@@ -240,6 +240,7 @@ function page_payload(array $page): array
         'created_at' => $page['created_at'],
         'updated_at' => $page['updated_at'],
         'can_edit' => $user !== null && can_edit_page($user, (int) $page['id']),
+        'seo' => page_seo($page),
     ];
 }
 
@@ -550,6 +551,79 @@ function api_system_status(string $method): never
             'thumb_max_bytes' => ASSET_THUMB_MAX_BYTES,
         ],
     ]);
+}
+
+function api_settings_get(string $method): never
+{
+    if ($method !== 'GET') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    json_response(['settings' => settings_payload()]);
+}
+
+function api_settings_update(string $method): never
+{
+    if ($method !== 'PATCH') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_permission('settings.manage');
+
+    $body = read_json_body();
+    $rules = [
+        'site_name' => ['max' => 100],
+        'site_description' => ['max' => 200],
+        'site_url' => ['max' => 300, 'url' => true],
+        'default_og_image' => ['max' => 300, 'url' => true],
+        'twitter_handle' => ['max' => 32, 'handle' => true],
+        'enable_sitemap' => ['enum' => ['0', '1']],
+        'robots_content' => ['max' => 2000],
+    ];
+
+    $sets = [];
+    $errors = [];
+
+    foreach ($rules as $key => $rule) {
+        if (!array_key_exists($key, $body)) {
+            continue;
+        }
+
+        $value = trim((string) $body[$key]);
+
+        if (isset($rule['enum']) && !in_array($value, $rule['enum'], true)) {
+            $errors[$key] = ['must be ' . implode(' or ', $rule['enum'])];
+            continue;
+        }
+
+        if (isset($rule['handle']) && $value !== ''
+            && !preg_match('/^@?[A-Za-z0-9_]{1,15}$/', $value)) {
+            $errors[$key] = ['must be a Twitter handle (@name, letters/digits/underscore)'];
+            continue;
+        }
+
+        if (isset($rule['url']) && $value !== '' && !filter_var($value, FILTER_VALIDATE_URL)) {
+            $errors[$key] = ['invalid URL'];
+            continue;
+        }
+
+        if (isset($rule['max']) && mb_strlen($value) > $rule['max']) {
+            $errors[$key] = ['must be at most ' . $rule['max'] . ' characters'];
+            continue;
+        }
+
+        $sets[$key] = $value;
+    }
+
+    if ($errors !== []) {
+        json_response(['error' => 'validation failed', 'errors' => $errors], 422);
+    }
+
+    foreach ($sets as $key => $value) {
+        setting_set($key, $value);
+    }
+
+    json_response(['ok' => true]);
 }
 
 function api_pages_list(string $method): never
@@ -1888,6 +1962,7 @@ function handle_api(string $action, string $method): never
         'auth.login',
         'auth.me',
         'system.status',
+        'settings.get',
         'pages.list',
         'pages.get',
         'pages.search',
@@ -1916,6 +1991,7 @@ function handle_api(string $action, string $method): never
                     'auth.login', 'auth.logout', 'auth.me', 'auth.changePassword',
                     'auth.profile', 'auth.avatar',
                     'system.status',
+                    'settings.get', 'settings.update',
                     'pages.list', 'pages.get', 'pages.create', 'pages.update',
                     'pages.delete', 'pages.search', 'pages.grants', 'pages.grant',
                     'pages.revokeGrant',
@@ -1946,6 +2022,12 @@ function handle_api(string $action, string $method): never
 
         case 'system.status':
             api_system_status($method);
+
+        case 'settings.get':
+            api_settings_get($method);
+
+        case 'settings.update':
+            api_settings_update($method);
 
         case 'pages.list':
             api_pages_list($method);

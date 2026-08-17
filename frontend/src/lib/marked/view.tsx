@@ -2,6 +2,7 @@ import { memo, useEffect, useState } from 'react';
 import type { MouseEvent } from 'react';
 import { copyText } from '@/lib/api';
 import { parseFrontMatter } from '@/lib/front-matter';
+import { log, error as logError } from '@/lib/logger';
 import { useTheme } from '@/lib/theme';
 import { type MermaidTheme, setMermaidTheme } from './mermaid';
 import { postProcessHtml } from './postprocess';
@@ -36,14 +37,18 @@ export const MarkdownView = memo(function MarkdownView({
     let cancelled = false;
     const body = parseFrontMatter(content).content;
 
+    log('[MD VIEW] calling markdownToHtml, bodyLen=%d', body.length);
+
     markdownToHtml(body)
       .then(postProcessHtml)
       .then(next => {
         if (!cancelled) {
+          log('[MD VIEW] HTML ready, len=%d', next.length);
           setHtml(next);
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        logError('[MD VIEW] markdownToHtml FAILED', err);
         if (!cancelled) {
           setHtml('');
         }

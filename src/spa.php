@@ -53,14 +53,26 @@ function serve_spa(string $route): never
         htmlspecialchars(APP_VERSION, ENT_QUOTES | ENT_HTML5, 'UTF-8') .
         '">';
 
-    if ($key !== '') {
-        $displayName = APP_NAME . ' — ' . ucfirst($key);
+    /*
+     * Rich SEO meta (title, description, OG/Twitter, canonical, JSON-LD)
+     * resolved server-side. Skipped while migrations are pending — the
+     * schema may not exist yet — in which case the generic route-key
+     * fallback below applies.
+     */
+    if (!db_needs_migration()) {
+        $seo = seo_meta_tags($route);
+        $meta .= $seo;
+    }
+
+    if (!str_contains($meta, '<title>')) {
+        $displayName = APP_NAME . ($key !== '' ? ' — ' . ucfirst($key) : '');
         $meta .= '<title>' . htmlspecialchars($displayName, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '</title>';
-        $meta .= '<meta name="description" content="' .
-            htmlspecialchars($displayName, ENT_QUOTES | ENT_HTML5, 'UTF-8') .
-            '">';
-    } else {
-        $meta .= '<title>' . htmlspecialchars(APP_NAME, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '</title>';
+
+        if ($key !== '') {
+            $meta .= '<meta name="description" content="' .
+                htmlspecialchars($displayName, ENT_QUOTES | ENT_HTML5, 'UTF-8') .
+                '">';
+        }
     }
 
     /*

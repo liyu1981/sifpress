@@ -1,35 +1,36 @@
 import type { CrepeBuilder } from '@milkdown/crepe/builder';
 import { getHTML } from '@milkdown/kit/utils';
+import { log } from '@/lib/logger';
 import { escapeTableCodePipes } from './preprocess';
 import { createMarkdownEditor, setMarkdownContent } from './shared';
 
-let renderer: CrepeBuilder | null = null;
-let rendererEl: HTMLDivElement | null = null;
+let rendererReady: Promise<CrepeBuilder> | null = null;
 let queue: Promise<unknown> = Promise.resolve();
 
 function getRenderer(): Promise<CrepeBuilder> {
-  if (renderer !== null) {
-    return Promise.resolve(renderer);
+  if (rendererReady !== null) {
+    log('[MD RENDER] reusing existing renderer');
+    return rendererReady;
   }
 
-  rendererEl = document.createElement('div');
-  rendererEl.setAttribute('aria-hidden', 'true');
-  rendererEl.style.position = 'fixed';
-  rendererEl.style.top = '-10000px';
-  rendererEl.style.left = '-10000px';
-  rendererEl.style.width = '0';
-  rendererEl.style.height = '0';
-  rendererEl.style.overflow = 'hidden';
-  document.body.appendChild(rendererEl);
+  log('[MD RENDER] creating new renderer (first time)');
+  const el = document.createElement('div');
+  el.setAttribute('aria-hidden', 'true');
+  el.style.display = 'none';
+  document.body.appendChild(el);
 
   const builder = createMarkdownEditor({
-    root: rendererEl,
+    root: el,
     defaultValue: '',
     mode: 'render',
   });
-  renderer = builder;
 
-  return builder.create().then(() => builder);
+  rendererReady = builder.create().then(() => {
+    log('[MD RENDER] renderer ready');
+    return builder;
+  });
+
+  return rendererReady;
 }
 
 /**
@@ -38,12 +39,17 @@ function getRenderer(): Promise<CrepeBuilder> {
  * the hidden renderer instance is a singleton.
  */
 export async function markdownToHtml(markdown: string): Promise<string> {
+  log('[MD RENDER] markdownToHtml called, inputLen=%d', markdown.length);
   const builder = await getRenderer();
   const input = escapeTableCodePipes(markdown);
 
+  log('[MD RENDER] queued markdown set+getHTML');
   const run = queue.then(() => {
+    log('[MD RENDER] executing markdown set+getHTML');
     builder.editor.action(setMarkdownContent(input));
-    return builder.editor.action(getHTML());
+    const html = builder.editor.action(getHTML());
+    log('[MD RENDER] getHTML returned, htmlLen=%d', html.length);
+    return html;
   });
 
   queue = run.catch(() => undefined);

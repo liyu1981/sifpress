@@ -145,6 +145,7 @@ function seed_rbac(): void
         'users.manage',
         'roles.manage',
         'assets.upload',
+        'settings.manage',
     ];
 
     $roles = [

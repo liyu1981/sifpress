@@ -7,12 +7,12 @@ import { DeletePageMenu } from '@/components/delete-page-menu';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { usePageTitle } from '@/hooks/use-page-title';
+import { usePageMeta } from '@/hooks/use-page-meta';
 import { useAuth } from '@/lib/auth';
 import { estimateReadingMinutes, excerptFromMarkdown, formatDate } from '@/lib/format';
 import { frontMatterString, parseFrontMatter } from '@/lib/front-matter';
 import type { PageListItem, SearchResult } from '@/lib/pages';
-import { pagesApi, tagsApi } from '@/lib/pages';
+import { pagesApi, settingsApi, tagsApi } from '@/lib/pages';
 
 function SearchCard({ result, locale }: { result: SearchResult; locale: string }) {
   const { t } = useTranslation();
@@ -145,7 +145,18 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
   const { has, user } = useAuth();
   const navigate = useNavigate();
 
-  usePageTitle(tag ? `#${tag} — ${t('article.indexTitle')}` : t('article.indexTitle'));
+  const settings = useQuery({
+    queryKey: ['seo-settings'],
+    queryFn: settingsApi.get,
+  });
+
+  usePageMeta({
+    title: tag
+      ? `#${tag} — ${t('article.indexTitle')} — ${settings.data?.site_name ?? 'Sifpress'}`
+      : `${t('article.indexTitle')} — ${settings.data?.site_name ?? 'Sifpress'}`,
+    description: settings.data?.site_description ?? '',
+    siteName: settings.data?.site_name ?? undefined,
+  });
 
   const [query, setQuery] = useState('');
   const q = query.trim();
