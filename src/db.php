@@ -202,27 +202,38 @@ function seed_favicon(): void
 {
     $pdo = db();
 
-    $check = $pdo->query("SELECT value FROM settings WHERE key = 'favicon_asset_id'")->fetch();
+    $svg = '<svg xmlns="http://w3.org" viewBox="0 0 180 180"><circle cx="90" cy="90" r="84" fill="#cfd8dc"/><g fill="#1e293b"><circle cx="90" cy="24.6" r="12.3"/><path d="M81.2 33.4h17.6l8.8 12.3H72.4Z"/><path d="M90 43.9c-31.3 0-42.2 22.2-42.2 44 0 10.9 4.6 17.6 8.8 22.1-2.1-17.5 8.8-41.8 33.4-41.8s35.5 24.3 33.4 41.8c4.2-4.5 8.8-11.2 8.8-22.1 0-21.8-10.9-44-42.2-44"/></g><path d="M78 33.8q12 2.8 24 0" fill="none" stroke="#dc2626" stroke-width="4.2" stroke-linecap="round"/><g fill="none" stroke="#2563eb" stroke-linecap="round"><path d="M63.3 86.1q8.8-4.5 17.6 0m35.8 0q-8.8-4.5-17.6 0" stroke-width="3.5"/><path d="M90 81.6v13.3" stroke-width="2.8"/></g><g fill="#b45309"><path d="M90 100.2c-7 1.8-28.8 7.4-42.2 25 17.6-4.3 37.3-13.1 42.2-20.4Z"/><path d="M90 100.2c7 1.8 28.8 7.4 42.2 25-17.6-4.3-37.3-13.1-42.2-20.4ZM84.7 116l5.3 38.7 5.3-38.7Z"/></g></svg>';
 
-    if ($check === false || ((string) $check['value']) !== '') {
-        return;
+    $check = $pdo->query("SELECT value FROM settings WHERE key = 'favicon_asset_id'")->fetch();
+    $existingId = ($check !== false && (string) $check['value'] !== '') ? (int) $check['value'] : 0;
+
+    if ($existingId > 0) {
+        $row = $pdo->prepare('SELECT data FROM assets WHERE id = ?');
+        $row->execute([$existingId]);
+        $current = $row->fetchColumn();
+
+        if ($current !== false && $current === $svg) {
+            return;
+        }
+
+        $stmt = $pdo->prepare(
+            'UPDATE assets SET data = ?, size_bytes = ?, name = ?, mime = ? WHERE id = ?'
+        );
+        $stmt->execute([$svg, strlen($svg), 'default-favicon.svg', 'image/svg+xml', $existingId]);
+        $id = $existingId;
+    } else {
+        $stmt = $pdo->prepare(
+            'INSERT INTO assets (name, mime, kind, size_bytes, data, is_public) VALUES (?, ?, ?, ?, ?, 1)'
+        );
+        $stmt->execute(['default-favicon.svg', 'image/svg+xml', 'image', strlen($svg), $svg]);
+        $id = (int) $pdo->lastInsertId();
+
+        $pdo->prepare("UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'favicon_asset_id'")
+            ->execute([(string) $id]);
+        $pdo->prepare("UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'apple_touch_icon_asset_id'")
+            ->execute([(string) $id]);
     }
 
-    $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">'
-        . '<rect width="180" height="180" rx="40" fill="#6366f1"/>'
-        . '<text x="90" y="90" font-family="-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif" '
-        . 'font-size="110" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="central">S</text></svg>';
-
-    $stmt = $pdo->prepare(
-        'INSERT INTO assets (name, mime, kind, size_bytes, data, is_public) VALUES (?, ?, ?, ?, ?, 1)'
-    );
-    $stmt->execute(['default-favicon.svg', 'image/svg+xml', 'image', strlen($svg), $svg]);
-    $id = (int) $pdo->lastInsertId();
-
-    $pdo->prepare("UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'favicon_asset_id'")
-        ->execute([(string) $id]);
-    $pdo->prepare("UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'apple_touch_icon_asset_id'")
-        ->execute([(string) $id]);
     $pdo->prepare("UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'favicon_version'")
         ->execute([(string) time()]);
     $pdo->prepare("UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'favicon_mime'")

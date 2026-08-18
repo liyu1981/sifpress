@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="100%" height="100%">
+  <!-- 1. Background Circle (Centered at 90,90 with radius 84) -->
+  <circle cx="90" cy="90" r="84" fill="#CFD8DC"/>
+  
+  <!-- 2. Hair & Topknot (Deep Slate Blue) -->
+  <g fill="#1E293B">
+    <!-- Topknot Bun -->
+    <circle cx="90" cy="24.6" r="12.3" />
+    <path d="M81.2 33.4 L98.8 33.4 L107.6 45.7 L72.4 45.7 Z" />
+    <!-- Main Hair Structure -->
+    <path d="M90 43.9 C58.7 43.9 47.8 66.1 47.8 87.9 C47.8 98.8 52.4 105.5 56.6 110 C54.5 92.5 65.4 68.2 90 68.2 C114.6 68.2 125.5 92.5 123.4 110 C127.6 105.5 132.2 98.8 132.2 87.9 C132.2 66.1 121.3 43.9 90 43.9 Z" />
+  </g>
+
+  <!-- 3. Topknot Hair Tie Accent (Vibrant Crimson Red) -->
+  <path d="M78 33.8 Q90 36.6 102 33.8" fill="none" stroke="#DC2626" stroke-width="4.2" stroke-linecap="round" />
+  
+  <!-- 4. Eyes & Nose Bridge (Rich, Vibrant Blue) -->
+  <g fill="none" stroke="#2563EB" stroke-linecap="round">
+    <!-- Meditating Eyes -->
+    <path d="M63.3 86.1 Q72.1 81.6 80.9 86.1" stroke-width="3.5"/>
+    <path d="M116.7 86.1 Q107.9 81.6 99.1 86.1" stroke-width="3.5"/>
+    <!-- Minimalist Nose Bridge -->
+    <path d="M90 81.6 L90 94.9" stroke-width="2.8" />
+  </g>
+  
+  <!-- 5. Mustache & Wise Beard (Darker Ochre/Gold Yellow) -->
+  <g fill="#B45309">
+    <!-- Long Sweeping Mustache -->
+    <path d="M90 100.2 C83 102 61.2 107.6 47.8 125.2 C65.4 120.9 85.1 112.1 90 104.8 Z" />
+    <path d="M90 100.2 C97 102 118.8 107.6 132.2 125.2 C114.6 120.9 94.9 112.1 90 104.8 Z" />
+    <!-- Pointed Elder Beard -->
+    <path d="M84.7 116 L90 154.7 L95.3 116 Z" />
+  </g>
+</svg>
