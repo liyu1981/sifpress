@@ -588,6 +588,18 @@ export function EditorPage({ slug }: { slug: string | null }) {
           seo: snap.seo,
         };
       },
+      getFrontMatterYaml: () => {
+        const snap = editorSnapshotRef.current;
+        const block = buildFrontMatter({
+          title: snap.title,
+          slug: snap.slug,
+          date: snap.date,
+          tags: snap.tags,
+          extra: snap.extra.map(field => ({ key: field.key, value: field.value })),
+          seo: snap.seo,
+        });
+        return block.replace(/^---\n/, '').replace(/\n---\n$/, '');
+      },
       setFrontMatter: patch => {
         if (patch.title !== undefined) {
           setTitle(patch.title);

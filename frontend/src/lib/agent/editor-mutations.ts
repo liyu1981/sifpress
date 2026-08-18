@@ -26,6 +26,7 @@ export type FrontMatterPatch = Partial<EditorFrontMatter>;
 
 export interface EditorMutationBridge {
   getFrontMatter: () => EditorFrontMatter;
+  getFrontMatterYaml: () => string;
   setFrontMatter: (patch: FrontMatterPatch) => void;
   getContent: () => string;
   setContent: (markdown: string) => void;

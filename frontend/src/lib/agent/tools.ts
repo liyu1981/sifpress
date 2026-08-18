@@ -1,10 +1,10 @@
 import { Type, type TSchema } from '@earendil-works/pi-ai';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
-import { pagesApi, tagsApi, type PageStatus } from '@/lib/pages';
+import { parseFrontMatter } from '@/lib/front-matter';
+import { pagesApi, tagsApi } from '@/lib/pages';
 import type { EditorMutationBridge, FrontMatterPatch } from './editor-mutations';
 
 const MAX_FETCH_CHARS = 12000;
-const MAX_OUTPUT_CHARS = 12000;
 
 function truncate(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max)}\n…[truncated]`;
@@ -39,18 +39,15 @@ function textBlocks(...texts: string[]) {
   };
 }
 
-function pageSummaryLine(item: {
-  id: number;
-  slug: string;
-  title: string;
-  status: PageStatus;
-  updated_at: string;
-}): string {
-  return `- [${item.id}] "${item.title}" (slug: ${item.slug}, ${item.status}, updated ${item.updated_at})`;
-}
-
 function tool<S extends TSchema>(t: AgentTool<S>): AgentTool<S> {
   return t;
+}
+
+function requireEditor(editor: EditorMutationBridge | undefined): EditorMutationBridge {
+  if (editor === undefined) {
+    throw new Error('No editor is open — this tool requires the editor page.');
+  }
+  return editor;
 }
 
 export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[] {
@@ -76,49 +73,6 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
           )
           .join('\n'),
       );
-    },
-  });
-
-  const readPage = tool({
-    name: 'read_page',
-    label: 'Read page',
-    description:
-      "Read a page's full content by its slug or id. Returns the page's title, status, tags, author, and full markdown body.",
-    parameters: Type.Object({
-      slug: Type.Optional(Type.String({ description: 'Page slug' })),
-      id: Type.Optional(Type.Number({ description: 'Page id' })),
-    }),
-    execute: async (_id, args) => {
-      if (args.slug === undefined && args.id === undefined) {
-        throw new Error('read_page requires either slug or id');
-      }
-      const page = await pagesApi.get(
-        args.id !== undefined ? { id: args.id } : { slug: args.slug },
-      );
-      return textBlocks(
-        `# ${page.title}\nslug: ${page.slug} · status: ${page.status} · tags: ${page.tags.join(', ') || 'none'} · by ${page.created_by_name}`,
-        truncate(page.content_md, MAX_OUTPUT_CHARS),
-      );
-    },
-  });
-
-  const listPages = tool({
-    name: 'list_pages',
-    label: 'List pages',
-    description:
-      "List the user's pages (optionally filtered by status or tag). Returns ids, titles, slugs, and statuses.",
-    parameters: Type.Object({
-      status: Type.Optional(Type.String({ description: 'Filter by status: draft or published' })),
-      tag: Type.Optional(Type.String({ description: 'Filter by tag' })),
-    }),
-    execute: async (_id, args) => {
-      const status =
-        args.status === 'draft' || args.status === 'published' ? args.status : undefined;
-      const result = await pagesApi.list({ status, tag: args.tag, per_page: 50 });
-      if (result.items.length === 0) {
-        return textBlocks('No pages found.');
-      }
-      return textBlocks(`Total: ${result.total}.`, result.items.map(pageSummaryLine).join('\n'));
     },
   });
 
@@ -150,104 +104,140 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
     },
   });
 
-  const updateFrontMatter = tool({
-    name: 'update_frontmatter',
-    label: 'Update frontmatter',
+  const getFrontmatter = tool({
+    name: 'get_frontmatter',
+    label: 'Get frontmatter',
     description:
-      "Update the open editor's frontmatter section fields: title, slug, date, tags, and any extra fields. Mutates the editor UI only — the user still clicks Save to persist. Read read_page or the draft to see current values first.",
-    parameters: Type.Object({
-      title: Type.Optional(Type.String({ description: 'New title' })),
-      slug: Type.Optional(Type.String({ description: 'New slug' })),
-      date: Type.Optional(Type.String({ description: 'New date (YYYY-MM-DD)' })),
-      tags: Type.Optional(
-        Type.Array(Type.String({ description: 'New tags' }), {
-          description: 'Replace the full tags list',
-        }),
-      ),
-      extra: Type.Optional(
-        Type.Array(
-          Type.Object({
-            key: Type.String({ description: 'Extra field key (e.g. cover)' }),
-            value: Type.String({ description: 'Extra field value' }),
-          }),
-          { description: 'Replace the full extra-fields list' },
-        ),
-      ),
-      seo: Type.Optional(
-        Type.Object({
-          seo_title: Type.Optional(Type.String({ description: 'SEO <title> override' })),
-          description: Type.Optional(Type.String({ description: 'Meta description' })),
-          keywords: Type.Optional(Type.String({ description: 'Comma-separated keywords' })),
-          og_image: Type.Optional(Type.String({ description: 'Open Graph image URL' })),
-          canonical: Type.Optional(Type.String({ description: 'Canonical URL override' })),
-          noindex: Type.Optional(Type.Boolean({ description: 'Suppress search indexing' })),
-        }),
-      ),
-    }),
-    execute: async (_id, args) => {
-      if (editor === undefined) {
-        throw new Error('No editor is open — update_frontmatter requires the editor page.');
-      }
-      const current = editor.getFrontMatter();
-      const patch: FrontMatterPatch = {};
-      if (args.title !== undefined) {
-        patch.title = args.title;
-      }
-      if (args.slug !== undefined) {
-        patch.slug = args.slug;
-      }
-      if (args.date !== undefined) {
-        patch.date = args.date;
-      }
-      if (args.tags !== undefined) {
-        patch.tags = args.tags;
-      }
-      if (args.extra !== undefined) {
-        patch.extra = args.extra;
-      }
-      if (args.seo !== undefined) {
-        patch.seo = { ...current.seo, ...args.seo };
-      }
-      editor.setFrontMatter(patch);
-      const next = editor.getFrontMatter();
-      const lines = [
-        `Updated frontmatter in the editor (not yet saved):\n- title: ${next.title}\n- slug: ${next.slug}\n- date: ${next.date || '—'}\n- tags: ${next.tags.join(', ') || 'none'}${
-          next.extra.length > 0
-            ? `\n- extra: ${next.extra.map(f => `${f.key}=${f.value}`).join(', ')}`
-            : ''
-        }${next.seo.description !== '' ? `\n- description: ${next.seo.description}` : ''}`,
-      ];
-      if (current.title !== next.title || current.slug !== next.slug) {
-        lines.push(`Previous: title "${current.title}", slug "${current.slug}".`);
-      }
-      return textBlocks(...lines);
+      "Return the current editor's frontmatter as a YAML string (without --- delimiters). Includes title, slug, date, tags, extra fields, and SEO fields. Requires the editor page to be open.",
+    parameters: Type.Object({}),
+    execute: async () => {
+      const ed = requireEditor(editor);
+      return textBlocks(ed.getFrontMatterYaml());
     },
   });
 
-  const setContent = tool({
-    name: 'set_content',
-    label: 'Set content',
+  const updateFrontmatter = tool({
+    name: 'update_frontmatter',
+    label: 'Update frontmatter',
     description:
-      "Replace the open editor's content section (the markdown body) with the given markdown. Mutates the editor UI only — the user still clicks Save to persist. The editor's WYSIWYG view reflects this immediately.",
+      "Replace the open editor's frontmatter with the given YAML string (without --- delimiters). Parses standard fields (title, slug, date, tags) and extra fields. Mutates the editor UI only — the user still clicks Save to persist. Use get_frontmatter first to see current values.",
     parameters: Type.Object({
-      content_md: Type.String({ description: 'New full markdown body for the content section' }),
+      frontmatter_yaml: Type.String({
+        description:
+          'Full frontmatter as YAML lines (no --- delimiters). Example:\ntitle: "Hello World"\nslug: hello-world\ntags: [intro, draft]',
+      }),
     }),
     execute: async (_id, args) => {
-      if (editor === undefined) {
-        throw new Error('No editor is open — set_content requires the editor page.');
+      const ed = requireEditor(editor);
+      const yaml = args.frontmatter_yaml.trim();
+      if (yaml === '') {
+        throw new Error('frontmatter_yaml cannot be empty.');
       }
-      editor.setContent(args.content_md);
+
+      const { data } = parseFrontMatter(`---\n${yaml}\n---\n`);
+      const patch: FrontMatterPatch = {};
+
+      if (typeof data.title === 'string') {
+        patch.title = data.title;
+      }
+      if (typeof data.slug === 'string') {
+        patch.slug = data.slug;
+      }
+      if (typeof data.date === 'string') {
+        patch.date = data.date;
+      }
+      if (Array.isArray(data.tags)) {
+        patch.tags = data.tags.map(String);
+      }
+
+      const current = ed.getFrontMatter();
+      const extra: Array<{ key: string; value: string }> = [];
+      const reserved = new Set([
+        'title',
+        'slug',
+        'date',
+        'tags',
+        'seo_title',
+        'description',
+        'keywords',
+        'og_image',
+        'canonical',
+        'noindex',
+      ]);
+      for (const [key, value] of Object.entries(data)) {
+        if (reserved.has(key)) {
+          continue;
+        }
+        extra.push({ key, value: String(value ?? '') });
+      }
+      if (extra.length > 0) {
+        patch.extra = extra;
+      }
+
+      const seo: Record<string, unknown> = {};
+      for (const key of ['seo_title', 'description', 'keywords', 'og_image', 'canonical']) {
+        if (typeof data[key] === 'string') {
+          seo[key] = data[key];
+        }
+      }
+      if (data.noindex !== undefined) {
+        seo.noindex = Boolean(data.noindex);
+      }
+      if (Object.keys(seo).length > 0) {
+        patch.seo = { ...current.seo, ...seo };
+      }
+
+      ed.setFrontMatter(patch);
+      const next = ed.getFrontMatter();
+      return textBlocks(
+        `Updated frontmatter in the editor (not yet saved):\n` +
+          `- title: ${next.title}\n- slug: ${next.slug}\n- date: ${next.date || '—'}\n` +
+          `- tags: ${next.tags.join(', ') || 'none'}${
+            next.extra.length > 0
+              ? `\n- extra: ${next.extra.map(f => `${f.key}=${f.value}`).join(', ')}`
+              : ''
+          }`,
+      );
+    },
+  });
+
+  const getContent = tool({
+    name: 'get_content',
+    label: 'Get content',
+    description:
+      "Return the current editor's markdown content (without the frontmatter section). Requires the editor page to be open.",
+    parameters: Type.Object({}),
+    execute: async () => {
+      const ed = requireEditor(editor);
+      const content = ed.getContent();
+      return textBlocks(content || '(empty)');
+    },
+  });
+
+  const updateContent = tool({
+    name: 'update_content',
+    label: 'Update content',
+    description:
+      "Replace the open editor's markdown content (without the frontmatter section). Mutates the editor UI only — the user still clicks Save to persist. The editor's WYSIWYG view reflects this immediately.",
+    parameters: Type.Object({
+      content_md: Type.String({
+        description: 'New markdown body (must NOT include frontmatter --- delimiters)',
+      }),
+    }),
+    execute: async (_id, args) => {
+      const ed = requireEditor(editor);
+      ed.setContent(args.content_md);
       return textBlocks('Replaced the content section in the editor (not yet saved).');
     },
   });
 
   return [
     searchContent,
-    readPage,
-    listPages,
     listTags,
     fetchUrl,
-    updateFrontMatter,
-    setContent,
+    getFrontmatter,
+    updateFrontmatter,
+    getContent,
+    updateContent,
   ] as unknown as AgentTool<any>[];
 }
