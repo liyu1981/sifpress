@@ -74,5 +74,8 @@ frontend/dist/
 # Node
 frontend/node_modules/
 
+# TanStack Router generated cache
+frontend/.tanstack/
+
 # Local code intelligence index
 .codegraph/
