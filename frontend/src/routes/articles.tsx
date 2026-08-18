@@ -6,7 +6,7 @@ const articleSearchSchema = z.object({
   tag: z.string().optional(),
 });
 
-export const Route = createFileRoute('/article')({
+export const Route = createFileRoute('/articles')({
   validateSearch: articleSearchSchema,
   component: ArticleIndexRoute,
 });

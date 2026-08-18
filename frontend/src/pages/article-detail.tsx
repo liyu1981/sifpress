@@ -88,7 +88,12 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
     queryFn: () => {
       log('[DETAIL] pages.get START slug=%s', slug);
       return pagesApi.get({ slug }).then(p => {
-        log('[DETAIL] pages.get RESOLVED slug=%s title=%s contentLen=%d', slug, p?.title, p?.content_md?.length);
+        log(
+          '[DETAIL] pages.get RESOLVED slug=%s title=%s contentLen=%d',
+          slug,
+          p?.title,
+          p?.content_md?.length,
+        );
         return p;
       });
     },
@@ -139,7 +144,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
         <h1 className="font-heading text-2xl font-bold">{t('article.notFoundTitle')}</h1>
         <p className="text-sm text-muted-foreground">{t('article.notFoundDescription')}</p>
         <Button asChild variant="glass" size="sm">
-          <Link to="/article">
+          <Link to="/articles">
             <ArrowLeft className="size-3.5" />
             {t('article.backToIndex')}
           </Link>
@@ -179,7 +184,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                       <DeletePageMenu
                         pageId={page.id}
                         title={page.title}
-                        onDeleted={() => navigate({ to: '/article' })}
+                        onDeleted={() => navigate({ to: '/articles' })}
                       >
                         <Button variant="glass" size="xs" className="text-destructive">
                           <Trash2 />
@@ -238,7 +243,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                 <div className="flex flex-wrap gap-1.5">
                   {page.tags.map(tag => (
                     <Badge key={tag}>
-                      <Link to="/article" search={{ tag }} className="no-underline">
+                      <Link to="/articles" search={{ tag }} className="no-underline">
                         {tag}
                       </Link>
                     </Badge>
@@ -277,7 +282,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
 
       <div className="mt-8 flex justify-center">
         <Button asChild variant="glass" size="sm">
-          <Link to="/article">
+          <Link to="/articles">
             <ArrowLeft className="size-3.5" />
             {t('article.backToIndex')}
           </Link>

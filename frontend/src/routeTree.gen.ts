@@ -12,7 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as AccountRouteImport } from './routes/account'
-import { Route as ArticleRouteImport } from './routes/article'
+import { Route as ArticlesRouteImport } from './routes/articles'
 import { Route as AssetsRouteImport } from './routes/assets'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -35,9 +35,9 @@ const AccountRoute = AccountRouteImport.update({
   path: '/account',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ArticleRoute = ArticleRouteImport.update({
-  id: '/article',
-  path: '/article',
+const ArticlesRoute = ArticlesRouteImport.update({
+  id: '/articles',
+  path: '/articles',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AssetsRoute = AssetsRouteImport.update({
@@ -56,9 +56,9 @@ const SettingsRoute = SettingsRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const ArticleSlugRoute = ArticleSlugRouteImport.update({
-  id: '/$slug',
-  path: '/$slug',
-  getParentRoute: () => ArticleRoute,
+  id: '/article/$slug',
+  path: '/article/$slug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const EditorSlugRoute = EditorSlugRouteImport.update({
   id: '/editor/$slug',
@@ -75,7 +75,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/account': typeof AccountRoute
-  '/article': typeof ArticleRouteWithChildren
+  '/articles': typeof ArticlesRoute
   '/assets': typeof AssetsRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
@@ -87,7 +87,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/account': typeof AccountRoute
-  '/article': typeof ArticleRouteWithChildren
+  '/articles': typeof ArticlesRoute
   '/assets': typeof AssetsRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
@@ -100,7 +100,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/account': typeof AccountRoute
-  '/article': typeof ArticleRouteWithChildren
+  '/articles': typeof ArticlesRoute
   '/assets': typeof AssetsRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
@@ -114,7 +114,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/account'
-    | '/article'
+    | '/articles'
     | '/assets'
     | '/login'
     | '/settings'
@@ -126,7 +126,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/account'
-    | '/article'
+    | '/articles'
     | '/assets'
     | '/login'
     | '/settings'
@@ -138,7 +138,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/account'
-    | '/article'
+    | '/articles'
     | '/assets'
     | '/login'
     | '/settings'
@@ -151,10 +151,11 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
   AccountRoute: typeof AccountRoute
-  ArticleRoute: typeof ArticleRouteWithChildren
+  ArticlesRoute: typeof ArticlesRoute
   AssetsRoute: typeof AssetsRoute
   LoginRoute: typeof LoginRoute
   SettingsRoute: typeof SettingsRoute
+  ArticleSlugRoute: typeof ArticleSlugRoute
   EditorSlugRoute: typeof EditorSlugRoute
   EditorNewRoute: typeof EditorNewRoute
 }
@@ -182,11 +183,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AccountRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/article': {
-      id: '/article'
-      path: '/article'
-      fullPath: '/article'
-      preLoaderRoute: typeof ArticleRouteImport
+    '/articles': {
+      id: '/articles'
+      path: '/articles'
+      fullPath: '/articles'
+      preLoaderRoute: typeof ArticlesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/assets': {
@@ -212,10 +213,10 @@ declare module '@tanstack/react-router' {
     }
     '/article/$slug': {
       id: '/article/$slug'
-      path: '/$slug'
+      path: '/article/$slug'
       fullPath: '/article/$slug'
       preLoaderRoute: typeof ArticleSlugRouteImport
-      parentRoute: typeof ArticleRoute
+      parentRoute: typeof rootRouteImport
     }
     '/editor/$slug': {
       id: '/editor/$slug'
@@ -234,25 +235,15 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface ArticleRouteChildren {
-  ArticleSlugRoute: typeof ArticleSlugRoute
-}
-
-const ArticleRouteChildren: ArticleRouteChildren = {
-  ArticleSlugRoute: ArticleSlugRoute,
-}
-
-const ArticleRouteWithChildren =
-  ArticleRoute._addFileChildren(ArticleRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
   AccountRoute: AccountRoute,
-  ArticleRoute: ArticleRouteWithChildren,
+  ArticlesRoute: ArticlesRoute,
   AssetsRoute: AssetsRoute,
   LoginRoute: LoginRoute,
   SettingsRoute: SettingsRoute,
+  ArticleSlugRoute: ArticleSlugRoute,
   EditorSlugRoute: EditorSlugRoute,
   EditorNewRoute: EditorNewRoute,
 }

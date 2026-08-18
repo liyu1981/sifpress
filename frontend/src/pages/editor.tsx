@@ -681,7 +681,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
         <Badge variant="outline">{t('editor.notFoundBadge')}</Badge>
         <h1 className="font-heading text-2xl font-bold">{t('editor.notFoundTitle')}</h1>
         <Button asChild variant="glass" size="sm">
-          <Link to="/article">
+          <Link to="/articles">
             <ArrowLeft className="size-3.5" />
             {t('article.backToIndex')}
           </Link>
@@ -747,7 +747,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
                   <DeletePageMenu
                     pageId={page.id}
                     title={page.title}
-                    onDeleted={() => navigate({ to: '/article' })}
+                    onDeleted={() => navigate({ to: '/articles' })}
                   >
                     <Button type="button" variant="destructive" size="sm">
                       <Trash2 />

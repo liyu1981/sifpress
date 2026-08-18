@@ -44,7 +44,7 @@ function AppHeader() {
         </Button>
         <Button asChild variant="ghost" size="sm">
           <Link
-            to="/article"
+            to="/articles"
             activeOptions={{ exact: true }}
             activeProps={{ className: activeClass }}
           >

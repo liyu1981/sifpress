@@ -104,7 +104,7 @@ function ArticleCard({ article, locale }: { article: PageListItem; locale: strin
           <div className="flex flex-wrap gap-1.5">
             {article.tags.map(tag => (
               <Badge key={tag} variant="outline">
-                <Link to="/article" search={{ tag }} className="no-underline">
+                <Link to="/articles" search={{ tag }} className="no-underline">
                   {tag}
                 </Link>
               </Badge>
@@ -196,7 +196,7 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
 
   function selectTag(next: string | undefined) {
     navigate({
-      to: '/article',
+      to: '/articles',
       search: next !== undefined ? { tag: next } : {},
     });
   }
