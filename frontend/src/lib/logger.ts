@@ -15,6 +15,9 @@ const STORAGE_KEY = 'sifpress.dev';
 declare global {
   interface Window {
     _DEV?: boolean;
+    dataLayer?: unknown[];
+    gtag?: (...args: unknown[]) => void;
+    plausible?: (...args: unknown[]) => void;
   }
 }
 
