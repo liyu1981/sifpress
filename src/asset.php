@@ -297,7 +297,7 @@ function handle_asset(string $method): never
     }
 
     $stmt = db()->prepare(
-        'SELECT id, name, mime, size_bytes, thumb_mime, is_public, uploaded_by
+        'SELECT id, name, mime, size_bytes, length(data) AS data_length, thumb_mime, is_public, uploaded_by
            FROM assets WHERE id = ?'
     );
     $stmt->execute([$id]);
@@ -312,6 +312,15 @@ function handle_asset(string $method): never
     }
 
     $thumb = request_param('thumb') === '1';
+
+    if (!$thumb && (int) $row['size_bytes'] !== (int) $row['data_length']) {
+        json_response([
+            'error' => 'asset data size mismatch',
+            'asset_id' => $id,
+            'expected_bytes' => (int) $row['size_bytes'],
+            'actual_bytes' => (int) $row['data_length'],
+        ], 500);
+    }
 
     if ($thumb) {
         /*
@@ -398,7 +407,10 @@ function handle_asset(string $method): never
     $stmt->fetch(PDO::FETCH_BOUND);
 
     if (is_resource($stream)) {
+        rewind($stream);
         fpassthru($stream);
+    } elseif (is_string($stream)) {
+        echo $stream;
     }
 
     exit;
