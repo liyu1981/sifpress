@@ -212,11 +212,11 @@ function buildOllamaProvider(baseUrl: string) {
   const v1Url = `${baseUrl}/v1`;
   return createProvider({
     id: OLLAMA_PROVIDER_ID,
-    name: 'Ollama (local)',
+    name: 'Custom Local LLM (OpenAI compatible)',
     baseUrl: v1Url,
     auth: {
       apiKey: {
-        name: 'Ollama (local)',
+        name: 'Custom Local LLM (OpenAI compatible)',
         resolve: async () => ({ auth: { apiKey: 'local' } }),
       },
     },

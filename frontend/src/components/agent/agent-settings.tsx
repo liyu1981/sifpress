@@ -1,4 +1,4 @@
-import { Bot, Check, Globe, KeyRound, Loader2, RefreshCw, X } from 'lucide-react';
+import { Bot, Check, KeyRound, Loader2, RefreshCw, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -16,10 +16,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   clearApiKey,
+  getModels,
   getOllamaBaseUrl,
   hasCredential,
   isVerified,
-  listModels,
   OLLAMA_PROVIDER_ID,
   refreshModels,
   saveApiKey,
@@ -29,9 +29,9 @@ import {
 
 export function AgentSettingsCard() {
   const { t } = useTranslation();
-  const providers = listModels()
-    .map(m => ({ id: m.provider, name: m.providerName }))
-    .filter((p, index, all) => all.findIndex(x => x.id === p.id) === index);
+  const providers = getModels()
+    .getProviders()
+    .map(p => ({ id: p.id, name: p.name }));
 
   const [keys, setKeys] = useState<Record<string, string>>({});
   const [configured, setConfigured] = useState<Record<string, boolean>>({});
@@ -124,10 +124,7 @@ export function AgentSettingsCard() {
             <div key={provider.id} className="space-y-1.5">
               <Label className="flex items-center gap-1.5">
                 <KeyRound className="size-3.5 text-muted-foreground" />
-                {provider.name}
-                {provider.id === OLLAMA_PROVIDER_ID && (
-                  <span className="text-xs text-muted-foreground">({t('agent.noKeyNeeded')})</span>
-                )}
+                {provider.id === OLLAMA_PROVIDER_ID ? t('agent.customLocalLlm') : provider.name}
                 {configured[provider.id] && <Badge variant="secondary">{t('agent.keySet')}</Badge>}
                 {verified[provider.id] && (
                   <Badge variant="outline" className="gap-1">
@@ -136,46 +133,94 @@ export function AgentSettingsCard() {
                   </Badge>
                 )}
               </Label>
-              <div className="flex flex-wrap gap-1.5">
-                <Input
-                  type="password"
-                  value={keys[provider.id] ?? ''}
-                  onChange={event =>
-                    setKeys(prev => ({ ...prev, [provider.id]: event.target.value }))
-                  }
-                  placeholder={
-                    provider.id === OLLAMA_PROVIDER_ID
-                      ? t('agent.ollamaKeyPlaceholder')
-                      : t('agent.apiKeyPlaceholder')
-                  }
-                  className="h-8 min-w-32 flex-1"
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void handleSaveKey(provider.id)}
-                  disabled={(keys[provider.id] ?? '').trim() === ''}
-                >
-                  {t('agent.saveKey')}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => void handleClearKey(provider.id)}
-                  disabled={!configured[provider.id]}
-                >
-                  {t('agent.clearKey')}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void handleTest(provider.id)}
-                  disabled={testing[provider.id]}
-                >
-                  {testing[provider.id] ? <Loader2 className="animate-spin" /> : <Check />}
-                  {t('agent.testConnection')}
-                </Button>
-              </div>
+
+              {provider.id === OLLAMA_PROVIDER_ID ? (
+                <div className="space-y-1.5">
+                  <div className="flex gap-1.5">
+                    <Input
+                      value={ollamaUrl}
+                      onChange={event => setOllamaUrl(event.target.value)}
+                      placeholder="http://localhost:11434"
+                      className="h-8 flex-1"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleSaveOllama()}
+                      disabled={savingOllama}
+                    >
+                      {t('agent.save')}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{t('agent.ollamaBaseUrlHint')}</p>
+                  <div className="flex gap-1.5">
+                    <Input
+                      type="password"
+                      value={keys[provider.id] ?? ''}
+                      onChange={event =>
+                        setKeys(prev => ({ ...prev, [provider.id]: event.target.value }))
+                      }
+                      placeholder={t('agent.ollamaKeyPlaceholder')}
+                      className="h-8 min-w-32 flex-1"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleSaveKey(provider.id)}
+                      disabled={(keys[provider.id] ?? '').trim() === ''}
+                    >
+                      {t('agent.saveKey')}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleTest(provider.id)}
+                      disabled={testing[provider.id]}
+                    >
+                      {testing[provider.id] ? <Loader2 className="animate-spin" /> : <Check />}
+                      {t('agent.testConnection')}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  <Input
+                    type="password"
+                    value={keys[provider.id] ?? ''}
+                    onChange={event =>
+                      setKeys(prev => ({ ...prev, [provider.id]: event.target.value }))
+                    }
+                    placeholder={t('agent.apiKeyPlaceholder')}
+                    className="h-8 min-w-32 flex-1"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleSaveKey(provider.id)}
+                    disabled={(keys[provider.id] ?? '').trim() === ''}
+                  >
+                    {t('agent.saveKey')}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void handleClearKey(provider.id)}
+                    disabled={!configured[provider.id]}
+                  >
+                    {t('agent.clearKey')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleTest(provider.id)}
+                    disabled={testing[provider.id]}
+                  >
+                    {testing[provider.id] ? <Loader2 className="animate-spin" /> : <Check />}
+                    {t('agent.testConnection')}
+                  </Button>
+                </div>
+              )}
+
               {status[provider.id] !== undefined && (
                 <p
                   className={
@@ -199,30 +244,6 @@ export function AgentSettingsCard() {
               )}
             </div>
           ))}
-        </div>
-
-        <div className="space-y-1.5 border-t border-border/60 pt-4">
-          <Label className="flex items-center gap-1.5">
-            <Globe className="size-3.5 text-muted-foreground" />
-            {t('agent.ollamaBaseUrlField')}
-          </Label>
-          <div className="flex gap-1.5">
-            <Input
-              value={ollamaUrl}
-              onChange={event => setOllamaUrl(event.target.value)}
-              placeholder="http://localhost:11434"
-              className="h-8 flex-1"
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void handleSaveOllama()}
-              disabled={savingOllama}
-            >
-              {t('agent.save')}
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">{t('agent.ollamaBaseUrlHint')}</p>
         </div>
 
         <div className="flex items-center justify-between border-t border-border/60 pt-4">

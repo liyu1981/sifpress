@@ -12,7 +12,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Toaster } from '@/components/ui/sonner';
@@ -38,11 +37,6 @@ function AppHeader() {
     <header className="apple-panel sticky top-4 z-10 flex flex-wrap items-center justify-between gap-2 rounded-2xl -mx-4 px-6 py-2">
       <nav className="flex items-center gap-1">
         <Button asChild variant="ghost" size="sm">
-          <Link to="/" activeOptions={{ exact: true }} activeProps={{ className: activeClass }}>
-            {t('nav.home')}
-          </Link>
-        </Button>
-        <Button asChild variant="ghost" size="sm">
           <Link
             to="/articles"
             activeOptions={{ exact: true }}
@@ -51,10 +45,41 @@ function AppHeader() {
             {t('nav.article')}
           </Link>
         </Button>
+        {user !== null && (
+          <>
+            <Button asChild variant="ghost" size="sm">
+              <Link
+                to="/assets"
+                activeOptions={{ exact: true }}
+                activeProps={{ className: activeClass }}
+              >
+                {t('nav.assets')}
+              </Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link
+                to="/account-admin"
+                activeOptions={{ exact: true }}
+                activeProps={{ className: activeClass }}
+              >
+                {t('nav.account')}
+              </Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link
+                to="/settings"
+                activeOptions={{ exact: true }}
+                activeProps={{ className: activeClass }}
+              >
+                {t('nav.settings')}
+              </Link>
+            </Button>
+          </>
+        )}
       </nav>
       <div className="flex items-center gap-1">
         <ThemeToggle />
-        {user !== null ? (
+        {user !== null && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -75,28 +100,16 @@ function AppHeader() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuItem asChild>
-                <Link to="/account" activeOptions={{ exact: true }}>
-                  {t('nav.account')}
-                </Link>
+                <Link to="/account">{t('nav.myAccount')}</Link>
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/assets" activeOptions={{ exact: true }}>
-                  {t('nav.assets')}
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/settings" activeOptions={{ exact: true }}>
-                  {t('nav.settings')}
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => void handleLogout()}>
                 <LogOut />
                 {t('nav.logout')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        ) : (
+        )}
+        {user === null && (
           <Button asChild variant="ghost" size="sm">
             <Link to="/login">{t('nav.login')}</Link>
           </Button>
@@ -154,6 +167,7 @@ function RootLayout() {
     pathname === '/settings' ||
     pathname === '/assets' ||
     pathname === '/account' ||
+    pathname === '/account-admin' ||
     pathname.startsWith('/editor');
 
   let content: ReactNode;

@@ -1473,8 +1473,6 @@ export function AccountManagementPage() {
 
   usePageTitle(t('account.pageTitle'));
 
-  const canManageUsers = user?.permissions.includes('users.manage') ?? false;
-
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6">
       <header className="space-y-2">
@@ -1482,29 +1480,27 @@ export function AccountManagementPage() {
         <p className="text-sm text-muted-foreground">{t('account.pageDescription')}</p>
       </header>
 
-      <Tabs defaultValue="account" className="gap-6 md:flex-row">
+      <Tabs defaultValue="profile" className="gap-6 md:flex-row">
         <TabsList className="w-fit flex-row gap-1 bg-transparent p-0 dark:bg-transparent md:h-auto md:w-44 md:flex-col md:items-stretch md:self-start">
           <TabsTrigger
-            value="account"
+            value="profile"
             className="group justify-end rounded-full border-transparent px-0 data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent dark:data-[state=active]:shadow-none"
           >
             <span className="rounded-full px-3 py-1.5 transition-colors group-data-[state=active]:bg-accent group-data-[state=active]:text-accent-foreground">
-              {t('account.tabAccount')}
+              {t('account.tabProfile')}
             </span>
           </TabsTrigger>
-          {canManageUsers && (
-            <TabsTrigger
-              value="users"
-              className="group justify-end rounded-full border-transparent px-0 data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent dark:data-[state=active]:shadow-none"
-            >
-              <span className="rounded-full px-3 py-1.5 transition-colors group-data-[state=active]:bg-accent group-data-[state=active]:text-accent-foreground">
-                {t('account.tabUsers')}
-              </span>
-            </TabsTrigger>
-          )}
+          <TabsTrigger
+            value="agent"
+            className="group justify-end rounded-full border-transparent px-0 data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent dark:data-[state=active]:shadow-none"
+          >
+            <span className="rounded-full px-3 py-1.5 transition-colors group-data-[state=active]:bg-accent group-data-[state=active]:text-accent-foreground">
+              {t('account.tabAgent')}
+            </span>
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="account" className="space-y-6">
+        <TabsContent value="profile" className="space-y-6">
           {user !== null && (
             <Card size="sm">
               <CardHeader>
@@ -1532,12 +1528,49 @@ export function AccountManagementPage() {
           <ChangePasswordForm />
         </TabsContent>
 
-        {canManageUsers && (
-          <TabsContent value="users">
-            <UsersCard />
-          </TabsContent>
-        )}
+        <TabsContent value="agent" className="space-y-6">
+          <AgentSettingsCard />
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+export function AccountAdminPage() {
+  const { t } = useTranslation();
+  const { user } = useAuth();
+
+  usePageTitle(t('account.adminPageTitle'));
+
+  const canManageUsers = user?.permissions.includes('users.manage') ?? false;
+
+  if (!canManageUsers) {
+    return (
+      <div className="mx-auto w-full max-w-5xl space-y-6">
+        <header className="space-y-2">
+          <h1 className="font-heading text-3xl font-bold tracking-tight">
+            {t('account.adminPageTitle')}
+          </h1>
+        </header>
+        <Card size="sm">
+          <CardContent className="py-6 text-center text-sm text-muted-foreground">
+            {t('account.adminForbidden')}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-5xl space-y-6">
+      <header className="space-y-2">
+        <h1 className="font-heading text-3xl font-bold tracking-tight">
+          {t('account.adminPageTitle')}
+        </h1>
+        <p className="text-sm text-muted-foreground">{t('account.adminPageDescription')}</p>
+      </header>
+
+      <UsersCard />
     </div>
   );
 }
@@ -1565,14 +1598,6 @@ export function SettingsPage() {
           >
             <span className="rounded-full px-3 py-1.5 transition-colors group-data-[state=active]:bg-accent group-data-[state=active]:text-accent-foreground">
               {t('settings.tabSystem')}
-            </span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="agent"
-            className="group justify-end rounded-full border-transparent px-0 data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent dark:data-[state=active]:shadow-none"
-          >
-            <span className="rounded-full px-3 py-1.5 transition-colors group-data-[state=active]:bg-accent group-data-[state=active]:text-accent-foreground">
-              {t('settings.tabAgent')}
             </span>
           </TabsTrigger>
           {canManageSettings && (
@@ -1610,10 +1635,6 @@ export function SettingsPage() {
         <TabsContent value="system" className="space-y-6">
           <SystemSettingsCard />
           <FaviconCard />
-        </TabsContent>
-
-        <TabsContent value="agent" className="space-y-6">
-          <AgentSettingsCard />
         </TabsContent>
 
         {canManageSettings && (

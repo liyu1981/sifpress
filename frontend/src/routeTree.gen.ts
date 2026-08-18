@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as AccountRouteImport } from './routes/account'
+import { Route as AccountAdminRouteImport } from './routes/account-admin'
 import { Route as ArticlesRouteImport } from './routes/articles'
 import { Route as AssetsRouteImport } from './routes/assets'
 import { Route as LoginRouteImport } from './routes/login'
@@ -33,6 +34,11 @@ const SplatRoute = SplatRouteImport.update({
 const AccountRoute = AccountRouteImport.update({
   id: '/account',
   path: '/account',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountAdminRoute = AccountAdminRouteImport.update({
+  id: '/account-admin',
+  path: '/account-admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ArticlesRoute = ArticlesRouteImport.update({
@@ -75,6 +81,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/account': typeof AccountRoute
+  '/account-admin': typeof AccountAdminRoute
   '/articles': typeof ArticlesRoute
   '/assets': typeof AssetsRoute
   '/login': typeof LoginRoute
@@ -87,6 +94,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/account': typeof AccountRoute
+  '/account-admin': typeof AccountAdminRoute
   '/articles': typeof ArticlesRoute
   '/assets': typeof AssetsRoute
   '/login': typeof LoginRoute
@@ -100,6 +108,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/account': typeof AccountRoute
+  '/account-admin': typeof AccountAdminRoute
   '/articles': typeof ArticlesRoute
   '/assets': typeof AssetsRoute
   '/login': typeof LoginRoute
@@ -114,6 +123,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/account'
+    | '/account-admin'
     | '/articles'
     | '/assets'
     | '/login'
@@ -126,6 +136,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/account'
+    | '/account-admin'
     | '/articles'
     | '/assets'
     | '/login'
@@ -138,6 +149,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/account'
+    | '/account-admin'
     | '/articles'
     | '/assets'
     | '/login'
@@ -151,6 +163,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
   AccountRoute: typeof AccountRoute
+  AccountAdminRoute: typeof AccountAdminRoute
   ArticlesRoute: typeof ArticlesRoute
   AssetsRoute: typeof AssetsRoute
   LoginRoute: typeof LoginRoute
@@ -181,6 +194,13 @@ declare module '@tanstack/react-router' {
       path: '/account'
       fullPath: '/account'
       preLoaderRoute: typeof AccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account-admin': {
+      id: '/account-admin'
+      path: '/account-admin'
+      fullPath: '/account-admin'
+      preLoaderRoute: typeof AccountAdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/articles': {
@@ -239,6 +259,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
   AccountRoute: AccountRoute,
+  AccountAdminRoute: AccountAdminRoute,
   ArticlesRoute: ArticlesRoute,
   AssetsRoute: AssetsRoute,
   LoginRoute: LoginRoute,
