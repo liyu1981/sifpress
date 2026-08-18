@@ -47,7 +47,7 @@ export const MarkdownView = memo(function MarkdownView({
           setHtml(next);
         }
       })
-      .catch((err) => {
+      .catch(err => {
         logError('[MD VIEW] markdownToHtml FAILED', err);
         if (!cancelled) {
           setHtml('');
