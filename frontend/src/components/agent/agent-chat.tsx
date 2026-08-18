@@ -61,6 +61,8 @@ interface ToolChip {
   name: string;
   label: string;
   status: 'running' | 'done' | 'error';
+  args?: Record<string, unknown>;
+  result?: unknown;
 }
 
 function readLastModel(): { providerId: string; modelId: string } | undefined {
@@ -120,6 +122,7 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
   const [streamingText, setStreamingText] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [toolChips, setToolChips] = useState<ToolChip[]>([]);
+  const [expandedToolCalls, setExpandedToolCalls] = useState<Set<string>>(new Set());
   const [pendingConfirm, setPendingConfirm] = useState<ConfirmRequest | null>(null);
   const [input, setInput] = useState('');
   const [runError, setRunError] = useState<string | null>(null);
@@ -230,6 +233,7 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
                 name: event.toolName,
                 label: toolLabels.get(event.toolName) ?? event.toolName,
                 status: 'running',
+                args: event.args,
               },
             ]);
             break;
@@ -237,7 +241,7 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
             setToolChips(prev =>
               prev.map(chip =>
                 chip.id === event.toolCallId
-                  ? { ...chip, status: event.isError ? 'error' : 'done' }
+                  ? { ...chip, status: event.isError ? 'error' : 'done', result: event.result }
                   : chip,
               ),
             );
@@ -252,6 +256,7 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
             }
             void persistSession(latestRef.current ?? sessionNow, instance.state.messages);
             setToolChips([]);
+            setExpandedToolCalls(new Set());
             break;
           default:
             break;
@@ -463,7 +468,16 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
   const latestModelValue =
     latest !== undefined ? `${latest.providerId}::${latest.modelId}` : undefined;
 
-  const renderMessage = (message: AgentMessage, index: number) => {
+  const toggleToolCall = useCallback((id: string) => {
+    setExpandedToolCalls(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const renderMessage = (message: AgentMessage, index: number, allMessages?: AgentMessage[]) => {
     if (message.role === 'user') {
       return (
         <div key={index} className="flex justify-end">
@@ -474,14 +488,7 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
       );
     }
     if (message.role === 'toolResult') {
-      return (
-        <div key={index} className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
-          <Check className="size-3 shrink-0 text-muted-foreground/60" />
-          <span className="truncate">
-            {message.isError ? t('agent.toolError') : t('agent.toolDone')} · {message.toolName}
-          </span>
-        </div>
-      );
+      return null;
     }
     if (message.role !== 'assistant') {
       return null;
@@ -491,6 +498,16 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
     if (text === '' && calledTools.length === 0) {
       return null;
     }
+
+    const toolResultMap = new Map<string, AgentMessage>();
+    if (allMessages) {
+      for (const m of allMessages) {
+        if (m.role === 'toolResult') {
+          toolResultMap.set(m.toolCallId, m);
+        }
+      }
+    }
+
     return (
       <div key={index} className="flex items-start gap-2">
         <div className="glass-control-opaque mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-lg">
@@ -502,12 +519,52 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
               <MarkdownView content={text} />
             </div>
           )}
-          {calledTools.map((call, i) => (
-            <Badge key={i} variant="outline" className="font-normal">
-              <Sparkles className="size-3" />
-              {t('agent.usedTool', { tool: toolLabels.get(call.name) ?? call.name })}
-            </Badge>
-          ))}
+          {calledTools.map((call, i) => {
+            const expanded = expandedToolCalls.has(call.id);
+            const resultMsg = toolResultMap.get(call.id);
+            const hasDetails = resultMsg !== undefined;
+            return (
+              <div key={i}>
+                <button
+                  type="button"
+                  onClick={hasDetails ? () => toggleToolCall(call.id) : undefined}
+                  className={`flex items-center gap-1 rounded-lg border border-border/40 px-2 py-1 text-xs font-normal ${hasDetails ? 'cursor-pointer hover:bg-muted/40' : ''}`}
+                >
+                  <Sparkles className="size-3" />
+                  <span>
+                    {t('agent.usedTool', { tool: toolLabels.get(call.name) ?? call.name })}
+                  </span>
+                  {hasDetails && (
+                    <ChevronDown
+                      className={`size-3 shrink-0 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`}
+                    />
+                  )}
+                </button>
+                {expanded && hasDetails && resultMsg && resultMsg.role === 'toolResult' && (
+                  <div className="mt-1 space-y-1 rounded-lg border border-border/40 bg-muted/30 p-2 text-xs">
+                    <div>
+                      <span className="font-medium text-muted-foreground">
+                        {t('agent.toolArgs')}:
+                      </span>
+                      <pre className="mt-0.5 max-h-40 overflow-auto whitespace-pre-wrap break-all font-mans text-foreground/80">
+                        {JSON.stringify(call.arguments, null, 2)}
+                      </pre>
+                    </div>
+                    <div>
+                      <span className="font-medium text-muted-foreground">
+                        {resultMsg.isError ? t('agent.toolError') : t('agent.toolResult')}:
+                      </span>
+                      <pre className="mt-0.5 max-h-40 overflow-auto whitespace-pre-wrap break-all font-mans text-foreground/80">
+                        {resultMsg.content
+                          .map(b => (b.type === 'text' ? b.text : '[image]'))
+                          .join('\n')}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -585,7 +642,7 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
                   {s.messages.length === 0 && !isLatest && (
                     <p className="px-1 text-xs text-muted-foreground">{t('agent.noMessages')}</p>
                   )}
-                  {s.messages.map(renderMessage)}
+                  {s.messages.map((msg, i) => renderMessage(msg, i, s.messages))}
                   {isLatest && isThinking && streamingText === '' && (
                     <div className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
                       <Loader2 className="size-3 animate-spin" />
@@ -603,15 +660,58 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
                     </div>
                   )}
                   {isLatest && toolChips.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {toolChips.map(chip => (
-                        <Badge key={chip.id} variant="outline" className="gap-1 font-normal">
-                          {chip.status === 'running' && <Loader2 className="size-3 animate-spin" />}
-                          {chip.status === 'done' && <Check className="size-3" />}
-                          {chip.status === 'error' && <X className="size-3 text-destructive" />}
-                          {chip.label}
-                        </Badge>
-                      ))}
+                    <div className="flex flex-col gap-1.5">
+                      {toolChips.map(chip => {
+                        const expanded = expandedToolCalls.has(chip.id);
+                        const hasDetails = chip.args !== undefined;
+                        return (
+                          <div key={chip.id}>
+                            <button
+                              type="button"
+                              onClick={hasDetails ? () => toggleToolCall(chip.id) : undefined}
+                              className={`flex items-center gap-1 rounded-lg border border-border/40 bg-muted/40 px-2 py-1 text-xs ${hasDetails ? 'cursor-pointer hover:bg-muted/60' : ''}`}
+                            >
+                              {chip.status === 'running' && (
+                                <Loader2 className="size-3 animate-spin" />
+                              )}
+                              {chip.status === 'done' && <Check className="size-3" />}
+                              {chip.status === 'error' && <X className="size-3 text-destructive" />}
+                              <span>{chip.label}</span>
+                              {hasDetails && (
+                                <ChevronDown
+                                  className={`size-3 shrink-0 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`}
+                                />
+                              )}
+                            </button>
+                            {expanded && hasDetails && (
+                              <div className="mt-1 space-y-1 rounded-lg border border-border/40 bg-muted/30 p-2 text-xs">
+                                {chip.args !== undefined && (
+                                  <div>
+                                    <span className="font-medium text-muted-foreground">
+                                      {t('agent.toolArgs')}:
+                                    </span>
+                                    <pre className="mt-0.5 max-h-40 overflow-auto whitespace-pre-wrap break-all font-mans text-foreground/80">
+                                      {JSON.stringify(chip.args, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                                {chip.result !== undefined && (
+                                  <div>
+                                    <span className="font-medium text-muted-foreground">
+                                      {t('agent.toolResult')}:
+                                    </span>
+                                    <pre className="mt-0.5 max-h-40 overflow-auto whitespace-pre-wrap break-all font-mans text-foreground/80">
+                                      {typeof chip.result === 'string'
+                                        ? chip.result
+                                        : JSON.stringify(chip.result, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                   {isLatest && runError !== null && (

@@ -1185,7 +1185,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
 
       {agentOpen && (
         <aside
-          className="fixed bottom-0 left-1/2 z-50 flex -translate-x-1/2 flex-col shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.35)] dark:shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.6)]"
+          className="fixed bottom-0 left-1/2 z-50 flex -translate-x-1/2 flex-col rounded-t-2xl shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.35)] dark:shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.6)]"
           style={{ width: 'min(80vw, 51.2rem)' }}
         >
           <AgentChat
