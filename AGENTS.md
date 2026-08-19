@@ -2,23 +2,26 @@
 
 ## Package manager
 
-- **Always use `pnpm`** in `frontend/` — never `npm`, `yarn`, or `npx install`.
-- pnpm 11 settings (e.g. `allowBuilds`) live in `frontend/pnpm-workspace.yaml`,
-  not in `package.json`.
-- Install / add / build commands:
+- The repo is a **pnpm workspace** rooted at the repo root (`pnpm-workspace.yaml`
+  lists `admin_ui` and `ui_sdk`). **Always use `pnpm`** — never `npm`, `yarn`,
+  or `npx install`.
+- pnpm 11 settings (e.g. `allowBuilds`) live in `pnpm-workspace.yaml`, not in
+  `package.json`.
+- Install / add / build commands (run from the repo root or the package dir):
 
   ```bash
-  cd frontend
-  pnpm install        # installs from pnpm-lock.yaml
-  pnpm add <pkg>      # add a dependency
-  pnpm run typecheck  # tsc --noEmit
+  pnpm install        # installs from pnpm-lock.yaml at repo root
+  cd admin_ui
+  pnpm add <pkg>      # add a dependency to the admin UI
+  pnpm run typecheck  # tsc --noEmit (admin_ui + ui_sdk)
   pnpm run format     # biome format --write .
-  pnpm run build      # tsc --noEmit && vite build -> frontend/dist/
+  pnpm run build      # tsc --noEmit && vite build -> admin_ui/dist/
   ```
 
   `pnpm run build` type-checks before bundling, so it fails on type errors.
 
-- `pnpm-lock.yaml` is committed; `package-lock.json` must not exist.
+- `pnpm-lock.yaml` is committed at the repo root; `package-lock.json` must not
+  exist.
 
 ## Build
 
@@ -28,7 +31,7 @@ php build.php release  # release    -> dist/sifpress.php  (no dev.php)
 ./rel.sh               # shorthand for `php build.php release`
 ```
 
-- Runs `pnpm run build` in `frontend/`.
+- Runs `pnpm run build` in `admin_ui/`.
 - Inlines the built JS/CSS into the HTML, embeds it as `EMBEDDED_HTML`.
 - Assembles the PHP fragments from `src/` (in order: `bootstrap.php`,
   `db.php`, `migration.php`, `auth.php`, `api.php`, `spa.php`,
@@ -51,8 +54,9 @@ PORT=8080 ./dev.sh
 
 - Runs the build once, then serves `dist/index.php` with PHP's built-in
   server on port 5000.
-- Watches `src/`, `frontend/src/`, and `frontend/index.html` with
-  `inotifywait`; on change it re-runs `php build.php` and you reload the page.
+- Watches `src/`, `admin_ui/src/`, `admin_ui/index.html`, and `ui_sdk/src/`
+  with `inotifywait`; on change it re-runs `php build.php` and you reload the
+  page.
 - PHP is re-parsed per request, so PHP logic changes only need a rebuild
   (no server restart).
 - dev.sh uses the default PHP settings (no `-d` overrides), so asset uploads
@@ -83,7 +87,19 @@ src/                PHP source fragments (edit these)
   migrations.php    MIGRATIONS region (SQL scripts embedded by build.php)
   dev.php           dev-only ?p=dev handler (dev builds only)
   router.php        main router
-frontend/           React app (pnpm)
+ui_sdk/             reusable UI SDK (pnpm workspace package "ui-sdk")
+  src/              TypeScript source (consumed directly, no separate build)
+    api.ts          fetch wrappers (moduleRequest/apiRequest/uploadRequest,
+                    assetUrl/avatarUrl, copyText, ApiError)
+    pages.ts        typed API objects (system/settings/tracking/auth/pages/
+                    users/roles/tags/assets/migration APIs) + shared types
+    assets.ts       browser thumbnail/avatar generation (image/video)
+    auth.tsx        AuthProvider + useAuth (React context over react-query)
+    update.ts       updateApi (version check / self-upgrade)
+    rewrite.ts      createQueryRewrite() — the TanStack Router ?p= rewrite pair
+    index.ts        barrel (re-exports everything as "ui-sdk")
+  package.json      name "ui-sdk", peer-deps on react/react-query/router
+admin_ui/           Admin React app (pnpm workspace package "sifpress-admin-ui")
   src/              TypeScript + React + Tailwind v4
     routes/         file-based routes (TanStack Router)
       __root.tsx    root layout (AppHeader, footer, auth gate)
@@ -97,16 +113,19 @@ frontend/           React app (pnpm)
       assets.tsx    /assets
       $.tsx         catch-all 404
     routeTree.gen.ts  auto-generated route tree (do not edit)
-    router.tsx      createRouter + ?p= rewrite config
+    router.tsx      createRouter + ?p= rewrite config (via ui-sdk rewrite)
     pages/          page components
-    lib/            api.ts (fetch wrappers), utils.ts (cn)
+    lib/            UI libs (marked/, agent/, theme, i18n, utils, logger,
+                    front-matter, format) — API layer lives in ui_sdk
     components/ui/  shadcn/ui components
   components.json   shadcn config (style "radix-nova", aliases @/*)
-  tsconfig.json     strict; paths @/* -> ./src/*
+  tsconfig.json     strict; paths @/* -> ./src/*, ui-sdk -> ../ui_sdk/src
 build.php           assemble src/ + inlined bundle -> dist/*.php (dev/release)
 rel.sh              release build -> dist/sifpress.php
 dev.sh              dev build + serve (watch) -> dist/index.php
 dist/               build artifacts (gitignored)
+pnpm-workspace.yaml workspace root (packages: admin_ui, ui_sdk)
+pnpm-lock.yaml      workspace lockfile
 ```
 
 ## Backend model
@@ -143,12 +162,12 @@ dist/               build artifacts (gitignored)
   directly. Search params are validated with `zod` (e.g. `?tag=` on
   `/article`).
 - **TanStack Query** is used for all API calls. Fetch wrappers live in
-  `src/lib/api.ts`; they hit
+  `ui_sdk/src/api.ts` (imported as `ui-sdk`); they hit
   `window.location.pathname?p=api&action=...` so the bundle works at any
   mount depth.
 - shadcn components are generated into `src/components/ui/` and edited via
   `pnpm dlx shadcn@latest add <name>`. Components.json aliases `@/*` to
-  `frontend/src/*`.
+  `admin_ui/src/*`.
 - Route-aware `<title>` is set per page via `src/hooks/use-page-title.ts`.
 - **Theming** (`src/lib/theme.tsx`): `ThemeProvider` + `useTheme` with
   `light` / `dark` / `system` (persisted in localStorage; `system` follows
@@ -196,19 +215,19 @@ dist/               build artifacts (gitignored)
   libraries are unavailable and must not be installed. There is no
   browser-based verification; rely on `pnpm run typecheck`, `php build.php`,
   curl, and code inspection instead.
-- **Biome is the formatter for `frontend/src` and `frontend/vite.config.ts**
-  (config: `frontend/biome.json`; linter disabled — formatter only). Run
+- **Biome is the formatter for `admin_ui/src` and `admin_ui/vite.config.ts`**
+  (config: `admin_ui/biome.json`; linter disabled — formatter only). Run
   `pnpm run format` after editing TS/TSX. Enforced style: semicolons at
   statement ends, trailing commas, single quotes, 2-space indent, 100-col
-  width. Scope is limited to `src/**/*.{ts,tsx}` + `vite.config.ts`; Biome
-  must NOT touch `index.css` (Tailwind v4 syntax breaks its CSS parser) or
-  other files.
+  width. Scope is limited to `src/**/*.{ts,tsx}` + `vite.config.ts` +
+  `../ui_sdk/src/**/*.{ts,tsx}`; Biome must NOT touch `index.css` (Tailwind
+  v4 syntax breaks its CSS parser) or other files.
 - **Prose typography overrides must be unlayered.** In Tailwind v4 the
   `@tailwindcss/typography` plugin emits its default `.prose` tokens into the
   `utilities` layer, which outranks `components`-layer rules no matter their
   specificity. To override `.prose` colors/variables (e.g. for dark mode),
   write the override outside any `@layer` block (unlayered CSS always wins).
-  See the `.prose.prose` block in `frontend/src/index.css`.
+  See the `.prose.prose` block in `admin_ui/src/index.css`.
 - PHP fragments in `src/` have no `<?php` tag or `declare(strict_types=1)`
   — `build.php` adds both at the top of the assembled file.
 - Do not add comments to code unless asked; docblocks in fragments are fine.

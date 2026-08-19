@@ -43,12 +43,12 @@ declare(strict_types=1);
  *   src/dev.php          dev-only ?p=dev handler (dev builds only)
  *   src/router.php       main router
  *
- * The frontend uses pnpm (see frontend/package.json).
+ * The admin UI uses pnpm (see admin_ui/package.json).
  */
 
 $root = __DIR__;
-$frontend = $root . '/frontend';
-$frontendDist = $frontend . '/dist';
+$app = $root . '/admin_ui';
+$appDist = $app . '/dist';
 $src = $root . '/src';
 $outputDir = $root . '/dist';
 
@@ -281,8 +281,8 @@ function inline_assets(string $html, string $dist, bool $dev): string
     return $html;
 }
 
-if (!is_dir($frontend)) {
-    throw new RuntimeException('frontend directory not found');
+if (!is_dir($app)) {
+    throw new RuntimeException('admin_ui directory not found');
 }
 
 if (!is_dir($src)) {
@@ -295,22 +295,22 @@ foreach ($parts as $part) {
     }
 }
 
-$frontendBuild = $mode === 'release' || $mode === 'rel' ? 'pnpm run build:release' : 'pnpm run build:dev';
+$appBuild = $mode === 'release' || $mode === 'rel' ? 'pnpm run build:release' : 'pnpm run build:dev';
 
-if (!is_dir($frontend . '/node_modules')) {
-    run('pnpm install', $frontend);
+if (!is_dir($app . '/node_modules')) {
+    run('pnpm install', $app);
 }
 
-run($frontendBuild, $frontend);
+run($appBuild, $app);
 
-if (!is_dir($frontendDist)) {
+if (!is_dir($appDist)) {
     throw new RuntimeException('Vite dist directory was not generated');
 }
 
-$html = file_get_contents($frontendDist . '/index.html');
+$html = file_get_contents($appDist . '/index.html');
 
 if ($html === false) {
-    throw new RuntimeException('Could not read frontend/dist/index.html');
+    throw new RuntimeException('Could not read admin_ui/dist/index.html');
 }
 
 /*
@@ -336,7 +336,7 @@ if ($html === null) {
  * rule's `(?<title>…)` group) with no closing tag, which would otherwise
  * make the regex scan the whole bundle and hit the PCRE backtrack limit.
  */
-$html = inline_assets($html, $frontendDist, $mode === 'release' || $mode === 'rel' ? false : true);
+$html = inline_assets($html, $appDist, $mode === 'release' || $mode === 'rel' ? false : true);
 $html = preg_replace('/<title[^>]*>.*?<\/title>/is', '', $html, 1);
 
 if ($html === null) {

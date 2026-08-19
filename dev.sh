@@ -7,8 +7,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 WATCH_DIRS=(
   "$ROOT/src"
-  "$ROOT/frontend/src"
-  "$ROOT/frontend/index.html"
+  "$ROOT/admin_ui/src"
+  "$ROOT/admin_ui/index.html"
+  "$ROOT/ui_sdk/src"
 )
 
 cd "$ROOT"
@@ -65,7 +66,7 @@ trap cleanup EXIT
 trap 'cleanup; exit 1' INT TERM
 
 echo "==> Serving at http://localhost:$PORT"
-echo "==> Watching src/ and frontend/ for changes (Ctrl-C to stop)"
+echo "==> Watching src/, admin_ui/, and ui_sdk/ for changes (Ctrl-C to stop)"
 
 while true; do
   if [ "$LAST_BUILD_OK" -eq 1 ]; then

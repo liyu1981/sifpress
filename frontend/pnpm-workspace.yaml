@@ -1,7 +1,0 @@
-allowBuilds:
-  '@google/genai': false
-  esbuild: true
-  protobufjs: false
-minimumReleaseAgeExclude:
-  - '@tanstack/react-router@1.170.29'
-  - '@tanstack/router-core@1.171.24'

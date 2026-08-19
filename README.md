@@ -143,8 +143,9 @@ echoes the fully inlined HTML.
 ### Client side (React)
 
 The React app uses **TanStack Router** with a URL-rewrite layer that maps the
-browser URL to the internal route tree and back. The `rewrite` option in
-`frontend/src/router.tsx` is bidirectional:
+browser URL to the internal route tree and back. The `rewrite` option is built
+by `createQueryRewrite()` in `ui_sdk/src/rewrite.ts` and wired into
+`admin_ui/src/router.tsx`:
 
 - **`input`** (browser → router): reads `?p=/editor/123` and turns it into the
   internal path `/editor/123` (missing `p` → `/`).
@@ -158,8 +159,8 @@ buttons work out of the box.
 ### API URLs
 
 Because the API lives behind the same `index.php`, the fetch wrappers in
-`frontend/src/lib/api.ts` address it relative to the current document — no
-base-path configuration is needed:
+`ui_sdk/src/api.ts` (consumed as `ui-sdk`) address it relative to the current
+document — no base-path configuration is needed:
 
 ```ts
 const url = `${window.location.pathname}?p=api&action=hello`
@@ -191,22 +192,31 @@ The architecture does not require a PHP framework.
 
 ## Adding a new SPA route
 
-The frontend is a TypeScript + TanStack Router app in `frontend/`:
+The admin UI is a TypeScript + TanStack Router app in `admin_ui/`, with the
+reusable API/SDK layer in the `ui_sdk/` workspace package:
 
 ```text
-frontend/src/
+ui_sdk/src/
+├── api.ts          fetch wrappers (?p=api&action=...)
+├── pages.ts        typed API objects + shared types
+├── assets.ts       browser thumbnail/avatar generation
+├── auth.tsx        AuthProvider + useAuth (React context)
+├── update.ts       updateApi (version check / self-upgrade)
+└── rewrite.ts      createQueryRewrite() — the TanStack Router ?p= rewrite
+
+admin_ui/src/
 ├── main.tsx          React entry (QueryClientProvider + RouterProvider)
-├── router.tsx        route tree + ?p= rewrite mapping
+├── router.tsx        route tree + ?p= rewrite mapping (via ui-sdk)
 ├── pages/            one component per route
-├── lib/api.ts        fetch wrappers (?p=api&action=...)
+├── lib/              UI libs (marked, agent, theme, i18n, utils, ...)
 ├── hooks/            usePageTitle, ...
 └── components/ui/    shadcn/ui components
 ```
 
 Add a route by:
 
-1. creating a page component in `frontend/src/pages/`,
-2. declaring it in `frontend/src/router.tsx` with `createRoute` (static paths,
+1. creating a page component in `admin_ui/src/pages/`,
+2. declaring it in `admin_ui/src/router.tsx` with `createRoute` (static paths,
    dynamic params like `$id`, or the `$` catch-all for 404),
 3. rebuilding with `php build.php`.
 

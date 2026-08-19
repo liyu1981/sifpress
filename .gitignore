@@ -69,13 +69,10 @@ config.local.php
 *.swp
 
 # Vite build output (inlined into index.php by build.php)
-frontend/dist/
-
-# Node
-frontend/node_modules/
+admin_ui/dist/
 
 # TanStack Router generated cache
-frontend/.tanstack/
+admin_ui/.tanstack/
 
 # Local code intelligence index
 .codegraph/
