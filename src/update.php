@@ -2,8 +2,8 @@
  * ------------------------------------------------------------
  * Update-check & in-app upgrade
  *
- *   ?module=update&action=status   GET   check latest release + capability
- *   ?module=update&action=run      POST  download, verify, backup, replace
+ *   ?p=update&action=status   GET   check latest release + capability
+ *   ?p=update&action=run      POST  download, verify, backup, replace
  *
  * The manifest (UPDATE_MANIFEST_URL) is a JSON document reporting the latest
  * release:

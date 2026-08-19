@@ -2,7 +2,7 @@
  * Auto-detected video embeds for image-syntax markdown links:
  *
  *   ![alt](https://example.com/clip.mp4)          direct video file
- *   ![alt](?module=asset&id=3&kind=video)          app asset (video)
+ *   ![alt](?p=asset&id=3&kind=video)          app asset (video)
  *   ![alt](https://www.youtube.com/watch?v=…r)     YouTube
  *   ![alt](https://youtu.be/…) / short link
  *   ![alt](https://www.bilibili.com/video/BV…/)    Bilibili
@@ -11,8 +11,8 @@
  * position directives from image-directives.ts still apply (e.g.
  * `![Alt|center](clip.mp4)`).
  *
- * App-asset URLs (`?module=asset&id=N`) carry no extension, so the copied
- * markdown link tags them explicitly: `![clip](?module=asset&id=3&filetype=mp4)`.
+ * App-asset URLs (`?p=asset&id=N`) carry no extension, so the copied
+ * markdown link tags them explicitly: `![clip](?p=asset&id=3&filetype=mp4)`.
  * The backend ignores the extra `filetype` param; the renderer uses it to
  * choose `<video>` over `<img>`.
  *
@@ -31,7 +31,7 @@ export interface ResolvedVideo {
 }
 
 const VIDEO_EXT_RE = /\.(?:mp4|webm|ogg|ogv|m4v)(?:[?#].*)?$/i;
-const ASSET_URL_RE = /[?&]module=asset\b/i;
+const ASSET_URL_RE = /[?&]p=asset\b/i;
 const ASSET_VIDEO_HINT_RE = /[?&]kind=video\b|[?&]filetype=(?:mp4|webm|ogg|ogv|m4v)(?:[&#]|$)/i;
 
 const YOUTUBE_HOST_RE = /(?:^|\.)youtube\.com|youtu\.be/i;

@@ -707,7 +707,7 @@ function SeoSettingsCard() {
   }
 
   const seoUrl = (action: 'sitemap' | 'robots'): string => {
-    const base = `${window.location.pathname}?module=seo&action=${action}`;
+    const base = `${window.location.pathname}?p=seo&action=${action}`;
     return base;
   };
 
@@ -1106,7 +1106,7 @@ function FaviconCard() {
     if (id === '' || id === '0') {
       return '';
     }
-    const params = new URLSearchParams({ module: 'asset', id, t: faviconVersion });
+    const params = new URLSearchParams({ p: 'asset', id, t: faviconVersion });
     return `${window.location.pathname}?${params.toString()}`;
   }
 

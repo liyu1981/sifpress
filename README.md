@@ -31,24 +31,24 @@ handles natively. There is nothing to configure.
 | URL                                                    | Behavior              |
 | ------------------------------------------------------ | --------------------- |
 | `/index.php`                                           | React route `/`       |
-| `/index.php?u=editor/123`                              | React route `/editor/123` |
-| `/index.php?u=settings`                                | React route `/settings`  |
-| `/index.php?module=api&action=hello`                   | JSON API              |
-| `/index.php?module=api&action=projects`                | JSON API              |
+| `/index.php?p=/editor/123`                            | React route `/editor/123` |
+| `/index.php?p=/settings`                              | React route `/settings`  |
+| `/index.php?p=api&action=hello`                       | JSON API              |
+| `/index.php?p=api&action=projects`                    | JSON API              |
 
 The protocol is strict and predictable:
 
 ```text
-module=api  -> server-side JSON API (action required)
-u=...       -> client-side SPA route
-anything    -> application parameters (handled by the app)
+p=api  -> server-side JSON API (action required)
+p=/... -> client-side SPA route (any other value)
+anything -> application parameters (handled by the app)
 ```
 
-Because `u` is just a query parameter, the URLs are real and shareable:
+Because `p` is just a query parameter, the URLs are real and shareable:
 
 ```text
-/index.php?u=editor/123
-/index.php?u=settings
+/index.php?p=/editor/123
+/index.php?p=/settings
 ```
 
 No `.htaccess`, no `#/` hash routing, no history-mode server rewrites.
@@ -79,7 +79,7 @@ Source is split into fragments for maintainability:
 src/
 ├── bootstrap.php   constants + core helpers
 ├── db.php          SQLite open, pragmas, migration detection/runner, seeds
-├── migration.php   ?module=migration handler (status / run)
+├── migration.php   ?p=migration handler (status / run)
 ├── auth.php        sessions, RBAC, page grants
 ├── api.php         JSON API handler
 ├── spa.php         SPA serving / meta injection
@@ -91,7 +91,7 @@ src/
 SQL schema migrations live in `migrations/*.sql` (authoring source of truth)
 and are embedded into `dist/index.php` at build time. The app detects pending
 migrations on bootstrap and applies them on demand via
-`POST ?module=migration&action=run`.
+`POST ?p=migration&action=run`.
 
 ## Production deployment
 
@@ -146,10 +146,10 @@ The React app uses **TanStack Router** with a URL-rewrite layer that maps the
 browser URL to the internal route tree and back. The `rewrite` option in
 `frontend/src/router.tsx` is bidirectional:
 
-- **`input`** (browser → router): reads `?u=editor/123` and turns it into the
-  internal path `/editor/123` (missing `u` → `/`).
+- **`input`** (browser → router): reads `?p=/editor/123` and turns it into the
+  internal path `/editor/123` (missing `p` → `/`).
 - **`output`** (router → browser): turns the internal path back into
-  `index.php?u=...` (re-rooted at the current document), so `<Link>` hrefs
+  `index.php?p=...` (re-rooted at the current document), so `<Link>` hrefs
   and the URL bar always show real, shareable URLs.
 
 Route changes go through `history.pushState`, so the browser back/forward
@@ -162,7 +162,7 @@ Because the API lives behind the same `index.php`, the fetch wrappers in
 base-path configuration is needed:
 
 ```ts
-const url = `${window.location.pathname}?module=api&action=hello`
+const url = `${window.location.pathname}?p=api&action=hello`
 ```
 
 This is why the identical bundle works at any mount depth.
@@ -196,9 +196,9 @@ The frontend is a TypeScript + TanStack Router app in `frontend/`:
 ```text
 frontend/src/
 ├── main.tsx          React entry (QueryClientProvider + RouterProvider)
-├── router.tsx        route tree + ?u= rewrite mapping
+├── router.tsx        route tree + ?p= rewrite mapping
 ├── pages/            one component per route
-├── lib/api.ts        fetch wrappers (?module=api&action=...)
+├── lib/api.ts        fetch wrappers (?p=api&action=...)
 ├── hooks/            usePageTitle, ...
 └── components/ui/    shadcn/ui components
 ```
@@ -232,7 +232,7 @@ The React bundle is public.
 
 ## SEO note
 
-`/index.php?u=editor/123` is a real URL and is more crawler-friendly than a
+`/index.php?p=/editor/123` is a real URL and is more crawler-friendly than a
 hash route. PHP already injects a route-aware `<title>` and `<meta
 name="description">`. For full SEO the PHP entry point can generate
 route-specific open-graph tags while still serving the same React
@@ -250,7 +250,7 @@ application.
                             │
                     ┌───────┴───────┐
                     │               │
-         ?module=api        ?u=... (and anything else)
+         ?p=api        ?p=/... (and anything else)
               │                   │
               ▼                   ▼
          PHP JSON API          React SPA

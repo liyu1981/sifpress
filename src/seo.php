@@ -4,7 +4,7 @@
  *
  * Site-wide settings (key/value), per-page SEO resolution from
  * front matter, server-side <head> meta injection for the SPA,
- * and the ?module=seo sitemap/robots endpoints.
+ * and the ?p=seo sitemap/robots endpoints.
  * ------------------------------------------------------------
  */
 
@@ -176,11 +176,11 @@ function canonical_url(string $route): string
         return base_url();
     }
 
-    return base_url() . '?u=' . $route;
+    return base_url() . '?p=' . $route;
 }
 
 /**
- * Resolve a possibly-relative URL (e.g. `?module=asset&id=5` og:image)
+ * Resolve a possibly-relative URL (e.g. `?p=asset&id=5` og:image)
  * to an absolute one for social scrapers.
  */
 function absolute_url(string $url): string
@@ -410,7 +410,7 @@ function build_article_meta(array $page, string $siteName, string $twitterHandle
 }
 
 /**
- * ?module=seo handler: XML sitemap + plain-text robots.txt. Public.
+ * ?p=seo handler: XML sitemap + plain-text robots.txt. Public.
  */
 function handle_seo(string $action, string $method): never
 {
@@ -505,13 +505,13 @@ function seo_robots(): never
     } else {
         $body = "User-agent: *\n"
             . "Allow: /\n"
-            . "Disallow: /?u=admin/editor\n"
-            . "Disallow: /?u=admin/settings\n"
-            . "Disallow: /?u=admin/login";
+            . "Disallow: /?p=admin/editor\n"
+            . "Disallow: /?p=admin/settings\n"
+            . "Disallow: /?p=admin/login";
     }
 
     if (setting_get('enable_sitemap', '1') === '1' && !str_contains($body, 'Sitemap:')) {
-        $body .= "\nSitemap: " . canonical_url('/') . '?module=seo&action=sitemap';
+        $body .= "\nSitemap: " . canonical_url('/') . '?p=seo&action=sitemap';
     }
 
     http_response_code(200);

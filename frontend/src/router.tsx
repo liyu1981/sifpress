@@ -12,10 +12,10 @@ export const router = createRouter({
   routeTree,
   rewrite: {
     input: ({ url }) => {
-      const u = url.searchParams.get('u');
+      const p = url.searchParams.get('p');
 
-      url.searchParams.delete('u');
-      url.pathname = u != null && u !== '' ? normalizeInternalPath(u) : '/';
+      url.searchParams.delete('p');
+      url.pathname = p != null && p !== '' ? normalizeInternalPath(p) : '/';
 
       return url;
     },
@@ -25,9 +25,9 @@ export const router = createRouter({
       url.pathname = basePath;
 
       if (internalPath === '/') {
-        url.searchParams.delete('u');
+        url.searchParams.delete('p');
       } else {
-        url.searchParams.set('u', internalPath.replace(/^\//, ''));
+        url.searchParams.set('p', internalPath.replace(/^\//, ''));
       }
 
       return url;

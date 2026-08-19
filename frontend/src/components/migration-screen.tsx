@@ -9,7 +9,7 @@ import { migrationApi } from '@/lib/pages';
 
 /**
  * Full-screen maintenance view shown when the database schema is behind
- * the embedded migrations. Runs ?module=migration&action=run, then
+ * the embedded migrations. Runs ?p=migration&action=run, then
  * reloads. Public by design — a fresh install has no users yet.
  */
 export function MigrationScreen() {

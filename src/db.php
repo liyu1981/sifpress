@@ -4,7 +4,7 @@
  *
  * SQLite + FTS5 in WAL mode. A _migrations table records applied
  * schema versions; bootstrap only *detects* pending migrations and
- * they are applied on demand via ?module=migration (src/migration.php).
+ * they are applied on demand via ?p=migration (src/migration.php).
  * ------------------------------------------------------------
  */
 

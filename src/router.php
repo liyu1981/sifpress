@@ -4,51 +4,51 @@
  *
  * Strict protocol:
  *
- *   module=api        -> server-side JSON API (action required)
- *   module=migration  -> schema migration status / run
- *   u=...             -> client-side SPA route
- *   anything          -> application parameters (ignored by the router)
+ *   p=api        -> server-side JSON API (action required)
+ *   p=migration  -> schema migration status / run
+ *   p=/...       -> client-side SPA route (any other value, / prefixed)
+ *   anything     -> application parameters (ignored by the router)
  * ------------------------------------------------------------
  */
 
 $method = request_method();
-$module = request_param('module');
+$p = request_param('p');
 
-if ($module === 'api') {
+if ($p === 'api') {
     handle_api((string) request_param('action', ''), $method);
 }
 
-if ($module === 'migration') {
+if ($p === 'migration') {
     handle_migration((string) request_param('action', 'status'), $method);
 }
 
-if ($module === 'asset') {
+if ($p === 'asset') {
     handle_asset($method);
 }
 
-if ($module === 'update') {
+if ($p === 'update') {
     handle_update((string) request_param('action', 'status'), $method);
 }
 
-if ($module === 'seo') {
+if ($p === 'seo') {
     handle_seo((string) request_param('action', 'robots'), $method);
 }
 
-if ($module === 'favicon') {
+if ($p === 'favicon') {
     handle_favicon();
 }
 
 // ___BEGIN_DEV_ROUTE___
-if ($module === 'dev') {
+if ($p === 'dev') {
     handle_dev((string) request_param('action', 'status'), $method);
 }
 // ___END_DEV_ROUTE___
 
 /*
- * Everything else is the React SPA. The route comes from ?u= and
+ * Everything else is the React SPA. The route comes from ?p= and
  * defaults to "/".
  */
-$route = (string) request_param('u', '/');
+$route = (string) request_param('p', '/');
 
 if ($route === '') {
     $route = '/';
@@ -70,7 +70,7 @@ if ($route === '/') {
  * Bare "/admin" redirects into the admin SPA at "/admin/articles".
  */
 if ($route === '/admin') {
-    header('Location: ' . base_url() . '?u=/admin/articles');
+    header('Location: ' . base_url() . '?p=/admin/articles');
     http_response_code(302);
     exit;
 }

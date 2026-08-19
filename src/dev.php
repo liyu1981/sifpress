@@ -2,12 +2,12 @@
  * ------------------------------------------------------------
  * Dev-only module
  *
- *   ?module=dev&action=initData    POST  seed the demo article
- *   ?module=dev&resetAdminPasswd=  GET/POST reset the admin password
+ *   ?p=dev&action=initData    POST  seed the demo article
+ *   ?p=dev&resetAdminPasswd=  GET/POST reset the admin password
  *
  * This fragment is included ONLY in dev builds (php build.php).
  * rel.sh / "php build.php release" excludes it, and the router
- * region that dispatches module=dev is stripped at the same time,
+ * region that dispatches p=dev is stripped at the same time,
  * so the release artifact contains no trace of the endpoint.
  *
  * resetAdminPasswd is unauthenticated by design (dev convenience for
@@ -88,7 +88,7 @@ function reset_admin_password(string $password): void
 function handle_dev(string $action, string $method): never
 {
     /*
-     * ?module=dev&resetAdminPasswd=<password> — unauthenticated reset
+     * ?p=dev&resetAdminPasswd=<password> — unauthenticated reset
      * of the admin account. Intercepted before the action switch since
      * the password arrives as a top-level query parameter.
      */

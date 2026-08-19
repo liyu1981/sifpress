@@ -23,7 +23,7 @@ export function apiUrl(
   action: string,
   params: Record<string, string> = {},
 ): string {
-  const query = new URLSearchParams({ module, action, ...params });
+  const query = new URLSearchParams({ p: module, action, ...params });
   return `${window.location.pathname}?${query.toString()}`;
 }
 
@@ -93,7 +93,7 @@ export async function uploadRequest<T>(
  * file works at any depth.
  */
 export function assetUrl(id: number, thumb = false): string {
-  const params = new URLSearchParams({ module: 'asset', id: String(id) });
+  const params = new URLSearchParams({ p: 'asset', id: String(id) });
   if (thumb) {
     params.set('thumb', '1');
   }
@@ -105,7 +105,7 @@ export function assetUrl(id: number, thumb = false): string {
  * otherwise a generated SVG, so this endpoint always returns an image.
  */
 export function avatarUrl(userId: number): string {
-  const params = new URLSearchParams({ module: 'asset', user: String(userId) });
+  const params = new URLSearchParams({ p: 'asset', user: String(userId) });
   return `${window.location.pathname}?${params.toString()}`;
 }
 

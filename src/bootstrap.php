@@ -13,10 +13,10 @@
  * with query parameters, which Apache/Nginx/any server handles natively.
  *
  *   /index.php                        -> React route "/"
- *   /index.php?u=editor/123           -> React route "/editor/123"
- *   /index.php?u=settings             -> React route "/settings"
- *   /index.php?module=api&action=hello -> API
- *   /index.php?module=api&action=projects -> API
+ *   /index.php?p=/editor/123           -> React route "/editor/123"
+ *   /index.php?p=/settings             -> React route "/settings"
+ *   /index.php?p=api&action=hello      -> API
+ *   /index.php?p=api&action=projects   -> API
  *
  * Source is split into fragments under src/ (bootstrap.php, api.php,
  * spa.php, embed.php, router.php). build.php assembles them and the

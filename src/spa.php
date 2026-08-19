@@ -11,7 +11,7 @@
 /**
  * Sanitize an SPA route into a safe, single-segment identifier used
  * only for optional <meta> tags. React receives the raw route through
- * ?u= and is responsible for lookup/404 handling.
+ * ?p= and is responsible for lookup/404 handling.
  */
 function route_title_key(string $route): string
 {
@@ -151,15 +151,15 @@ function serve_spa(string $route): never
         $faviconVersion = (string) setting_get('favicon_version', '0');
 
         if ($faviconId !== '' && $faviconId !== '0') {
-            $faviconUrl = base_url() . '?module=asset&id=' . $faviconId . '&v=' . $faviconVersion;
+            $faviconUrl = base_url() . '?p=asset&id=' . $faviconId . '&v=' . $faviconVersion;
             $faviconMime = (string) setting_get('favicon_mime', 'image/svg+xml');
             $meta .= '<link rel="icon" type="' . seo_esc($faviconMime) . '" href="' . seo_esc($faviconUrl) . '">';
         } else {
-            $meta .= '<link rel="icon" type="image/svg+xml" href="' . seo_esc(base_url() . '?module=favicon') . '">';
+            $meta .= '<link rel="icon" type="image/svg+xml" href="' . seo_esc(base_url() . '?p=favicon') . '">';
         }
 
         if ($appleId !== '' && $appleId !== '0') {
-            $appleUrl = base_url() . '?module=asset&id=' . $appleId . '&v=' . $faviconVersion;
+            $appleUrl = base_url() . '?p=asset&id=' . $appleId . '&v=' . $faviconVersion;
             $meta .= '<link rel="apple-touch-icon" href="' . seo_esc($appleUrl) . '">';
         }
     }

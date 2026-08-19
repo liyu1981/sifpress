@@ -14,6 +14,6 @@ if ! command -v pnpm >/dev/null 2>&1; then
   exit 1
 fi
 
-# Release build: no dev.php fragment, no ?module=dev endpoint.
+# Release build: no dev.php fragment, no ?p=dev endpoint.
 # Outputs the single-file artifact as dist/sifpress.php.
 php build.php release
