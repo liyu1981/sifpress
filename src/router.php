@@ -54,6 +54,10 @@ if ($route === '') {
     $route = '/';
 }
 
+if (!str_starts_with($route, '/')) {
+    $route = '/' . $route;
+}
+
 /*
  * Root "/" serves a static "under construction" page.
  * The viewer UI will eventually live here.
