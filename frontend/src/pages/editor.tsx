@@ -365,7 +365,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
     onSuccess: page => {
       queryClient.invalidateQueries({ queryKey: ['pages'] });
       queryClient.invalidateQueries({ queryKey: ['page', page.slug] });
-      navigate({ to: '/article/$slug', params: { slug: page.slug } });
+      navigate({ to: '/admin/article/$slug', params: { slug: page.slug } });
     },
     onError: err => {
       setSaveError(err instanceof ApiError ? err : null);
@@ -693,7 +693,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
         <Badge variant="outline">{t('editor.notFoundBadge')}</Badge>
         <h1 className="font-heading text-2xl font-bold">{t('editor.notFoundTitle')}</h1>
         <Button asChild variant="glass" size="sm">
-          <Link to="/articles">
+          <Link to="/admin/articles">
             <ArrowLeft className="size-3.5" />
             {t('article.backToIndex')}
           </Link>
@@ -711,7 +711,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
         <h1 className="font-heading text-2xl font-bold">{t('editor.forbiddenTitle')}</h1>
         <p className="text-sm text-muted-foreground">{t('editor.forbiddenDescription')}</p>
         <Button asChild variant="glass" size="sm">
-          <Link to="/article/$slug" params={{ slug: page.slug }}>
+          <Link to="/admin/article/$slug" params={{ slug: page.slug }}>
             <ArrowLeft className="size-3.5" />
             {t('article.backToIndex')}
           </Link>
@@ -759,7 +759,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
                   <DeletePageMenu
                     pageId={page.id}
                     title={page.title}
-                    onDeleted={() => navigate({ to: '/articles' })}
+                    onDeleted={() => navigate({ to: '/admin/articles' })}
                   >
                     <Button type="button" variant="destructive" size="sm">
                       <Trash2 />

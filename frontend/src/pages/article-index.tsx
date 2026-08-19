@@ -32,7 +32,7 @@ function SearchCard({ result, locale }: { result: SearchResult; locale: string }
       </div>
       <h2 className="font-heading text-xl leading-snug font-semibold tracking-tight">
         <Link
-          to="/article/$slug"
+          to="/admin/article/$slug"
           params={{ slug: result.slug }}
           className="transition-colors hover:text-muted-foreground"
         >
@@ -43,7 +43,7 @@ function SearchCard({ result, locale }: { result: SearchResult; locale: string }
         {result.excerpt.replace(/<\/?mark>/g, '')}
       </p>
       <Button asChild size="sm" variant="ghost" className="mt-auto self-start">
-        <Link to="/article/$slug" params={{ slug: result.slug }}>
+        <Link to="/admin/article/$slug" params={{ slug: result.slug }}>
           {t('article.readMore')}
           <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
         </Link>
@@ -63,7 +63,7 @@ function ArticleCard({ article, locale }: { article: PageListItem; locale: strin
     <article className="glass-control group flex flex-col gap-3 overflow-hidden rounded-2xl transition-shadow hover:shadow-lg">
       {cover !== null && (
         <Link
-          to="/article/$slug"
+          to="/admin/article/$slug"
           params={{ slug: article.slug }}
           className="block aspect-[16/9] overflow-hidden bg-muted"
         >
@@ -90,7 +90,7 @@ function ArticleCard({ article, locale }: { article: PageListItem; locale: strin
         </div>
         <h2 className="font-heading text-xl leading-snug font-semibold tracking-tight">
           <Link
-            to="/article/$slug"
+            to="/admin/article/$slug"
             params={{ slug: article.slug }}
             className="transition-colors hover:text-muted-foreground"
           >
@@ -104,7 +104,7 @@ function ArticleCard({ article, locale }: { article: PageListItem; locale: strin
           <div className="flex flex-wrap gap-1.5">
             {article.tags.map(tag => (
               <Badge key={tag} variant="outline">
-                <Link to="/articles" search={{ tag }} className="no-underline">
+                <Link to="/admin/articles" search={{ tag }} className="no-underline">
                   {tag}
                 </Link>
               </Badge>
@@ -113,14 +113,14 @@ function ArticleCard({ article, locale }: { article: PageListItem; locale: strin
         )}
         <div className="mt-auto flex flex-wrap items-center gap-2 self-start">
           <Button asChild size="sm" variant="ghost">
-            <Link to="/article/$slug" params={{ slug: article.slug }}>
+            <Link to="/admin/article/$slug" params={{ slug: article.slug }}>
               {t('article.readMore')}
               <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
             </Link>
           </Button>
           {article.can_edit && (
             <Button asChild size="sm" variant="outline">
-              <Link to="/editor/$slug" params={{ slug: article.slug }}>
+              <Link to="/admin/editor/$slug" params={{ slug: article.slug }}>
                 <FilePenLine />
                 {t('article.edit')}
               </Link>
@@ -196,7 +196,7 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
 
   function selectTag(next: string | undefined) {
     navigate({
-      to: '/articles',
+      to: '/admin/articles',
       search: next !== undefined ? { tag: next } : {},
     });
   }
@@ -215,7 +215,7 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
           <div className="space-y-4">
             {has('pages.write') && (
               <Button asChild variant="glass" size="sm" className="w-full">
-                <Link to="/editor/new">
+                <Link to="/admin/editor/new">
                   <FilePenLine />
                   {t('article.newPage')}
                 </Link>
@@ -331,7 +331,7 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
               <p className="text-sm text-muted-foreground">{t('article.empty')}</p>
               {has('pages.write') && (
                 <Button asChild variant="glass" size="sm" className="mt-4">
-                  <Link to="/editor/new">{t('article.newPage')}</Link>
+                  <Link to="/admin/editor/new">{t('article.newPage')}</Link>
                 </Button>
               )}
             </div>

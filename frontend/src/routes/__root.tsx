@@ -30,7 +30,7 @@ function AppHeader() {
 
   async function handleLogout() {
     await logout();
-    navigate({ to: '/' });
+    navigate({ to: '/admin' });
   }
 
   return (
@@ -38,7 +38,7 @@ function AppHeader() {
       <nav className="flex items-center gap-1">
         <Button asChild variant="ghost" size="sm">
           <Link
-            to="/articles"
+            to="/admin/articles"
             activeOptions={{ exact: true }}
             activeProps={{ className: activeClass }}
           >
@@ -49,7 +49,7 @@ function AppHeader() {
           <>
             <Button asChild variant="ghost" size="sm">
               <Link
-                to="/assets"
+                to="/admin/assets"
                 activeOptions={{ exact: true }}
                 activeProps={{ className: activeClass }}
               >
@@ -58,7 +58,7 @@ function AppHeader() {
             </Button>
             <Button asChild variant="ghost" size="sm">
               <Link
-                to="/account-admin"
+                to="/admin/account-admin"
                 activeOptions={{ exact: true }}
                 activeProps={{ className: activeClass }}
               >
@@ -67,7 +67,7 @@ function AppHeader() {
             </Button>
             <Button asChild variant="ghost" size="sm">
               <Link
-                to="/settings"
+                to="/admin/settings"
                 activeOptions={{ exact: true }}
                 activeProps={{ className: activeClass }}
               >
@@ -100,7 +100,7 @@ function AppHeader() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuItem asChild>
-                <Link to="/account">{t('nav.myAccount')}</Link>
+                <Link to="/admin/account">{t('nav.myAccount')}</Link>
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => void handleLogout()}>
                 <LogOut />
@@ -111,7 +111,7 @@ function AppHeader() {
         )}
         {user === null && (
           <Button asChild variant="ghost" size="sm">
-            <Link to="/login">{t('nav.login')}</Link>
+            <Link to="/admin/login">{t('nav.login')}</Link>
           </Button>
         )}
       </div>
@@ -164,17 +164,17 @@ function RootLayout() {
   }
 
   const needsAuth =
-    pathname === '/settings' ||
-    pathname === '/assets' ||
-    pathname === '/account' ||
-    pathname === '/account-admin' ||
-    pathname.startsWith('/editor');
+    pathname === '/admin/settings' ||
+    pathname === '/admin/assets' ||
+    pathname === '/admin/account' ||
+    pathname === '/admin/account-admin' ||
+    pathname.startsWith('/admin/editor');
 
   let content: ReactNode;
 
   if (user !== null && user.must_change_password) {
     content = <ChangePasswordPage />;
-  } else if (user === null && needsAuth && pathname !== '/login') {
+  } else if (user === null && needsAuth && pathname !== '/admin/login') {
     content = <LoginPage next={pathname} />;
   } else {
     content = <Outlet />;
@@ -202,7 +202,7 @@ function RootLayout() {
             </a>
           </span>
           <Link
-            to="/article/$slug"
+            to="/admin/article/$slug"
             params={{ slug: DEMO_PAGE_SLUG }}
             className="text-foreground transition-colors hover:text-muted-foreground hover:underline"
           >

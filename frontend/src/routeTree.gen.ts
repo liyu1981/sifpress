@@ -9,179 +9,172 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
-import { Route as AccountRouteImport } from './routes/account'
-import { Route as AccountAdminRouteImport } from './routes/account-admin'
-import { Route as ArticlesRouteImport } from './routes/articles'
-import { Route as AssetsRouteImport } from './routes/assets'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as ArticleSlugRouteImport } from './routes/article.$slug'
-import { Route as EditorSlugRouteImport } from './routes/editor/$slug'
-import { Route as EditorNewRouteImport } from './routes/editor/new'
+import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as AdminAccountRouteImport } from './routes/admin/account'
+import { Route as AdminAccountAdminRouteImport } from './routes/admin/account-admin'
+import { Route as AdminArticlesRouteImport } from './routes/admin/articles'
+import { Route as AdminAssetsRouteImport } from './routes/admin/assets'
+import { Route as AdminLoginRouteImport } from './routes/admin/login'
+import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
+import { Route as AdminArticleSlugRouteImport } from './routes/admin/article.$slug'
+import { Route as AdminEditorSlugRouteImport } from './routes/admin/editor/$slug'
+import { Route as AdminEditorNewRouteImport } from './routes/admin/editor/new'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SplatRoute = SplatRouteImport.update({
   id: '/$',
   path: '/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AccountRoute = AccountRouteImport.update({
-  id: '/account',
-  path: '/account',
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AccountAdminRoute = AccountAdminRouteImport.update({
-  id: '/account-admin',
-  path: '/account-admin',
+const AdminAccountRoute = AdminAccountRouteImport.update({
+  id: '/admin/account',
+  path: '/admin/account',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ArticlesRoute = ArticlesRouteImport.update({
-  id: '/articles',
-  path: '/articles',
+const AdminAccountAdminRoute = AdminAccountAdminRouteImport.update({
+  id: '/admin/account-admin',
+  path: '/admin/account-admin',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AssetsRoute = AssetsRouteImport.update({
-  id: '/assets',
-  path: '/assets',
+const AdminArticlesRoute = AdminArticlesRouteImport.update({
+  id: '/admin/articles',
+  path: '/admin/articles',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
+const AdminAssetsRoute = AdminAssetsRouteImport.update({
+  id: '/admin/assets',
+  path: '/admin/assets',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/admin/login',
+  path: '/admin/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ArticleSlugRoute = ArticleSlugRouteImport.update({
-  id: '/article/$slug',
-  path: '/article/$slug',
+const AdminSettingsRoute = AdminSettingsRouteImport.update({
+  id: '/admin/settings',
+  path: '/admin/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const EditorSlugRoute = EditorSlugRouteImport.update({
-  id: '/editor/$slug',
-  path: '/editor/$slug',
+const AdminArticleSlugRoute = AdminArticleSlugRouteImport.update({
+  id: '/admin/article/$slug',
+  path: '/admin/article/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
-const EditorNewRoute = EditorNewRouteImport.update({
-  id: '/editor/new',
-  path: '/editor/new',
+const AdminEditorSlugRoute = AdminEditorSlugRouteImport.update({
+  id: '/admin/editor/$slug',
+  path: '/admin/editor/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminEditorNewRoute = AdminEditorNewRouteImport.update({
+  id: '/admin/editor/new',
+  path: '/admin/editor/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
   '/$': typeof SplatRoute
-  '/account': typeof AccountRoute
-  '/account-admin': typeof AccountAdminRoute
-  '/articles': typeof ArticlesRoute
-  '/assets': typeof AssetsRoute
-  '/login': typeof LoginRoute
-  '/settings': typeof SettingsRoute
-  '/article/$slug': typeof ArticleSlugRoute
-  '/editor/$slug': typeof EditorSlugRoute
-  '/editor/new': typeof EditorNewRoute
+  '/admin/account': typeof AdminAccountRoute
+  '/admin/account-admin': typeof AdminAccountAdminRoute
+  '/admin/articles': typeof AdminArticlesRoute
+  '/admin/assets': typeof AdminAssetsRoute
+  '/admin/login': typeof AdminLoginRoute
+  '/admin/settings': typeof AdminSettingsRoute
+  '/admin/': typeof AdminIndexRoute
+  '/admin/article/$slug': typeof AdminArticleSlugRoute
+  '/admin/editor/$slug': typeof AdminEditorSlugRoute
+  '/admin/editor/new': typeof AdminEditorNewRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
   '/$': typeof SplatRoute
-  '/account': typeof AccountRoute
-  '/account-admin': typeof AccountAdminRoute
-  '/articles': typeof ArticlesRoute
-  '/assets': typeof AssetsRoute
-  '/login': typeof LoginRoute
-  '/settings': typeof SettingsRoute
-  '/article/$slug': typeof ArticleSlugRoute
-  '/editor/$slug': typeof EditorSlugRoute
-  '/editor/new': typeof EditorNewRoute
+  '/admin/account': typeof AdminAccountRoute
+  '/admin/account-admin': typeof AdminAccountAdminRoute
+  '/admin/articles': typeof AdminArticlesRoute
+  '/admin/assets': typeof AdminAssetsRoute
+  '/admin/login': typeof AdminLoginRoute
+  '/admin/settings': typeof AdminSettingsRoute
+  '/admin': typeof AdminIndexRoute
+  '/admin/article/$slug': typeof AdminArticleSlugRoute
+  '/admin/editor/$slug': typeof AdminEditorSlugRoute
+  '/admin/editor/new': typeof AdminEditorNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
   '/$': typeof SplatRoute
-  '/account': typeof AccountRoute
-  '/account-admin': typeof AccountAdminRoute
-  '/articles': typeof ArticlesRoute
-  '/assets': typeof AssetsRoute
-  '/login': typeof LoginRoute
-  '/settings': typeof SettingsRoute
-  '/article/$slug': typeof ArticleSlugRoute
-  '/editor/$slug': typeof EditorSlugRoute
-  '/editor/new': typeof EditorNewRoute
+  '/admin/account': typeof AdminAccountRoute
+  '/admin/account-admin': typeof AdminAccountAdminRoute
+  '/admin/articles': typeof AdminArticlesRoute
+  '/admin/assets': typeof AdminAssetsRoute
+  '/admin/login': typeof AdminLoginRoute
+  '/admin/settings': typeof AdminSettingsRoute
+  '/admin/': typeof AdminIndexRoute
+  '/admin/article/$slug': typeof AdminArticleSlugRoute
+  '/admin/editor/$slug': typeof AdminEditorSlugRoute
+  '/admin/editor/new': typeof AdminEditorNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
     | '/$'
-    | '/account'
-    | '/account-admin'
-    | '/articles'
-    | '/assets'
-    | '/login'
-    | '/settings'
-    | '/article/$slug'
-    | '/editor/$slug'
-    | '/editor/new'
+    | '/admin/account'
+    | '/admin/account-admin'
+    | '/admin/articles'
+    | '/admin/assets'
+    | '/admin/login'
+    | '/admin/settings'
+    | '/admin/'
+    | '/admin/article/$slug'
+    | '/admin/editor/$slug'
+    | '/admin/editor/new'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
     | '/$'
-    | '/account'
-    | '/account-admin'
-    | '/articles'
-    | '/assets'
-    | '/login'
-    | '/settings'
-    | '/article/$slug'
-    | '/editor/$slug'
-    | '/editor/new'
+    | '/admin/account'
+    | '/admin/account-admin'
+    | '/admin/articles'
+    | '/admin/assets'
+    | '/admin/login'
+    | '/admin/settings'
+    | '/admin'
+    | '/admin/article/$slug'
+    | '/admin/editor/$slug'
+    | '/admin/editor/new'
   id:
     | '__root__'
-    | '/'
     | '/$'
-    | '/account'
-    | '/account-admin'
-    | '/articles'
-    | '/assets'
-    | '/login'
-    | '/settings'
-    | '/article/$slug'
-    | '/editor/$slug'
-    | '/editor/new'
+    | '/admin/account'
+    | '/admin/account-admin'
+    | '/admin/articles'
+    | '/admin/assets'
+    | '/admin/login'
+    | '/admin/settings'
+    | '/admin/'
+    | '/admin/article/$slug'
+    | '/admin/editor/$slug'
+    | '/admin/editor/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
-  AccountRoute: typeof AccountRoute
-  AccountAdminRoute: typeof AccountAdminRoute
-  ArticlesRoute: typeof ArticlesRoute
-  AssetsRoute: typeof AssetsRoute
-  LoginRoute: typeof LoginRoute
-  SettingsRoute: typeof SettingsRoute
-  ArticleSlugRoute: typeof ArticleSlugRoute
-  EditorSlugRoute: typeof EditorSlugRoute
-  EditorNewRoute: typeof EditorNewRoute
+  AdminAccountRoute: typeof AdminAccountRoute
+  AdminAccountAdminRoute: typeof AdminAccountAdminRoute
+  AdminArticlesRoute: typeof AdminArticlesRoute
+  AdminAssetsRoute: typeof AdminAssetsRoute
+  AdminLoginRoute: typeof AdminLoginRoute
+  AdminSettingsRoute: typeof AdminSettingsRoute
+  AdminIndexRoute: typeof AdminIndexRoute
+  AdminArticleSlugRoute: typeof AdminArticleSlugRoute
+  AdminEditorSlugRoute: typeof AdminEditorSlugRoute
+  AdminEditorNewRoute: typeof AdminEditorNewRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/$': {
       id: '/$'
       path: '/$'
@@ -189,84 +182,91 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/account': {
-      id: '/account'
-      path: '/account'
-      fullPath: '/account'
-      preLoaderRoute: typeof AccountRouteImport
+    '/admin/': {
+      id: '/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/account-admin': {
-      id: '/account-admin'
-      path: '/account-admin'
-      fullPath: '/account-admin'
-      preLoaderRoute: typeof AccountAdminRouteImport
+    '/admin/account': {
+      id: '/admin/account'
+      path: '/admin/account'
+      fullPath: '/admin/account'
+      preLoaderRoute: typeof AdminAccountRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/articles': {
-      id: '/articles'
-      path: '/articles'
-      fullPath: '/articles'
-      preLoaderRoute: typeof ArticlesRouteImport
+    '/admin/account-admin': {
+      id: '/admin/account-admin'
+      path: '/admin/account-admin'
+      fullPath: '/admin/account-admin'
+      preLoaderRoute: typeof AdminAccountAdminRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/assets': {
-      id: '/assets'
-      path: '/assets'
-      fullPath: '/assets'
-      preLoaderRoute: typeof AssetsRouteImport
+    '/admin/articles': {
+      id: '/admin/articles'
+      path: '/admin/articles'
+      fullPath: '/admin/articles'
+      preLoaderRoute: typeof AdminArticlesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
+    '/admin/assets': {
+      id: '/admin/assets'
+      path: '/admin/assets'
+      fullPath: '/admin/assets'
+      preLoaderRoute: typeof AdminAssetsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
+    '/admin/login': {
+      id: '/admin/login'
+      path: '/admin/login'
+      fullPath: '/admin/login'
+      preLoaderRoute: typeof AdminLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/article/$slug': {
-      id: '/article/$slug'
-      path: '/article/$slug'
-      fullPath: '/article/$slug'
-      preLoaderRoute: typeof ArticleSlugRouteImport
+    '/admin/settings': {
+      id: '/admin/settings'
+      path: '/admin/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AdminSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/editor/$slug': {
-      id: '/editor/$slug'
-      path: '/editor/$slug'
-      fullPath: '/editor/$slug'
-      preLoaderRoute: typeof EditorSlugRouteImport
+    '/admin/article/$slug': {
+      id: '/admin/article/$slug'
+      path: '/admin/article/$slug'
+      fullPath: '/admin/article/$slug'
+      preLoaderRoute: typeof AdminArticleSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/editor/new': {
-      id: '/editor/new'
-      path: '/editor/new'
-      fullPath: '/editor/new'
-      preLoaderRoute: typeof EditorNewRouteImport
+    '/admin/editor/$slug': {
+      id: '/admin/editor/$slug'
+      path: '/admin/editor/$slug'
+      fullPath: '/admin/editor/$slug'
+      preLoaderRoute: typeof AdminEditorSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/editor/new': {
+      id: '/admin/editor/new'
+      path: '/admin/editor/new'
+      fullPath: '/admin/editor/new'
+      preLoaderRoute: typeof AdminEditorNewRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
-  AccountRoute: AccountRoute,
-  AccountAdminRoute: AccountAdminRoute,
-  ArticlesRoute: ArticlesRoute,
-  AssetsRoute: AssetsRoute,
-  LoginRoute: LoginRoute,
-  SettingsRoute: SettingsRoute,
-  ArticleSlugRoute: ArticleSlugRoute,
-  EditorSlugRoute: EditorSlugRoute,
-  EditorNewRoute: EditorNewRoute,
+  AdminAccountRoute: AdminAccountRoute,
+  AdminAccountAdminRoute: AdminAccountAdminRoute,
+  AdminArticlesRoute: AdminArticlesRoute,
+  AdminAssetsRoute: AdminAssetsRoute,
+  AdminLoginRoute: AdminLoginRoute,
+  AdminSettingsRoute: AdminSettingsRoute,
+  AdminIndexRoute: AdminIndexRoute,
+  AdminArticleSlugRoute: AdminArticleSlugRoute,
+  AdminEditorSlugRoute: AdminEditorSlugRoute,
+  AdminEditorNewRoute: AdminEditorNewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

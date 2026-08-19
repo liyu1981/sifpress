@@ -23,7 +23,7 @@ export function NotFoundPage() {
         </CardHeader>
         <CardContent>
           <Button asChild size="sm" variant="glass">
-            <Link to="/">{t('notFound.back')}</Link>
+            <Link to="/admin">{t('notFound.back')}</Link>
           </Button>
         </CardContent>
       </Card>

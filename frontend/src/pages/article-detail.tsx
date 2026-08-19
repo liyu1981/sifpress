@@ -144,7 +144,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
         <h1 className="font-heading text-2xl font-bold">{t('article.notFoundTitle')}</h1>
         <p className="text-sm text-muted-foreground">{t('article.notFoundDescription')}</p>
         <Button asChild variant="glass" size="sm">
-          <Link to="/articles">
+          <Link to="/admin/articles">
             <ArrowLeft className="size-3.5" />
             {t('article.backToIndex')}
           </Link>
@@ -174,7 +174,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                   <div className="ml-auto flex flex-wrap items-center gap-2">
                     {page.can_edit && (
                       <Button asChild variant="glass" size="xs">
-                        <Link to="/editor/$slug" params={{ slug: page.slug }}>
+                        <Link to="/admin/editor/$slug" params={{ slug: page.slug }}>
                           <FilePenLine />
                           {t('article.edit')}
                         </Link>
@@ -184,7 +184,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                       <DeletePageMenu
                         pageId={page.id}
                         title={page.title}
-                        onDeleted={() => navigate({ to: '/articles' })}
+                        onDeleted={() => navigate({ to: '/admin/articles' })}
                       >
                         <Button variant="glass" size="xs" className="text-destructive">
                           <Trash2 />
@@ -243,7 +243,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                 <div className="flex flex-wrap gap-1.5">
                   {page.tags.map(tag => (
                     <Badge key={tag}>
-                      <Link to="/articles" search={{ tag }} className="no-underline">
+                      <Link to="/admin/articles" search={{ tag }} className="no-underline">
                         {tag}
                       </Link>
                     </Badge>
@@ -258,7 +258,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
       <nav className="mt-8 grid gap-4 sm:grid-cols-2">
         {newer ? (
           <Link
-            to="/article/$slug"
+            to="/admin/article/$slug"
             params={{ slug: newer.slug }}
             className="glass-control group flex flex-col gap-1 rounded-2xl p-5 transition-shadow hover:shadow-lg"
           >
@@ -270,7 +270,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
         )}
         {older ? (
           <Link
-            to="/article/$slug"
+            to="/admin/article/$slug"
             params={{ slug: older.slug }}
             className="glass-control group flex flex-col items-end gap-1 rounded-2xl p-5 text-right transition-shadow hover:shadow-lg"
           >
@@ -282,7 +282,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
 
       <div className="mt-8 flex justify-center">
         <Button asChild variant="glass" size="sm">
-          <Link to="/articles">
+          <Link to="/admin/articles">
             <ArrowLeft className="size-3.5" />
             {t('article.backToIndex')}
           </Link>

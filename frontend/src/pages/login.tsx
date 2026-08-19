@@ -36,10 +36,10 @@ export function LoginPage({ next }: { next?: string }) {
     try {
       await login(username.trim(), password);
 
-      if (next !== undefined && next !== '/login') {
+      if (next !== undefined && next !== '/admin/login') {
         navigate({ to: next });
       } else {
-        navigate({ to: '/' });
+        navigate({ to: '/admin' });
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
@@ -52,7 +52,7 @@ export function LoginPage({ next }: { next?: string }) {
   }
 
   if (user !== null && !user.must_change_password) {
-    navigate({ to: '/' });
+    navigate({ to: '/admin' });
   }
 
   return (

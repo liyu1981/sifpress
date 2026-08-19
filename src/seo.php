@@ -291,7 +291,7 @@ function seo_meta_tags(string $route): string
 
     $private = false;
 
-    foreach (['/editor', '/settings', '/assets', '/login'] as $prefix) {
+    foreach (['/admin/editor', '/admin/settings', '/admin/assets', '/admin/login'] as $prefix) {
         if ($route === $prefix || str_starts_with($route, $prefix . '/')) {
             $private = true;
             break;
@@ -505,9 +505,9 @@ function seo_robots(): never
     } else {
         $body = "User-agent: *\n"
             . "Allow: /\n"
-            . "Disallow: /?u=editor\n"
-            . "Disallow: /?u=settings\n"
-            . "Disallow: /?u=login";
+            . "Disallow: /?u=admin/editor\n"
+            . "Disallow: /?u=admin/settings\n"
+            . "Disallow: /?u=admin/login";
     }
 
     if (setting_get('enable_sitemap', '1') === '1' && !str_contains($body, 'Sitemap:')) {

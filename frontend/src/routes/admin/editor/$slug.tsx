@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { EditorPage } from '@/pages/editor';
 
-export const Route = createFileRoute('/editor/$slug')({
+export const Route = createFileRoute('/admin/editor/$slug')({
   component: EditorSlugRoute,
 });
 
