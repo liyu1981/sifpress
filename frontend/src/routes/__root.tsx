@@ -163,18 +163,13 @@ function RootLayout() {
     );
   }
 
-  const needsAuth =
-    pathname === '/admin/settings' ||
-    pathname === '/admin/assets' ||
-    pathname === '/admin/account' ||
-    pathname === '/admin/account-admin' ||
-    pathname.startsWith('/admin/editor');
+  const needsAuth = pathname.startsWith('/admin') && pathname !== '/admin/login';
 
   let content: ReactNode;
 
   if (user !== null && user.must_change_password) {
     content = <ChangePasswordPage />;
-  } else if (user === null && needsAuth && pathname !== '/admin/login') {
+  } else if (user === null && needsAuth) {
     content = <LoginPage next={pathname} />;
   } else {
     content = <Outlet />;
