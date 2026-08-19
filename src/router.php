@@ -54,4 +54,21 @@ if ($route === '') {
     $route = '/';
 }
 
+/*
+ * Root "/" serves a static "under construction" page.
+ * The viewer UI will eventually live here.
+ */
+if ($route === '/') {
+    serve_construction_page();
+}
+
+/*
+ * Bare "/admin" redirects into the admin SPA at "/admin/articles".
+ */
+if ($route === '/admin') {
+    header('Location: ' . base_url() . '?u=/admin/articles');
+    http_response_code(302);
+    exit;
+}
+
 serve_spa($route);

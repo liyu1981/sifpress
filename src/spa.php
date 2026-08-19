@@ -30,6 +30,53 @@ function route_title_key(string $route): string
     return $first;
 }
 
+/**
+ * Serve a static "under construction" page for the root "/".
+ * The viewer UI will eventually live here.
+ */
+function serve_construction_page(): never
+{
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: no-cache');
+    header('X-Content-Type-Options: nosniff');
+
+    $siteName = APP_NAME;
+
+    if (!db_needs_migration()) {
+        $configured = setting_get('site_name', '');
+        if ($configured !== '') {
+            $siteName = $configured;
+        }
+    }
+
+    $escaped = htmlspecialchars($siteName, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+    echo '<!DOCTYPE html>'
+        . '<html lang="en">'
+        . '<head>'
+        . '<meta charset="utf-8">'
+        . '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        . '<title>' . $escaped . '</title>'
+        . '<style>'
+        . '*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}'
+        . 'body{min-height:100vh;display:flex;align-items:center;justify-content:center;'
+        . 'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;'
+        . 'background:#f5f5f7;color:#1d1d1f}'
+        . '.card{text-align:center;padding:3rem 2rem;max-width:28rem}'
+        . 'h1{font-size:1.5rem;font-weight:600;margin-bottom:.5rem}'
+        . 'p{color:#6e6e73;font-size:.95rem;line-height:1.5}'
+        . '</style>'
+        . '</head>'
+        . '<body>'
+        . '<div class="card">'
+        . '<h1>' . $escaped . '</h1>'
+        . '<p>This site is currently under construction. Please check back later.</p>'
+        . '</div>'
+        . '</body>'
+        . '</html>';
+    exit;
+}
+
 function serve_spa(string $route): never
 {
     header('Content-Type: text/html; charset=utf-8');
