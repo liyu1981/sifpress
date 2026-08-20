@@ -28,6 +28,6 @@ export interface UpdateRunResult {
 }
 
 export const updateApi = {
-  status: () => moduleRequest<UpdateStatus>('update', 'status'),
-  run: () => moduleRequest<UpdateRunResult>('update', 'run', { method: 'POST' }),
+  status: () => moduleRequest<UpdateStatus>('sifpress/update', 'status'),
+  run: () => moduleRequest<UpdateRunResult>('sifpress/update', 'run', { method: 'POST' }),
 };

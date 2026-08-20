@@ -61,6 +61,7 @@ function settings_payload(): array
         'apple_touch_icon_asset_id' => setting_get('apple_touch_icon_asset_id', ''),
         'favicon_version' => setting_get('favicon_version', '0'),
         'favicon_mime' => setting_get('favicon_mime', 'image/svg+xml'),
+        'active_sifront_id' => setting_get('active_sifront_id', ''),
     ];
 }
 

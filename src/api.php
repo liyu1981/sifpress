@@ -646,6 +646,7 @@ function api_settings_update(string $method): never
         'robots_content' => ['max' => 2000],
         'favicon_asset_id' => ['max' => 20],
         'apple_touch_icon_asset_id' => ['max' => 20],
+        'active_sifront_id' => ['max' => 20],
     ];
 
     $sets = [];
@@ -2652,6 +2653,255 @@ function assign_roles(int $userId, array $roleIds): void
 }
 
 /* ------------------------------------------------------------------ */
+/* Sifronts                                                           */
+/* ------------------------------------------------------------------ */
+
+function api_sifronts_list(string $method): never
+{
+    if ($method !== 'GET') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $rows = db()->query(
+        'SELECT id, name, version, created_at, updated_at FROM sifronts ORDER BY id'
+    )->fetchAll();
+
+    $activeId = (string) setting_get('active_sifront_id', '');
+
+    json_response([
+        'sifronts' => array_map(
+            static fn (array $r): array => [
+                'id' => (int) $r['id'],
+                'name' => (string) $r['name'],
+                'version' => (int) $r['version'],
+                'is_active' => (string) $r['id'] === $activeId,
+                'created_at' => (string) $r['created_at'],
+                'updated_at' => (string) $r['updated_at'],
+            ],
+            $rows
+        ),
+    ]);
+}
+
+function api_sifronts_get(string $method): never
+{
+    if ($method !== 'GET') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $id = (int) request_param('id', '0');
+
+    if ($id <= 0) {
+        json_response(['error' => 'id is required'], 422);
+    }
+
+    $stmt = db()->prepare('SELECT * FROM sifronts WHERE id = ?');
+    $stmt->execute([$id]);
+    $row = $stmt->fetch();
+
+    if ($row === false) {
+        json_response(['error' => 'sifront not found'], 404);
+    }
+
+    $activeId = (string) setting_get('active_sifront_id', '');
+
+    json_response([
+        'sifront' => [
+            'id' => (int) $row['id'],
+            'name' => (string) $row['name'],
+            'content' => (string) $row['content'],
+            'version' => (int) $row['version'],
+            'is_active' => (string) $row['id'] === $activeId,
+            'created_at' => (string) $row['created_at'],
+            'updated_at' => (string) $row['updated_at'],
+        ],
+    ]);
+}
+
+function api_sifronts_create(string $method): never
+{
+    if ($method !== 'POST') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_permission('settings.manage');
+
+    $body = read_json_body();
+    $errors = [];
+
+    $name = trim((string) ($body['name'] ?? ''));
+    if ($name === '') {
+        $errors['name'] = ['name is required'];
+    } elseif (mb_strlen($name) > 100) {
+        $errors['name'] = ['must be at most 100 characters'];
+    }
+
+    $content = (string) ($body['content'] ?? '');
+
+    if ($errors !== []) {
+        json_response(['error' => 'validation failed', 'errors' => $errors], 422);
+    }
+
+    $stmt = db()->prepare(
+        'INSERT INTO sifronts (name, content, version) VALUES (?, ?, 1)'
+    );
+    $stmt->execute([$name, $content]);
+    $id = (int) db()->lastInsertId();
+
+    json_response([
+        'sifront' => [
+            'id' => $id,
+            'name' => $name,
+            'content' => $content,
+            'version' => 1,
+            'is_active' => false,
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ],
+    ]);
+}
+
+function api_sifronts_update(string $method): never
+{
+    if ($method !== 'PATCH') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_permission('settings.manage');
+
+    $body = read_json_body();
+    $id = (int) ($body['id'] ?? 0);
+
+    if ($id <= 0) {
+        json_response(['error' => 'id is required'], 422);
+    }
+
+    $stmt = db()->prepare('SELECT id FROM sifronts WHERE id = ?');
+    $stmt->execute([$id]);
+    if ($stmt->fetch() === false) {
+        json_response(['error' => 'sifront not found'], 404);
+    }
+
+    $sets = [];
+    $errors = [];
+
+    if (array_key_exists('name', $body)) {
+        $name = trim((string) $body['name']);
+        if ($name === '') {
+            $errors['name'] = ['name is required'];
+        } elseif (mb_strlen($name) > 100) {
+            $errors['name'] = ['must be at most 100 characters'];
+        } else {
+            $sets['name'] = $name;
+        }
+    }
+
+    if (array_key_exists('content', $body)) {
+        $sets['content'] = (string) $body['content'];
+    }
+
+    if ($errors !== []) {
+        json_response(['error' => 'validation failed', 'errors' => $errors], 422);
+    }
+
+    if ($sets === []) {
+        json_response(['error' => 'nothing to update'], 422);
+    }
+
+    $sets['version'] = 'version + 1';
+    $sets['updated_at'] = "datetime('now')";
+
+    $setClauses = [];
+    $params = [];
+    foreach ($sets as $key => $value) {
+        if ($key === 'version' || $key === 'updated_at') {
+            $setClauses[] = $key . ' = ' . $value;
+        } else {
+            $setClauses[] = $key . ' = ?';
+            $params[] = $value;
+        }
+    }
+    $params[] = $id;
+
+    db()->prepare(
+        'UPDATE sifronts SET ' . implode(', ', $setClauses) . ' WHERE id = ?'
+    )->execute($params);
+
+    $stmt = db()->prepare('SELECT * FROM sifronts WHERE id = ?');
+    $stmt->execute([$id]);
+    $row = $stmt->fetch();
+
+    $activeId = (string) setting_get('active_sifront_id', '');
+
+    json_response([
+        'sifront' => [
+            'id' => (int) $row['id'],
+            'name' => (string) $row['name'],
+            'content' => (string) $row['content'],
+            'version' => (int) $row['version'],
+            'is_active' => (string) $row['id'] === $activeId,
+            'created_at' => (string) $row['created_at'],
+            'updated_at' => (string) $row['updated_at'],
+        ],
+    ]);
+}
+
+function api_sifronts_delete(string $method): never
+{
+    if ($method !== 'DELETE') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_permission('settings.manage');
+
+    $id = (int) request_param('id', '0');
+
+    if ($id <= 0) {
+        json_response(['error' => 'id is required'], 422);
+    }
+
+    $activeId = (string) setting_get('active_sifront_id', '');
+    if ((string) $id === $activeId) {
+        json_response(['error' => 'cannot delete the active sifront'], 422);
+    }
+
+    $stmt = db()->prepare('DELETE FROM sifronts WHERE id = ?');
+    $stmt->execute([$id]);
+
+    if ($stmt->rowCount() === 0) {
+        json_response(['error' => 'sifront not found'], 404);
+    }
+
+    json_response(['ok' => true]);
+}
+
+function api_sifronts_activate(string $method): never
+{
+    if ($method !== 'POST') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_permission('settings.manage');
+
+    $body = read_json_body();
+    $id = (int) ($body['id'] ?? 0);
+
+    if ($id <= 0) {
+        json_response(['error' => 'id is required'], 422);
+    }
+
+    $stmt = db()->prepare('SELECT id FROM sifronts WHERE id = ?');
+    $stmt->execute([$id]);
+    if ($stmt->fetch() === false) {
+        json_response(['error' => 'sifront not found'], 404);
+    }
+
+    setting_set('active_sifront_id', (string) $id);
+
+    json_response(['ok' => true, 'active_sifront_id' => $id]);
+}
+
+/* ------------------------------------------------------------------ */
 /* Router                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -2724,6 +2974,8 @@ function handle_api(string $action, string $method): never
                     'assets.delete',
                     'kvs.list', 'kvs.get', 'kvs.create', 'kvs.update', 'kvs.delete',
                     'kvs.grants', 'kvs.grant', 'kvs.revokeGrant',
+                    'sifronts.list', 'sifronts.get', 'sifronts.create', 'sifronts.update',
+                    'sifronts.delete', 'sifronts.activate',
                 ],
             ]);
 
@@ -2843,6 +3095,24 @@ function handle_api(string $action, string $method): never
 
         case 'kvs.revokeGrant':
             api_kvs_revoke_grant($method);
+
+        case 'sifronts.list':
+            api_sifronts_list($method);
+
+        case 'sifronts.get':
+            api_sifronts_get($method);
+
+        case 'sifronts.create':
+            api_sifronts_create($method);
+
+        case 'sifronts.update':
+            api_sifronts_update($method);
+
+        case 'sifronts.delete':
+            api_sifronts_delete($method);
+
+        case 'sifronts.activate':
+            api_sifronts_activate($method);
 
         default:
             json_response(['error' => 'Unknown API action'], 404);

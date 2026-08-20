@@ -1106,7 +1106,7 @@ function FaviconCard() {
     if (id === '' || id === '0') {
       return '';
     }
-    const params = new URLSearchParams({ p: 'asset', id, t: faviconVersion });
+    const params = new URLSearchParams({ p: 'sifpress/asset', id, t: faviconVersion });
     return `${window.location.pathname}?${params.toString()}`;
   }
 

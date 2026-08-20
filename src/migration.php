@@ -45,6 +45,7 @@ function handle_migration(string $action, string $method): never
             seed_rbac();
             seed_default_admin();
             seed_favicon();
+            seed_default_sifront();
 
             json_response([
                 'applied' => $applied,

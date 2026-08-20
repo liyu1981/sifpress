@@ -68,7 +68,8 @@ if (str_starts_with($p, 'sifpress/')) {
 }
 
 /*
- * Everything else is the viewer SPA (construction page for now).
- * The viewer UI will eventually live here.
+ * Everything else is the sifront (front-facing SPA).
+ * The active sifront page is served from the DB; falls back to
+ * static construction HTML when none is configured.
  */
-serve_construction_page();
+serve_sifront_page();

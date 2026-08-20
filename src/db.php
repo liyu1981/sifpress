@@ -201,6 +201,62 @@ function seed_rbac(): void
 }
 
 /**
+ * Idempotent default-sifront seed: inserts a "Construction Page" with the
+ * fallback HTML and sets it as the active sifront. Runs once; subsequent
+ * calls are no-ops when a sifront already exists.
+ */
+function seed_default_sifront(): void
+{
+    $pdo = db();
+
+    $count = (int) $pdo->query('SELECT COUNT(*) FROM sifronts')->fetchColumn();
+
+    if ($count > 0) {
+        return;
+    }
+
+    $siteName = APP_NAME;
+    $configured = setting_get('site_name', '');
+    if ($configured !== '') {
+        $siteName = $configured;
+    }
+
+    $escaped = htmlspecialchars($siteName, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+    $content = '<!DOCTYPE html>'
+        . '<html lang="en">'
+        . '<head>'
+        . '<meta charset="utf-8">'
+        . '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        . '<title>' . $escaped . '</title>'
+        . '<style>'
+        . '*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}'
+        . 'body{min-height:100vh;display:flex;align-items:center;justify-content:center;'
+        . 'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;'
+        . 'background:#f5f5f7;color:#1d1d1f}'
+        . '.card{text-align:center;padding:3rem 2rem;max-width:28rem}'
+        . 'h1{font-size:1.5rem;font-weight:600;margin-bottom:.5rem}'
+        . 'p{color:#6e6e73;font-size:.95rem;line-height:1.5}'
+        . '</style>'
+        . '</head>'
+        . '<body>'
+        . '<div class="card">'
+        . '<h1>' . $escaped . '</h1>'
+        . '<p>This site is currently under construction. Please check back later.</p>'
+        . '</div>'
+        . '</body>'
+        . '</html>';
+
+    $stmt = $pdo->prepare(
+        'INSERT INTO sifronts (name, content, version) VALUES (?, ?, 1)'
+    );
+    $stmt->execute(['Construction Page', $content]);
+    $id = (int) $pdo->lastInsertId();
+
+    setting_set('active_sifront_id', (string) $id);
+}
+
+/**
  * Idempotent default-favicon seed: inserts a "Shifu" SVG into the assets
  * table and links it as the site favicon + apple-touch-icon. Runs once;
  * subsequent calls are no-ops.
