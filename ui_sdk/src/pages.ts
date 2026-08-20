@@ -493,3 +493,57 @@ export const migrationApi = {
   status: () => migrationRequest<MigrationStatus>('status'),
   run: () => migrationRequest<MigrationRunResult>('run', { method: 'POST' }),
 };
+
+/* ------------------------------------------------------------------ */
+/* Sifronts                                                            */
+/* ------------------------------------------------------------------ */
+
+export interface SifrontListItem {
+  id: number;
+  name: string;
+  version: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SifrontDetail extends SifrontListItem {
+  content: string;
+  meta: Record<string, unknown> | null;
+}
+
+export const sifrontsApi = {
+  list: () =>
+    apiRequest<{ sifronts: SifrontListItem[] }>('sifronts.list').then(
+      r => r.sifronts,
+    ),
+  get: (id: number) =>
+    apiRequest<{ sifront: SifrontDetail }>('sifronts.get', {
+      params: { id: String(id) },
+    }).then(r => r.sifront),
+  create: (input: { name: string; content?: string; meta?: Record<string, unknown> }) =>
+    apiRequest<{ sifront: SifrontDetail }>('sifronts.create', {
+      method: 'POST',
+      body: input,
+    }).then(r => r.sifront),
+  update: (input: {
+    id: number;
+    name?: string;
+    content?: string;
+    meta?: Record<string, unknown>;
+  }) =>
+    apiRequest<{ sifront: SifrontDetail }>('sifronts.update', {
+      method: 'PATCH',
+      body: input,
+    }).then(r => r.sifront),
+  delete: (id: number) =>
+    apiRequest<{ ok: true }>('sifronts.delete', {
+      method: 'DELETE',
+      params: { id: String(id) },
+    }),
+  activate: (id: number) =>
+    apiRequest<{ ok: true; active_sifront_id: number }>('sifronts.activate', {
+      method: 'POST',
+      body: { id },
+    }),
+};

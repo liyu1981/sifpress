@@ -38,6 +38,15 @@ function AppHeader() {
       <nav className="flex items-center gap-1">
         <Button asChild variant="ghost" size="sm">
           <Link
+            to="/admin/sifront"
+            activeOptions={{ exact: true }}
+            activeProps={{ className: activeClass }}
+          >
+            {t('nav.sifront')}
+          </Link>
+        </Button>
+        <Button asChild variant="ghost" size="sm">
+          <Link
             to="/admin/articles"
             activeOptions={{ exact: true }}
             activeProps={{ className: activeClass }}

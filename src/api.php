@@ -2711,6 +2711,7 @@ function api_sifronts_get(string $method): never
             'name' => (string) $row['name'],
             'content' => (string) $row['content'],
             'version' => (int) $row['version'],
+            'meta' => json_decode((string) $row['meta'], true),
             'is_active' => (string) $row['id'] === $activeId,
             'created_at' => (string) $row['created_at'],
             'updated_at' => (string) $row['updated_at'],
@@ -2737,15 +2738,16 @@ function api_sifronts_create(string $method): never
     }
 
     $content = (string) ($body['content'] ?? '');
+    $meta = isset($body['meta']) ? json_encode($body['meta']) : '{}';
 
     if ($errors !== []) {
         json_response(['error' => 'validation failed', 'errors' => $errors], 422);
     }
 
     $stmt = db()->prepare(
-        'INSERT INTO sifronts (name, content, version) VALUES (?, ?, 1)'
+        'INSERT INTO sifronts (name, content, meta, version) VALUES (?, ?, ?, 1)'
     );
-    $stmt->execute([$name, $content]);
+    $stmt->execute([$name, $content, $meta]);
     $id = (int) db()->lastInsertId();
 
     json_response([
@@ -2754,6 +2756,7 @@ function api_sifronts_create(string $method): never
             'name' => $name,
             'content' => $content,
             'version' => 1,
+            'meta' => json_decode($meta, true),
             'is_active' => false,
             'created_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
@@ -2800,6 +2803,10 @@ function api_sifronts_update(string $method): never
         $sets['content'] = (string) $body['content'];
     }
 
+    if (array_key_exists('meta', $body)) {
+        $sets['meta'] = json_encode($body['meta']);
+    }
+
     if ($errors !== []) {
         json_response(['error' => 'validation failed', 'errors' => $errors], 422);
     }
@@ -2839,6 +2846,7 @@ function api_sifronts_update(string $method): never
             'name' => (string) $row['name'],
             'content' => (string) $row['content'],
             'version' => (int) $row['version'],
+            'meta' => json_decode((string) $row['meta'], true),
             'is_active' => (string) $row['id'] === $activeId,
             'created_at' => (string) $row['created_at'],
             'updated_at' => (string) $row['updated_at'],

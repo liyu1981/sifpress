@@ -1,0 +1,1 @@
+ALTER TABLE sifronts ADD COLUMN meta TEXT NOT NULL DEFAULT '{}';

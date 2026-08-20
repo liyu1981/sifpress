@@ -18,6 +18,7 @@ import { Route as AdminAssetsRouteImport } from './routes/admin/assets'
 import { Route as AdminKvsRouteImport } from './routes/admin/kvs'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
+import { Route as AdminSifrontRouteImport } from './routes/admin/sifront'
 import { Route as AdminArticleSlugRouteImport } from './routes/admin/article.$slug'
 import { Route as AdminEditorSlugRouteImport } from './routes/admin/editor/$slug'
 import { Route as AdminEditorNewRouteImport } from './routes/admin/editor/new'
@@ -67,6 +68,11 @@ const AdminSettingsRoute = AdminSettingsRouteImport.update({
   path: '/admin/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminSifrontRoute = AdminSifrontRouteImport.update({
+  id: '/admin/sifront',
+  path: '/admin/sifront',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminArticleSlugRoute = AdminArticleSlugRouteImport.update({
   id: '/admin/article/$slug',
   path: '/admin/article/$slug',
@@ -92,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/admin/kvs': typeof AdminKvsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/sifront': typeof AdminSifrontRoute
   '/admin/': typeof AdminIndexRoute
   '/admin/article/$slug': typeof AdminArticleSlugRoute
   '/admin/editor/$slug': typeof AdminEditorSlugRoute
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/admin/kvs': typeof AdminKvsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/sifront': typeof AdminSifrontRoute
   '/admin': typeof AdminIndexRoute
   '/admin/article/$slug': typeof AdminArticleSlugRoute
   '/admin/editor/$slug': typeof AdminEditorSlugRoute
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/admin/kvs': typeof AdminKvsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/sifront': typeof AdminSifrontRoute
   '/admin/': typeof AdminIndexRoute
   '/admin/article/$slug': typeof AdminArticleSlugRoute
   '/admin/editor/$slug': typeof AdminEditorSlugRoute
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/admin/kvs'
     | '/admin/login'
     | '/admin/settings'
+    | '/admin/sifront'
     | '/admin/'
     | '/admin/article/$slug'
     | '/admin/editor/$slug'
@@ -151,6 +161,7 @@ export interface FileRouteTypes {
     | '/admin/kvs'
     | '/admin/login'
     | '/admin/settings'
+    | '/admin/sifront'
     | '/admin'
     | '/admin/article/$slug'
     | '/admin/editor/$slug'
@@ -165,6 +176,7 @@ export interface FileRouteTypes {
     | '/admin/kvs'
     | '/admin/login'
     | '/admin/settings'
+    | '/admin/sifront'
     | '/admin/'
     | '/admin/article/$slug'
     | '/admin/editor/$slug'
@@ -180,6 +192,7 @@ export interface RootRouteChildren {
   AdminKvsRoute: typeof AdminKvsRoute
   AdminLoginRoute: typeof AdminLoginRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
+  AdminSifrontRoute: typeof AdminSifrontRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminArticleSlugRoute: typeof AdminArticleSlugRoute
   AdminEditorSlugRoute: typeof AdminEditorSlugRoute
@@ -251,6 +264,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/sifront': {
+      id: '/admin/sifront'
+      path: '/admin/sifront'
+      fullPath: '/admin/sifront'
+      preLoaderRoute: typeof AdminSifrontRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/article/$slug': {
       id: '/admin/article/$slug'
       path: '/admin/article/$slug'
@@ -284,6 +304,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminKvsRoute: AdminKvsRoute,
   AdminLoginRoute: AdminLoginRoute,
   AdminSettingsRoute: AdminSettingsRoute,
+  AdminSifrontRoute: AdminSifrontRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminArticleSlugRoute: AdminArticleSlugRoute,
   AdminEditorSlugRoute: AdminEditorSlugRoute,

@@ -7,6 +7,7 @@ const en = {
   app: 'Sifpress',
   nav: {
     home: 'Home',
+    sifront: 'Sifront',
     article: 'Articles',
     assets: 'Assets',
     account: 'Accounts',
@@ -34,6 +35,16 @@ const en = {
   },
   home: {
     title: 'Latest',
+  },
+  sifront: {
+    title: 'Sifront',
+    description: 'Manage front-facing pages served to visitors.',
+    new: 'New sifront',
+    active: 'Active',
+    activate: 'Activate',
+    version: 'v{{version}}',
+    deleteConfirm: 'Delete "{{name}}" permanently?',
+    empty: 'No sifronts yet.',
   },
   article: {
     badge: 'Blog',
@@ -557,6 +568,7 @@ const zh = {
   app: 'Sifpress',
   nav: {
     home: '首页',
+    sifront: '前台',
     article: '文章',
     assets: '资源',
     account: '账户管理',
@@ -584,6 +596,16 @@ const zh = {
   },
   home: {
     title: '最新',
+  },
+  sifront: {
+    title: '前台页面',
+    description: '管理面向访客的前台页面。',
+    new: '新建前台',
+    active: '已启用',
+    activate: '启用',
+    version: 'v{{version}}',
+    deleteConfirm: '永久删除 "{{name}}"？',
+    empty: '暂无前台页面。',
   },
   article: {
     badge: '博客',

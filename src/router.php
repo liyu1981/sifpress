@@ -59,7 +59,7 @@ if (str_starts_with($p, 'sifpress/')) {
     $route = '/' . ltrim($inner, '/');
 
     if ($route === '/admin') {
-        header('Location: ' . base_url() . '?p=sifpress/admin/articles');
+        header('Location: ' . base_url() . '?p=sifpress/admin/sifront');
         http_response_code(302);
         exit;
     }
