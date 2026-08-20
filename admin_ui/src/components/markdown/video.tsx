@@ -31,7 +31,7 @@ export interface ResolvedVideo {
 }
 
 const VIDEO_EXT_RE = /\.(?:mp4|webm|ogg|ogv|m4v)(?:[?#].*)?$/i;
-const ASSET_URL_RE = /[?&]p=asset\b/i;
+const ASSET_URL_RE = /[?&]p=sifpress\/asset\b/i;
 const ASSET_VIDEO_HINT_RE = /[?&]kind=video\b|[?&]filetype=(?:mp4|webm|ogg|ogv|m4v)(?:[&#]|$)/i;
 
 const YOUTUBE_HOST_RE = /(?:^|\.)youtube\.com|youtu\.be/i;
