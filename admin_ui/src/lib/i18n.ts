@@ -456,6 +456,7 @@ const en = {
     deleteConfirm: 'Delete the pair "{{key}}" permanently?',
     deleted: 'Pair deleted.',
     deleteError: 'Could not delete the pair.',
+    schemaValidationError: 'Schema validation failed: {{message}}',
     access: 'Access control',
     accessDescription:
       'Control who can view or edit this pair. The owner and all admins always have edit access.',
@@ -1000,6 +1001,7 @@ const zh = {
     deleteConfirm: '确定永久删除键值对 "{{key}}" 吗？',
     deleted: '键值对已删除。',
     deleteError: '无法删除键值对。',
+    schemaValidationError: 'Schema 验证失败：{{message}}',
     access: '访问控制',
     accessDescription: '控制谁可以查看或编辑此键值对。所有者和管理员始终拥有编辑权限。',
     grantUsername: '用户名',

@@ -1,19 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  KeyRound,
-  Loader2,
-  Plus,
-  Save,
-  Search,
-  ShieldCheck,
-  Trash2,
-  UserPlus,
-} from 'lucide-react';
+import { KeyRound, Loader2, Plus, Save, Search, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { createAjvValidator, type Content } from 'vanilla-jsoneditor';
+import { createAjvValidator, type Content, ValidationSeverity } from 'vanilla-jsoneditor';
 import Ajv from 'ajv/dist/2020';
 import { JsonEditor, contentToJson } from '@/components/json-editor';
 import { Badge } from '@/components/ui/badge';
@@ -129,7 +120,10 @@ function NewKvCard() {
       return undefined;
     }
     try {
-      return createAjvValidator({ schema: schemaValue as Record<string, unknown> });
+      return createAjvValidator({
+        schema: schemaValue as Record<string, unknown>,
+        errorSeverity: ValidationSeverity.error,
+      });
     } catch {
       return undefined;
     }
@@ -140,6 +134,14 @@ function NewKvCard() {
       const parsed = contentToJson(content);
       if (!parsed.ok) {
         throw new ApiError(422, { error: t('kvs.invalidJson') });
+      }
+      if (validator) {
+        const errors = validator(parsed.value);
+        if (errors.length > 0) {
+          throw new ApiError(422, {
+            error: t('kvs.schemaValidationError', { message: errors[0].message }),
+          });
+        }
       }
       return kvsApi.create({
         key: key.trim(),
@@ -292,7 +294,10 @@ function KvEditForm({ pair, onDone }: { pair: KvPair; onDone: () => void }) {
       return undefined;
     }
     try {
-      return createAjvValidator({ schema: schemaValue as Record<string, unknown> });
+      return createAjvValidator({
+        schema: schemaValue as Record<string, unknown>,
+        errorSeverity: ValidationSeverity.error,
+      });
     } catch {
       return undefined;
     }
@@ -303,6 +308,14 @@ function KvEditForm({ pair, onDone }: { pair: KvPair; onDone: () => void }) {
       const parsed = contentToJson(content);
       if (!parsed.ok) {
         throw new ApiError(422, { error: t('kvs.invalidJson') });
+      }
+      if (validator) {
+        const errors = validator(parsed.value);
+        if (errors.length > 0) {
+          throw new ApiError(422, {
+            error: t('kvs.schemaValidationError', { message: errors[0].message }),
+          });
+        }
       }
       return kvsApi.update({
         key: pair.key,
