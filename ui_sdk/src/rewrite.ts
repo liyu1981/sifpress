@@ -15,7 +15,7 @@ function normalizeInternalPath(path: string): string {
  *   `?p=...` query on the current document, so `<Link>` hrefs stay real and
  *   shareable at any mount depth.
  */
-export function createQueryRewrite(basePath: string = window.location.pathname): LocationRewrite {
+export function createQueryRewrite(basePath: string = '/'): LocationRewrite {
   return {
     input: ({ url }) => {
       const p = url.searchParams.get('p');

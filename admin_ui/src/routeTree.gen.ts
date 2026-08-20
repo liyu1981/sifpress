@@ -15,6 +15,7 @@ import { Route as AdminAccountRouteImport } from './routes/admin/account'
 import { Route as AdminAccountAdminRouteImport } from './routes/admin/account-admin'
 import { Route as AdminArticlesRouteImport } from './routes/admin/articles'
 import { Route as AdminAssetsRouteImport } from './routes/admin/assets'
+import { Route as AdminKvsRouteImport } from './routes/admin/kvs'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as AdminArticleSlugRouteImport } from './routes/admin/article.$slug'
@@ -51,6 +52,11 @@ const AdminAssetsRoute = AdminAssetsRouteImport.update({
   path: '/admin/assets',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminKvsRoute = AdminKvsRouteImport.update({
+  id: '/admin/kvs',
+  path: '/admin/kvs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminLoginRoute = AdminLoginRouteImport.update({
   id: '/admin/login',
   path: '/admin/login',
@@ -83,6 +89,7 @@ export interface FileRoutesByFullPath {
   '/admin/account-admin': typeof AdminAccountAdminRoute
   '/admin/articles': typeof AdminArticlesRoute
   '/admin/assets': typeof AdminAssetsRoute
+  '/admin/kvs': typeof AdminKvsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/': typeof AdminIndexRoute
@@ -96,6 +103,7 @@ export interface FileRoutesByTo {
   '/admin/account-admin': typeof AdminAccountAdminRoute
   '/admin/articles': typeof AdminArticlesRoute
   '/admin/assets': typeof AdminAssetsRoute
+  '/admin/kvs': typeof AdminKvsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin': typeof AdminIndexRoute
@@ -110,6 +118,7 @@ export interface FileRoutesById {
   '/admin/account-admin': typeof AdminAccountAdminRoute
   '/admin/articles': typeof AdminArticlesRoute
   '/admin/assets': typeof AdminAssetsRoute
+  '/admin/kvs': typeof AdminKvsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/': typeof AdminIndexRoute
@@ -125,6 +134,7 @@ export interface FileRouteTypes {
     | '/admin/account-admin'
     | '/admin/articles'
     | '/admin/assets'
+    | '/admin/kvs'
     | '/admin/login'
     | '/admin/settings'
     | '/admin/'
@@ -138,6 +148,7 @@ export interface FileRouteTypes {
     | '/admin/account-admin'
     | '/admin/articles'
     | '/admin/assets'
+    | '/admin/kvs'
     | '/admin/login'
     | '/admin/settings'
     | '/admin'
@@ -151,6 +162,7 @@ export interface FileRouteTypes {
     | '/admin/account-admin'
     | '/admin/articles'
     | '/admin/assets'
+    | '/admin/kvs'
     | '/admin/login'
     | '/admin/settings'
     | '/admin/'
@@ -165,6 +177,7 @@ export interface RootRouteChildren {
   AdminAccountAdminRoute: typeof AdminAccountAdminRoute
   AdminArticlesRoute: typeof AdminArticlesRoute
   AdminAssetsRoute: typeof AdminAssetsRoute
+  AdminKvsRoute: typeof AdminKvsRoute
   AdminLoginRoute: typeof AdminLoginRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -217,6 +230,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAssetsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/kvs': {
+      id: '/admin/kvs'
+      path: '/admin/kvs'
+      fullPath: '/admin/kvs'
+      preLoaderRoute: typeof AdminKvsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/login': {
       id: '/admin/login'
       path: '/admin/login'
@@ -261,6 +281,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminAccountAdminRoute: AdminAccountAdminRoute,
   AdminArticlesRoute: AdminArticlesRoute,
   AdminAssetsRoute: AdminAssetsRoute,
+  AdminKvsRoute: AdminKvsRoute,
   AdminLoginRoute: AdminLoginRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminIndexRoute: AdminIndexRoute,

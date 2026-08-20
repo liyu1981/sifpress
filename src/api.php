@@ -1953,6 +1953,641 @@ function api_assets_delete(string $method): never
 }
 
 /* ------------------------------------------------------------------ */
+/* Key-value store (KVs)                                              */
+/* ------------------------------------------------------------------ */
+
+const KV_MAX_KEY_LENGTH = 200;
+const KV_MAX_VALUE_BYTES = 1024 * 1024;
+
+function kv_fetch(string $key): ?array
+{
+    $stmt = db()->prepare(
+        'SELECT k.*, cu.name AS created_by_name, uu.name AS updated_by_name
+           FROM kv_pairs k
+           LEFT JOIN users cu ON cu.id = k.created_by
+           LEFT JOIN users uu ON uu.id = k.updated_by
+          WHERE k.key = ?'
+    );
+    $stmt->execute([$key]);
+    $row = $stmt->fetch();
+
+    return $row === false ? null : $row;
+}
+
+/**
+ * SQL clause (with named params) restricting a kv_pairs query to rows the
+ * current user may view: pairs they created, pairs carrying a grant for
+ * them or for the _guest_ user (i.e. public). Admins see everything.
+ */
+function kv_view_filter_sql(): array
+{
+    $user = current_user();
+
+    if ($user !== null && is_admin($user)) {
+        return ['clause' => '', 'params' => []];
+    }
+
+    $uid = $user !== null ? (int) $user['id'] : -1;
+    $guestId = guest_user_id();
+    $ids = $guestId !== null ? [$guestId] : [];
+
+    if ($uid > 0) {
+        $ids[] = $uid;
+    }
+
+    $ids = array_values(array_unique($ids));
+    $inParams = [];
+
+    foreach ($ids as $i => $id) {
+        $inParams[':kvf' . $i] = $id;
+    }
+
+    $placeholders = implode(',', array_keys($inParams));
+    $clause = '(k.created_by = :kvfu OR EXISTS (
+        SELECT 1 FROM kv_grants kg
+         WHERE kg.kv_id = k.id AND kg.user_id IN (' . $placeholders . ')
+    ))';
+
+    return [
+        'clause' => $clause,
+        'params' => array_merge([':kvfu' => $uid], $inParams),
+    ];
+}
+
+function kv_can_view(?array $user, array $row): bool
+{
+    if ($user !== null && is_admin($user)) {
+        return true;
+    }
+
+    if ($user !== null
+        && $row['created_by'] !== null
+        && (int) $user['id'] === (int) $row['created_by']) {
+        return true;
+    }
+
+    $guestId = guest_user_id();
+    $ids = $guestId !== null ? [$guestId] : [];
+
+    if ($user !== null) {
+        $ids[] = (int) $user['id'];
+    }
+
+    $ids = array_values(array_unique($ids));
+
+    if ($ids === []) {
+        return false;
+    }
+
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = db()->prepare(
+        'SELECT COUNT(*) FROM kv_grants
+          WHERE kv_id = ? AND user_id IN (' . $placeholders . ')'
+    );
+    $stmt->execute(array_merge([(int) $row['id']], $ids));
+
+    return (int) $stmt->fetchColumn() > 0;
+}
+
+function kv_can_edit(array $user, array $row): bool
+{
+    if (is_admin($user)) {
+        return true;
+    }
+
+    if ($row['created_by'] !== null && (int) $user['id'] === (int) $row['created_by']) {
+        return true;
+    }
+
+    $stmt = db()->prepare(
+        "SELECT COUNT(*) FROM kv_grants
+          WHERE kv_id = ? AND user_id = ? AND permission = 'edit'"
+    );
+    $stmt->execute([(int) $row['id'], (int) $user['id']]);
+
+    return (int) $stmt->fetchColumn() > 0;
+}
+
+function kv_require_edit(array $row): void
+{
+    $user = require_auth();
+
+    if (!kv_can_edit($user, $row)) {
+        json_response([
+            'error' => 'forbidden',
+            'reason' => 'not the owner and no edit grant',
+        ], 403);
+    }
+}
+
+/**
+ * Owner/admin gate for destructive and grant-management operations.
+ */
+function kv_require_owner_admin(array $row): void
+{
+    $user = require_auth();
+
+    if (!is_admin($user)
+        && ($row['created_by'] === null || (int) $row['created_by'] !== (int) $user['id'])) {
+        json_response(['error' => 'forbidden'], 403);
+    }
+}
+
+function kv_is_public(array $row): bool
+{
+    $guestId = guest_user_id();
+
+    if ($guestId === null) {
+        return false;
+    }
+
+    $stmt = db()->prepare('SELECT COUNT(*) FROM kv_grants WHERE kv_id = ? AND user_id = ?');
+    $stmt->execute([(int) $row['id'], $guestId]);
+
+    return (int) $stmt->fetchColumn() > 0;
+}
+
+function kv_payload(array $row): array
+{
+    $user = current_user();
+    $schema = null;
+    if ($row['schema_json'] !== null && $row['schema_json'] !== '') {
+        $schema = json_decode($row['schema_json'], true);
+    }
+
+    return [
+        'id' => (int) $row['id'],
+        'key' => $row['key'],
+        'value' => json_decode($row['value_json'], true),
+        'schema' => $schema,
+        'public' => kv_is_public($row),
+        'created_by' => $row['created_by'] !== null ? (int) $row['created_by'] : null,
+        'created_by_name' => (string) ($row['created_by_name'] ?? ''),
+        'updated_by' => $row['updated_by'] !== null ? (int) $row['updated_by'] : null,
+        'updated_by_name' => (string) ($row['updated_by_name'] ?? ''),
+        'created_at' => $row['created_at'],
+        'updated_at' => $row['updated_at'],
+        'can_edit' => $user !== null && kv_can_edit($user, $row),
+    ];
+}
+
+function kv_grant_default_guest_view(int $kvId, int $grantedBy): void
+{
+    $guestId = guest_user_id();
+
+    if ($guestId === null) {
+        return;
+    }
+
+    db()->prepare(
+        'INSERT OR IGNORE INTO kv_grants (kv_id, user_id, granted_by, permission)
+         VALUES (?, ?, ?, ?)'
+    )->execute([$kvId, $guestId, $grantedBy, 'view']);
+}
+
+/**
+ * Encode the request body's `value` into a JSON string, appending a
+ * `value` validation error when it is missing or not JSON-encodable.
+ */
+function kv_encode_value(array $body, array &$errors): string
+{
+    if (!array_key_exists('value', $body)) {
+        $errors['value'] = ['required'];
+        return '';
+    }
+
+    $json = json_encode($body['value'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+    if ($json === false) {
+        $errors['value'] = ['must be valid JSON'];
+        return '';
+    }
+
+    if (strlen($json) > KV_MAX_VALUE_BYTES) {
+        $errors['value'] = ['too large (max ' . KV_MAX_VALUE_BYTES . ' bytes)'];
+        return '';
+    }
+
+    return $json;
+}
+
+function api_kvs_list(string $method): never
+{
+    if ($method !== 'GET') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $q = request_param('q');
+    $page = max(1, (int) request_param('page', '1'));
+    $perPage = min(100, max(1, (int) request_param('per_page', '20')));
+
+    $view = kv_view_filter_sql();
+    $whereParts = [];
+    $params = [];
+
+    if ($q !== null && trim($q) !== '') {
+        $whereParts[] = 'k.key LIKE :q';
+        $params['q'] = '%' . trim($q) . '%';
+    }
+
+    if ($view['clause'] !== '') {
+        $whereParts[] = $view['clause'];
+    }
+
+    $where = $whereParts === [] ? '' : 'WHERE ' . implode(' AND ', $whereParts);
+    $params = array_merge($params, $view['params']);
+
+    $stmt = db()->prepare('SELECT COUNT(*) FROM kv_pairs k ' . $where);
+    $stmt->execute($params);
+    $total = (int) $stmt->fetchColumn();
+
+    $sql = 'SELECT k.*, cu.name AS created_by_name, uu.name AS updated_by_name
+              FROM kv_pairs k
+              LEFT JOIN users cu ON cu.id = k.created_by
+              LEFT JOIN users uu ON uu.id = k.updated_by
+              ' . $where . '
+             ORDER BY k.updated_at DESC, k.id DESC
+             LIMIT :limit OFFSET :offset';
+
+    $stmt = db()->prepare($sql);
+    foreach ($params as $k => $v) {
+        $stmt->bindValue($k, $v);
+    }
+    $stmt->bindValue('limit', $perPage, PDO::PARAM_INT);
+    $stmt->bindValue('offset', ($page - 1) * $perPage, PDO::PARAM_INT);
+    $stmt->execute();
+
+    $items = array_map('kv_payload', $stmt->fetchAll());
+
+    json_response([
+        'items' => $items,
+        'total' => $total,
+        'page' => $page,
+        'per_page' => $perPage,
+    ]);
+}
+
+function api_kvs_get(string $method): never
+{
+    if ($method !== 'GET') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $row = kv_fetch((string) request_param('key', ''));
+
+    if ($row === null || !kv_can_view(current_user(), $row)) {
+        json_response(['error' => 'kv pair not found'], 404);
+    }
+
+    json_response(['kv' => kv_payload($row)]);
+}
+
+function api_kvs_create(string $method): never
+{
+    if ($method !== 'POST') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_permission('kvs.write');
+    $user = current_user();
+    $body = read_json_body();
+
+    $key = trim((string) ($body['key'] ?? ''));
+    $errors = [];
+
+    if ($key === '') {
+        $errors['key'] = ['required'];
+    } elseif (mb_strlen($key) > KV_MAX_KEY_LENGTH) {
+        $errors['key'] = ['must be at most ' . KV_MAX_KEY_LENGTH . ' characters'];
+    }
+
+    $json = kv_encode_value($body, $errors);
+
+    $schemaJson = null;
+    if (array_key_exists('schema', $body) && $body['schema'] !== null) {
+        $schemaJson = json_encode($body['schema'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if ($schemaJson === false) {
+            $errors['schema'] = ['must be valid JSON'];
+        } elseif (strlen($schemaJson) > 65536) {
+            $errors['schema'] = ['too large (max 64 KB)'];
+        }
+    }
+
+    if ($errors !== []) {
+        json_response(['error' => 'validation failed', 'errors' => $errors], 422);
+    }
+
+    $stmt = db()->prepare('SELECT 1 FROM kv_pairs WHERE key = ?');
+    $stmt->execute([$key]);
+    if ($stmt->fetch() !== false) {
+        json_response(['error' => 'key already exists'], 409);
+    }
+
+    $stmt = db()->prepare(
+        'INSERT INTO kv_pairs (key, value_json, schema_json, created_by, updated_by)
+         VALUES (?, ?, ?, ?, ?)'
+    );
+    $stmt->execute([$key, $json, $schemaJson, $user['id'], $user['id']]);
+
+    $kvId = (int) db()->lastInsertId();
+    kv_grant_default_guest_view($kvId, $user['id']);
+
+    json_response(['kv' => kv_payload(kv_fetch($key))], 201);
+}
+
+function api_kvs_update(string $method): never
+{
+    if ($method !== 'PATCH') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $body = read_json_body();
+    $row = kv_fetch((string) ($body['key'] ?? request_param('key', '')));
+
+    if ($row === null) {
+        json_response(['error' => 'kv pair not found'], 404);
+    }
+
+    kv_require_edit($row);
+
+    $sets = [];
+    $params = [];
+    $errors = [];
+
+    if (array_key_exists('new_key', $body)) {
+        $newKey = trim((string) $body['new_key']);
+
+        if ($newKey === '') {
+            $errors['key'] = ['required'];
+        } elseif (mb_strlen($newKey) > KV_MAX_KEY_LENGTH) {
+            $errors['key'] = ['must be at most ' . KV_MAX_KEY_LENGTH . ' characters'];
+        } else {
+            $stmt = db()->prepare('SELECT 1 FROM kv_pairs WHERE key = ? AND id <> ?');
+            $stmt->execute([$newKey, $row['id']]);
+            if ($stmt->fetch() !== false) {
+                $errors['key'] = ['already exists'];
+            } else {
+                $sets[] = 'key = :key';
+                $params['key'] = $newKey;
+            }
+        }
+    }
+
+    if (array_key_exists('value', $body)) {
+        $json = kv_encode_value($body, $errors);
+
+        if (!isset($errors['value'])) {
+            $sets[] = 'value_json = :value_json';
+            $params['value_json'] = $json;
+        }
+    }
+
+    if (array_key_exists('schema', $body)) {
+        $schema = $body['schema'];
+
+        if ($schema === null) {
+            $sets[] = 'schema_json = NULL';
+        } else {
+            $schemaJson = json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            if ($schemaJson === false) {
+                $errors['schema'] = ['must be valid JSON'];
+            } elseif (strlen($schemaJson) > 65536) {
+                $errors['schema'] = ['too large (max 64 KB)'];
+            } else {
+                $sets[] = 'schema_json = :schema_json';
+                $params['schema_json'] = $schemaJson;
+            }
+        }
+    }
+
+    if ($errors !== []) {
+        json_response(['error' => 'validation failed', 'errors' => $errors], 422);
+    }
+
+    if ($sets !== []) {
+        $sets[] = 'updated_by = :uid';
+        $params['uid'] = current_user()['id'];
+        $sets[] = 'updated_at = datetime(\'now\')';
+        $params['id'] = $row['id'];
+        db()->prepare('UPDATE kv_pairs SET ' . implode(', ', $sets) . ' WHERE id = :id')
+            ->execute($params);
+    }
+
+    $finalKey = $params['key'] ?? $row['key'];
+    json_response(['kv' => kv_payload(kv_fetch($finalKey))]);
+}
+
+function api_kvs_delete(string $method): never
+{
+    if ($method !== 'DELETE') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $row = kv_fetch((string) request_param('key', ''));
+
+    if ($row === null) {
+        json_response(['error' => 'kv pair not found'], 404);
+    }
+
+    kv_require_owner_admin($row);
+
+    db()->prepare('DELETE FROM kv_pairs WHERE id = ?')->execute([(int) $row['id']]);
+
+    json_response(['ok' => true]);
+}
+
+function api_kvs_grants(string $method): never
+{
+    if ($method !== 'GET') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $row = kv_fetch((string) request_param('key', ''));
+
+    if ($row === null) {
+        json_response(['error' => 'kv pair not found'], 404);
+    }
+
+    kv_require_owner_admin($row);
+
+    $stmt = db()->prepare(
+        'SELECT u.username, u.name, gu.name AS granted_by_name, g.created_at, g.permission, g.note
+           FROM kv_grants g
+           JOIN users u ON u.id = g.user_id
+           LEFT JOIN users gu ON gu.id = g.granted_by
+          WHERE g.kv_id = ?
+          ORDER BY u.username'
+    );
+    $stmt->execute([$row['id']]);
+    $grantRows = $stmt->fetchAll();
+
+    $items = [];
+    $seen = [];
+
+    if ($row['created_by'] !== null) {
+        $stmt = db()->prepare('SELECT username, name FROM users WHERE id = ?');
+        $stmt->execute([(int) $row['created_by']]);
+        $owner = $stmt->fetch();
+
+        if ($owner !== false) {
+            $items[] = [
+                'username' => $owner['username'],
+                'name' => $owner['name'],
+                'granted_by_name' => null,
+                'created_at' => null,
+                'permission' => 'edit',
+                'note' => null,
+                'kind' => 'owner',
+            ];
+            $seen[$owner['username']] = true;
+        }
+    }
+
+    $admins = db()->query(
+        'SELECT DISTINCT u.username, u.name
+           FROM users u
+           JOIN user_roles ur ON ur.user_id = u.id
+           JOIN roles r ON r.id = ur.role_id
+          WHERE r.code = \'admin\' AND u.is_active = 1
+          ORDER BY u.username'
+    )->fetchAll();
+
+    foreach ($admins as $admin) {
+        if (isset($seen[$admin['username']])) {
+            continue;
+        }
+        $items[] = [
+            'username' => $admin['username'],
+            'name' => $admin['name'],
+            'granted_by_name' => null,
+            'created_at' => null,
+            'permission' => 'edit',
+            'note' => null,
+            'kind' => 'admin',
+        ];
+        $seen[$admin['username']] = true;
+    }
+
+    foreach ($grantRows as $grant) {
+        if (isset($seen[$grant['username']])) {
+            continue;
+        }
+        $items[] = [
+            'username' => $grant['username'],
+            'name' => $grant['name'],
+            'granted_by_name' => (string) $grant['granted_by_name'],
+            'created_at' => $grant['created_at'],
+            'permission' => $grant['permission'],
+            'note' => $grant['note'] !== null && $grant['note'] !== '' ? $grant['note'] : null,
+            'kind' => 'grant',
+        ];
+    }
+
+    usort(
+        $items,
+        static fn (array $a, array $b): int => strcasecmp($a['username'], $b['username'])
+    );
+
+    json_response(['grants' => $items]);
+}
+
+function api_kvs_grant(string $method): never
+{
+    if ($method !== 'POST') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $body = read_json_body();
+    $row = kv_fetch((string) ($body['key'] ?? ''));
+
+    if ($row === null) {
+        json_response(['error' => 'kv pair not found'], 404);
+    }
+
+    kv_require_owner_admin($row);
+
+    $username = trim((string) ($body['username'] ?? ''));
+
+    if ($username === '') {
+        json_response(['error' => 'username is required'], 422);
+    }
+
+    $stmt = db()->prepare('SELECT id FROM users WHERE username = ? AND is_active = 1');
+    $stmt->execute([$username]);
+    $targetId = $stmt->fetchColumn();
+
+    if ($targetId === false) {
+        json_response(['error' => 'user not found'], 404);
+    }
+
+    $permission = (string) ($body['permission'] ?? 'view');
+
+    if (!in_array($permission, ['edit', 'view'], true)) {
+        json_response(['error' => 'permission must be edit or view'], 422);
+    }
+
+    $note = array_key_exists('note', $body) && $body['note'] !== null
+        ? trim((string) $body['note'])
+        : null;
+
+    if ($note !== null && mb_strlen($note) > 200) {
+        json_response(['error' => 'note is too long (max 200 characters)'], 422);
+    }
+
+    if ($permission === 'edit' && $username !== '_guest_' && !can((int) $targetId, 'kvs.write')) {
+        json_response(['error' => 'user lacks kvs.write permission'], 422);
+    }
+
+    $user = current_user();
+
+    $stmt = db()->prepare(
+        'INSERT INTO kv_grants (kv_id, user_id, granted_by, permission, note)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(kv_id, user_id)
+         DO UPDATE SET granted_by = excluded.granted_by, permission = excluded.permission,
+                       note = COALESCE(excluded.note, kv_grants.note)'
+    );
+    $stmt->execute([(int) $row['id'], (int) $targetId, $user['id'], $permission, $note]);
+
+    json_response(['ok' => true]);
+}
+
+function api_kvs_revoke_grant(string $method): never
+{
+    if ($method !== 'POST') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $body = read_json_body();
+    $row = kv_fetch((string) ($body['key'] ?? ''));
+
+    if ($row === null) {
+        json_response(['error' => 'kv pair not found'], 404);
+    }
+
+    kv_require_owner_admin($row);
+
+    $username = trim((string) ($body['username'] ?? ''));
+
+    if ($username === '') {
+        json_response(['error' => 'username is required'], 422);
+    }
+
+    $stmt = db()->prepare('SELECT id FROM users WHERE username = ?');
+    $stmt->execute([$username]);
+    $targetId = $stmt->fetchColumn();
+
+    if ($targetId === false) {
+        json_response(['error' => 'user not found'], 404);
+    }
+
+    db()->prepare('DELETE FROM kv_grants WHERE kv_id = ? AND user_id = ?')
+        ->execute([(int) $row['id'], (int) $targetId]);
+
+    json_response(['ok' => true]);
+}
+
+/* ------------------------------------------------------------------ */
 /* Shared helpers                                                     */
 /* ------------------------------------------------------------------ */
 
@@ -2052,6 +2687,8 @@ function handle_api(string $action, string $method): never
         'pages.get',
         'pages.search',
         'tags.list',
+        'kvs.list',
+        'kvs.get',
     ];
 
     if (!in_array($action, $public, true)) {
@@ -2085,6 +2722,8 @@ function handle_api(string $action, string $method): never
                     'roles.list', 'tags.list',
                     'assets.list', 'assets.get', 'assets.create', 'assets.update',
                     'assets.delete',
+                    'kvs.list', 'kvs.get', 'kvs.create', 'kvs.update', 'kvs.delete',
+                    'kvs.grants', 'kvs.grant', 'kvs.revokeGrant',
                 ],
             ]);
 
@@ -2180,6 +2819,30 @@ function handle_api(string $action, string $method): never
 
         case 'assets.delete':
             api_assets_delete($method);
+
+        case 'kvs.list':
+            api_kvs_list($method);
+
+        case 'kvs.get':
+            api_kvs_get($method);
+
+        case 'kvs.create':
+            api_kvs_create($method);
+
+        case 'kvs.update':
+            api_kvs_update($method);
+
+        case 'kvs.delete':
+            api_kvs_delete($method);
+
+        case 'kvs.grants':
+            api_kvs_grants($method);
+
+        case 'kvs.grant':
+            api_kvs_grant($method);
+
+        case 'kvs.revokeGrant':
+            api_kvs_revoke_grant($method);
 
         default:
             json_response(['error' => 'Unknown API action'], 404);

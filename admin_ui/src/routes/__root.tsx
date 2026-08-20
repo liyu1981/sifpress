@@ -67,6 +67,15 @@ function AppHeader() {
             </Button>
             <Button asChild variant="ghost" size="sm">
               <Link
+                to="/admin/kvs"
+                activeOptions={{ exact: true }}
+                activeProps={{ className: activeClass }}
+              >
+                {t('nav.kvs')}
+              </Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link
                 to="/admin/settings"
                 activeOptions={{ exact: true }}
                 activeProps={{ className: activeClass }}

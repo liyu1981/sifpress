@@ -396,6 +396,99 @@ export const assetsApi = {
     }),
 };
 
+export interface KvPair {
+  id: number;
+  key: string;
+  value: unknown;
+  schema: unknown | null;
+  public: boolean;
+  created_by: number | null;
+  created_by_name: string;
+  updated_by: number | null;
+  updated_by_name: string;
+  created_at: string;
+  updated_at: string;
+  can_edit: boolean;
+}
+
+export interface KvGrant {
+  username: string;
+  name: string;
+  granted_by_name: string | null;
+  created_at: string | null;
+  permission: 'edit' | 'view';
+  note: string | null;
+  kind: 'owner' | 'admin' | 'grant';
+}
+
+export interface KvListResult {
+  items: KvPair[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export const kvsApi = {
+  list: (params: { q?: string; page?: number; per_page?: number } = {}) =>
+    apiRequest<KvListResult>('kvs.list', {
+      params: {
+        ...(params.q ? { q: params.q } : {}),
+        ...(params.page ? { page: String(params.page) } : {}),
+        ...(params.per_page ? { per_page: String(params.per_page) } : {}),
+      },
+    }),
+
+  get: (key: string) =>
+    apiRequest<{ kv: KvPair }>('kvs.get', {
+      params: { key },
+    }).then(r => r.kv),
+
+  create: (input: { key: string; value: unknown; schema?: unknown | null }) =>
+    apiRequest<{ kv: KvPair }>('kvs.create', {
+      method: 'POST',
+      body: input,
+    }).then(r => r.kv),
+
+  update: (input: {
+    key: string;
+    new_key?: string;
+    value?: unknown;
+    schema?: unknown | null;
+  }) =>
+    apiRequest<{ kv: KvPair }>('kvs.update', {
+      method: 'PATCH',
+      body: input,
+    }).then(r => r.kv),
+
+  remove: (key: string) =>
+    apiRequest<{ ok: true }>('kvs.delete', {
+      method: 'DELETE',
+      params: { key },
+    }),
+
+  grants: (key: string) =>
+    apiRequest<{ grants: KvGrant[] }>('kvs.grants', {
+      params: { key },
+    }).then(r => r.grants),
+
+  grant: (
+    input: { key: string; username: string; permission: 'edit' | 'view'; note?: string | null },
+  ) =>
+    apiRequest<{ ok: true }>('kvs.grant', {
+      method: 'POST',
+      body: {
+        ...input,
+        ...(input.note === undefined ? {} : { note: input.note }),
+      },
+    }),
+
+  revokeGrant: (input: { key: string; username: string }) =>
+    apiRequest<{ ok: true }>('kvs.revokeGrant', {
+      method: 'POST',
+      body: input,
+    }),
+};
+
 export const migrationApi = {
   status: () => migrationRequest<MigrationStatus>('status'),
   run: () => migrationRequest<MigrationRunResult>('run', { method: 'POST' }),

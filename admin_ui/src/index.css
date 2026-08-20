@@ -668,3 +668,23 @@
 .md-img-link {
   font-weight: 500;
 }
+
+/* vanilla-jsoneditor gray toolbar theme — overrides the default blue. */
+.jse-gray {
+  --jse-theme-color: #64748b;
+  --jse-theme-color-highlight: #94a3b8;
+}
+
+/* Propagate container border-radius to the editor's bottom corners. */
+.jse-gray .jse-json-editor,
+.jse-gray div.jse-tree-mode,
+.jse-gray div.jse-table-mode,
+.jse-gray div.jse-status-bar {
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.jse-gray .jse-contents {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
