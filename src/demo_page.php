@@ -4,7 +4,7 @@
  * The content is the living reference for every markdown feature the
  * frontend supports. Two consumers reuse it:
  *
- *   - `?p=dev&action=initData` (dev.php) seeds it into the database
+ *   - `?p=sifpress/dev&action=initData` (dev.php) seeds it into the database
  *     as a real, editable page named after the calling admin.
  *   - `api_pages_get` (api.php) serves it as a *virtual* page whenever the
  *     reserved slug is requested and no real page occupies it, so the

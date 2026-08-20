@@ -3,7 +3,7 @@
  * Favicon
  *
  * Serves the site favicon. When a custom favicon asset is
- * configured, redirects to ?p=asset&id=N (reusing its
+ * configured, redirects to ?p=sifpress/asset&id=N (reusing its
  * ETag caching and auth checks). Otherwise serves an inline
  * SVG fallback.
  * ------------------------------------------------------------
@@ -23,7 +23,7 @@ function handle_favicon(): never
 
     if ($faviconId !== '' && $faviconId !== '0') {
         $version = (string) setting_get('favicon_version', '0');
-        $url = '?p=asset&id=' . $faviconId . '&v=' . $version;
+        $url = '?p=sifpress/asset&id=' . $faviconId . '&v=' . $version;
         header('Location: ' . $url, true, 302);
         exit;
     }

@@ -2,8 +2,8 @@
  * ------------------------------------------------------------
  * Migration endpoint
  *
- *   ?p=migration             GET  status
- *   ?p=migration&action=run  POST apply pending migrations + seeds
+ *   ?p=sifpress/migration             GET  status
+ *   ?p=sifpress/migration&action=run  POST apply pending migrations + seeds
  *
  * Public and unauthenticated by design: a fresh install has no users yet,
  * and the runner is forward-only and idempotent. Applying is gated by

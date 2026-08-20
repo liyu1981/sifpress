@@ -5,8 +5,8 @@
  * Shared asset helpers (size caps, MIME whitelist, payload) and
  * the binary serving endpoint:
  *
- *   ?p=asset&id=N            GET original blob
- *   ?p=asset&id=N&thumb=1    GET thumbnail blob
+ *   ?p=sifpress/asset&id=N            GET original blob
+ *   ?p=sifpress/asset&id=N&thumb=1    GET thumbnail blob
  *
  * The JSON management API lives in api.php (assets.list / get /
  * create / update / delete); only blob streaming lives here.
@@ -147,8 +147,8 @@ function asset_payload(array $row): array
         'uploaded_by' => $row['uploaded_by'] !== null ? (int) $row['uploaded_by'] : null,
         'uploaded_by_name' => (string) $row['uploaded_by_name'],
         'created_at' => (string) $row['created_at'],
-        'url' => '?p=asset&id=' . $id,
-        'thumb_url' => '?p=asset&id=' . $id . '&thumb=1',
+        'url' => '?p=sifpress/asset&id=' . $id,
+        'thumb_url' => '?p=sifpress/asset&id=' . $id . '&thumb=1',
     ];
 }
 

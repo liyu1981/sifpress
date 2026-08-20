@@ -215,7 +215,7 @@ export const authApi = {
     }).then(r => r.user),
 
   avatar: (formData: FormData) =>
-    uploadRequest<{ user: AuthUser }>('api', 'auth.avatar', formData).then(r => r.user),
+    uploadRequest<{ user: AuthUser }>('sifpress/api', 'auth.avatar', formData).then(r => r.user),
 
   removeAvatar: () =>
     apiRequest<{ user: AuthUser }>('auth.avatar', { method: 'DELETE' }).then(r => r.user),
@@ -381,7 +381,7 @@ export const assetsApi = {
     }).then(r => r.asset),
 
   create: (formData: FormData) =>
-    uploadRequest<AssetCreateResult>('api', 'assets.create', formData),
+    uploadRequest<AssetCreateResult>('sifpress/api', 'assets.create', formData),
 
   update: (id: number, input: { name?: string; is_public?: boolean }) =>
     apiRequest<{ asset: Asset }>('assets.update', {

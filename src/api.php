@@ -3,8 +3,8 @@
  * API
  *
  * Protocol:
- *   ?p=api&action=auth.login
- *   ?p=api&action=pages.list
+ *   ?p=sifpress/api&action=auth.login
+ *   ?p=sifpress/api&action=pages.list
  *   ...
  *
  * Dotted action names; GET = read, POST = create, PATCH = partial
@@ -465,8 +465,8 @@ function api_auth_profile(string $method): never
 /**
  * Avatar management for the current user.
  *
- *   POST   multipart ?p=api&action=auth.avatar  (field: avatar)
- *   DELETE ?p=api&action=auth.avatar            clears the avatar
+ *   POST   multipart ?p=sifpress/api&action=auth.avatar  (field: avatar)
+ *   DELETE ?p=sifpress/api&action=auth.avatar            clears the avatar
  *
  * The image is validated by magic bytes (raster images only; SVG is
  * rejected) and capped at ASSET_MAX_AVATAR_BYTES. Clients downscale to a

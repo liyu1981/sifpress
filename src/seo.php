@@ -4,7 +4,7 @@
  *
  * Site-wide settings (key/value), per-page SEO resolution from
  * front matter, server-side <head> meta injection for the SPA,
- * and the ?p=seo sitemap/robots endpoints.
+ * and the ?p=sifpress/seo sitemap/robots endpoints.
  * ------------------------------------------------------------
  */
 
@@ -180,7 +180,7 @@ function canonical_url(string $route): string
 }
 
 /**
- * Resolve a possibly-relative URL (e.g. `?p=asset&id=5` og:image)
+ * Resolve a possibly-relative URL (e.g. `?p=sifpress/asset&id=5` og:image)
  * to an absolute one for social scrapers.
  */
 function absolute_url(string $url): string
@@ -410,7 +410,7 @@ function build_article_meta(array $page, string $siteName, string $twitterHandle
 }
 
 /**
- * ?p=seo handler: XML sitemap + plain-text robots.txt. Public.
+ * ?p=sifpress/seo handler: XML sitemap + plain-text robots.txt. Public.
  */
 function handle_seo(string $action, string $method): never
 {
@@ -505,13 +505,13 @@ function seo_robots(): never
     } else {
         $body = "User-agent: *\n"
             . "Allow: /\n"
-            . "Disallow: /?p=admin/editor\n"
-            . "Disallow: /?p=admin/settings\n"
-            . "Disallow: /?p=admin/login";
+            . "Disallow: /?p=sifpress/admin/editor\n"
+            . "Disallow: /?p=sifpress/admin/settings\n"
+            . "Disallow: /?p=sifpress/admin/login";
     }
 
     if (setting_get('enable_sitemap', '1') === '1' && !str_contains($body, 'Sitemap:')) {
-        $body .= "\nSitemap: " . canonical_url('/') . '?p=seo&action=sitemap';
+        $body .= "\nSitemap: " . canonical_url('/') . '?p=sifpress/seo&action=sitemap';
     }
 
     http_response_code(200);

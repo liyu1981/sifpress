@@ -324,7 +324,7 @@ function user_payload(int $userId): array
 
     $row['has_avatar'] = (bool) (int) $row['has_avatar'];
     $row['avatar_url'] = $row['has_avatar']
-        ? '?p=asset&user=' . $userId
+        ? '?p=sifpress/asset&user=' . $userId
         : generated_avatar_data_uri((string) $row['name'], (string) $row['email']);
 
     $row['roles'] = user_roles_codes($userId);

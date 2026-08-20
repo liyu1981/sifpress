@@ -12,11 +12,11 @@
  * The same file works at any mount point. Routing is done entirely
  * with query parameters, which Apache/Nginx/any server handles natively.
  *
- *   /index.php                        -> React route "/"
- *   /index.php?p=/editor/123           -> React route "/editor/123"
- *   /index.php?p=/settings             -> React route "/settings"
- *   /index.php?p=api&action=hello      -> API
- *   /index.php?p=api&action=projects   -> API
+ *   /index.php                                -> viewer SPA (construction page)
+ *   /index.php?p=sifpress/admin/articles      -> admin SPA route
+ *   /index.php?p=sifpress/admin/editor/123    -> admin SPA route
+ *   /index.php?p=sifpress/api&action=hello    -> API
+ *   /index.php?p=sifpress/api&action=projects -> API
  *
  * Source is split into fragments under src/ (bootstrap.php, api.php,
  * spa.php, embed.php, router.php). build.php assembles them and the

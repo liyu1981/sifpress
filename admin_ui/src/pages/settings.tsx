@@ -707,7 +707,7 @@ function SeoSettingsCard() {
   }
 
   const seoUrl = (action: 'sitemap' | 'robots'): string => {
-    const base = `${window.location.pathname}?p=seo&action=${action}`;
+    const base = `${window.location.pathname}?p=sifpress/seo&action=${action}`;
     return base;
   };
 

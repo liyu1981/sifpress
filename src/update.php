@@ -2,8 +2,8 @@
  * ------------------------------------------------------------
  * Update-check & in-app upgrade
  *
- *   ?p=update&action=status   GET   check latest release + capability
- *   ?p=update&action=run      POST  download, verify, backup, replace
+ *   ?p=sifpress/update&action=status   GET   check latest release + capability
+ *   ?p=sifpress/update&action=run      POST  download, verify, backup, replace
  *
  * The manifest (UPDATE_MANIFEST_URL) is a JSON document reporting the latest
  * release:
