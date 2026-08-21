@@ -28,15 +28,23 @@
 ```bash
 php build.php          # dev build  -> dist/index.php (incl. dev.php)
 php build.php release  # release    -> dist/sifpress.php  (no dev.php)
+php buildfront.php     # sifront bundles -> dist/<name>.sifront (dev)
+php buildfront.php release
 ./rel.sh               # shorthand for `php build.php release`
 ```
 
-- Runs `pnpm run build` in `admin_ui/`.
-- Inlines the built JS/CSS into the HTML, embeds it as `EMBEDDED_HTML`.
-- Assembles the PHP fragments from `src/` (in order: `bootstrap.php`,
-  `db.php`, `migration.php`, `auth.php`, `api.php`, `spa.php`,
-  `embed.php`, `migrations.php`, `dev.php`, `router.php`) into the
-  single artifact. (Plus `seo.php`, `tracking.php`, `favicon.php`.)
+- `build.php` and `buildfront.php` share helpers via `build_common.php`
+  (`run()`, `inline_assets()`); each drives its own pipeline.
+- `build.php` runs `pnpm run build` in `admin_ui/`, inlines the built
+  JS/CSS into the HTML, embeds it as `EMBEDDED_HTML`, and assembles the
+  PHP fragments from `src/` (in order: `bootstrap.php`, `db.php`,
+  `migration.php`, `auth.php`, `api.php`, `spa.php`, `embed.php`,
+  `migrations.php`, `dev.php`, `router.php`) into the single artifact.
+  (Plus `seo.php`, `tracking.php`, `favicon.php`.)
+- `buildfront.php` builds every pnpm package under `sifronts/` and
+  inlines it into `dist/<name>.sifront` — a single self-contained HTML
+  chunk (same inlining logic, `<title>` kept) ready to be stored/served
+  as a sifront. It never touches the PHP artifact.
 - **Dev vs release**: dev builds include `src/dev.php`
   (`?p=dev&action=initData`, an admin-gated demo-data seeder).
   Release builds exclude that fragment **and** strip its dispatch region
@@ -121,10 +129,16 @@ admin_ui/           Admin React app (pnpm workspace package "sifpress-admin-ui")
   components.json   shadcn config (style "radix-nova", aliases @/*)
   tsconfig.json     strict; paths @/* -> ./src/*, ui-sdk -> ../ui_sdk/src
 build.php           assemble src/ + inlined bundle -> dist/*.php (dev/release)
+build_common.php    shared build helpers (run, inline_assets)
+buildfront.php      sifront bundles -> dist/<name>.sifront (dev/release)
 rel.sh              release build -> dist/sifpress.php
 dev.sh              dev build + serve (watch) -> dist/index.php
 dist/               build artifacts (gitignored)
-pnpm-workspace.yaml workspace root (packages: admin_ui, ui_sdk)
+sifronts/           public-facing sifront SPAs (each a pnpm workspace package,
+  sifpress1/        built by build.php into dist/sifpress1.sifront)
+  src/routes/       file-based routes: / (home + tag filter), /article/$slug, $ (404)
+  src/components/   site-header/footer, article-card/list, sidebar, glass system
+pnpm-workspace.yaml workspace root (packages: admin_ui, ui_sdk, sifronts/sifpress1)
 pnpm-lock.yaml      workspace lockfile
 ```
 

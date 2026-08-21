@@ -9,11 +9,11 @@ function normalizeInternalPath(path: string): string {
  * Build the TanStack Router `rewrite` config for a single-file backend that
  * addresses every route through the `?p=` query parameter (see src/router.php).
  *
- * - `input` (browser URL -> router): reads `?p=sifpress/admin/...`, strips
- *   the `sifpress/` prefix, and turns it into the internal path the route
- *   tree matches on.
+ * - `input` (browser URL -> router): reads `?p=...`, strips the prefix
+ *   (default `sifpress/`, pass '' for a root-mounted sifront), and turns
+ *   it into the internal path the route tree matches on.
  * - `output` (router -> browser URL): turns the internal path back into a
- *   `?p=sifpress/...` query on the current document, so `<Link>` hrefs stay
+ *   `?p=...` query on the current document, so `<Link>` hrefs stay
  *   real and shareable at any mount depth.
  */
 export function createQueryRewrite(
@@ -27,7 +27,7 @@ export function createQueryRewrite(
       url.searchParams.delete('p');
 
       if (p && p.startsWith(prefix)) {
-        url.pathname = '/' + p.slice(prefix.length);
+        url.pathname = normalizeInternalPath(p.slice(prefix.length));
       } else {
         url.pathname = p != null && p !== '' ? normalizeInternalPath(p) : '/';
       }
