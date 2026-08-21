@@ -14,7 +14,7 @@ import { useAuth } from 'ui-sdk';
 import { estimateReadingMinutes, formatDate } from '@/lib/format';
 import { frontMatterString, parseFrontMatter } from '@/lib/front-matter';
 import { log } from '@/lib/logger';
-import { MarkdownView } from '@/lib/marked';
+import { MarkdownView } from 'ui-sdk';
 import { pagesApi } from 'ui-sdk';
 import { cn } from '@/lib/utils';
 

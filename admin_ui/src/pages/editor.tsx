@@ -40,9 +40,8 @@ import {
   parseFrontMatter,
   RESERVED_FRONT_MATTER_KEYS,
 } from '@/lib/front-matter';
-import { MilkdownEditor, type MilkdownEditorHandle } from '@/lib/marked';
-import { escapeTableCodePipes } from '@/lib/marked/preprocess';
-import { assetsApi, type Grant, pagesApi } from 'ui-sdk';
+import { MilkdownEditor, type MilkdownEditorHandle } from '@/lib/md-editor';
+import { escapeTableCodePipes, assetsApi, type Grant, pagesApi } from 'ui-sdk';
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;

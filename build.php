@@ -83,6 +83,7 @@ $parts = [
     'favicon.php',
     'spa.php',
     'embed.php',
+    'ui_sdk_serve.php',
     'migrations.php',
 ];
 
@@ -114,6 +115,30 @@ if (!is_dir($app . '/node_modules')) {
 
 run($appBuild, $app);
 
+/*
+ * Build the shared ui-sdk bundle. It embeds React, the common libs, and the
+ * ui-sdk API (markdown render included) into a single ES module that both the
+ * admin SPA and the sifront load via `?p=sifpress/asset/js/ui-sdk.mjs`.
+ */
+$uiSdkDir = $root . '/ui_sdk';
+if (!is_dir($uiSdkDir . '/node_modules')) {
+    run('pnpm install', $uiSdkDir);
+}
+
+run($isRelease ? 'pnpm run build:release' : 'pnpm run build:dev', $uiSdkDir);
+
+$uiSdkBundle = $uiSdkDir . '/dist/ui-sdk.mjs';
+
+if (!is_file($uiSdkBundle)) {
+    throw new RuntimeException('ui-sdk bundle was not generated at ui_sdk/dist/ui-sdk.mjs');
+}
+
+$uiSdkJs = file_get_contents($uiSdkBundle);
+
+if ($uiSdkJs === false) {
+    throw new RuntimeException('Could not read ui_sdk/dist/ui-sdk.mjs');
+}
+
 if (!is_dir($appDist)) {
     throw new RuntimeException('Vite dist directory was not generated');
 }
@@ -137,6 +162,19 @@ $html = preg_replace(
 
 if ($html === null) {
     throw new RuntimeException('Could not normalize asset URLs');
+}
+
+/*
+ * Inject the shared ui-sdk module script into <head> before the app bundle.
+ * Module scripts execute in document order after parsing, so this tag must
+ * come first in <head> for `window.SifpressUI` to exist before the app code
+ * references it. The tag has no asset/ src, so inline_assets() below leaves
+ * it as-is.
+ */
+$uiSdkScript = '<script type="module" src="?p=sifpress/asset/js/ui-sdk.mjs"></script>';
+$pos = strpos($html, '<head>');
+if ($pos !== false) {
+    $html = substr_replace($html, '<head>' . $uiSdkScript, $pos, strlen('<head>'));
 }
 
 /*
@@ -229,6 +267,30 @@ foreach ($parts as $part) {
         if ($count !== 1) {
             throw new RuntimeException(
                 'Could not find the embedded HTML region (matched ' . $count . ')'
+            );
+        }
+
+        /*
+         * Embed the shared ui-sdk bundle the same way. var_export emits a
+         * single-quoted PHP string, so the JS (which contains both quote
+         * types and $/backslashes) is safe.
+         */
+        $uiSdkJsPhp = var_export($uiSdkJs, true);
+        $count = 0;
+        $content = preg_replace_callback(
+            '#// ___BEGIN_UI_SDK___\n.*?// ___END_UI_SDK___#s',
+            function () use ($uiSdkJsPhp): string {
+                return "// ___BEGIN_UI_SDK___\nconst UI_SDK_JS = " .
+                    $uiSdkJsPhp . ";\n// ___END_UI_SDK___";
+            },
+            $content,
+            1,
+            $count
+        );
+
+        if ($count !== 1) {
+            throw new RuntimeException(
+                'Could not find the UI_SDK region (matched ' . $count . ')'
             );
         }
     }

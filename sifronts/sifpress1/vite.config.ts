@@ -3,9 +3,15 @@ import tailwindcss from '@tailwindcss/vite';
 import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { externalGlobals } from '../../build/vite-external-globals';
 
 export default defineConfig(({ mode }) => ({
-  plugins: [TanStackRouterVite({ quoteStyle: 'single' }), react(), tailwindcss()],
+  plugins: [
+    TanStackRouterVite({ quoteStyle: 'single' }),
+    react(),
+    tailwindcss(),
+    externalGlobals(),
+  ],
   base: './',
   define: {
     'process.env.NODE_ENV': JSON.stringify(mode === 'dev' ? 'development' : 'production'),
@@ -22,7 +28,6 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
-      'ui-sdk': fileURLToPath(new URL('../../ui_sdk/src/index.ts', import.meta.url)),
     },
   },
 }));

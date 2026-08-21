@@ -85,6 +85,19 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+    --hl-keyword: oklch(0.55 0.2 285);
+    --hl-string: oklch(0.55 0.15 145);
+    --hl-number: oklch(0.6 0.17 45);
+    --hl-title: oklch(0.55 0.2 240);
+    --hl-type: oklch(0.55 0.14 250);
+    --hl-literal: oklch(0.6 0.19 20);
+    --hl-attr: oklch(0.58 0.12 210);
+    --hl-meta: oklch(0.55 0.1 270);
+    --hl-regexp: oklch(0.6 0.17 30);
+    --hl-comment: oklch(0.556 0 0);
+    --hl-operator: oklch(0.439 0 0);
+    --hl-addition: oklch(0.55 0.15 150);
+    --hl-deletion: oklch(0.6 0.2 20);
 }
 
 .dark {
@@ -119,6 +132,19 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
+    --hl-keyword: oklch(0.72 0.15 285);
+    --hl-string: oklch(0.72 0.13 145);
+    --hl-number: oklch(0.76 0.14 60);
+    --hl-title: oklch(0.74 0.12 245);
+    --hl-type: oklch(0.72 0.11 255);
+    --hl-literal: oklch(0.76 0.15 30);
+    --hl-attr: oklch(0.72 0.1 215);
+    --hl-meta: oklch(0.72 0.1 275);
+    --hl-regexp: oklch(0.76 0.13 40);
+    --hl-comment: oklch(0.78 0 0);
+    --hl-operator: oklch(0.72 0.05 250);
+    --hl-addition: oklch(0.72 0.12 155);
+    --hl-deletion: oklch(0.75 0.14 20);
 }
 
 @layer base {
@@ -274,6 +300,115 @@
     line-height: 1.4;
     color: var(--tw-prose-captions);
   }
+
+  /* Syntax highlighting (rehype-highlight) token colors. */
+  .md-codeblock .hljs {
+    color: var(--foreground);
+  }
+
+  .md-codeblock .hljs-comment,
+  .md-codeblock .hljs-quote {
+    color: var(--hl-comment);
+    font-style: italic;
+  }
+
+  .md-codeblock .hljs-keyword,
+  .md-codeblock .hljs-selector-tag,
+  .md-codeblock .hljs-literal,
+  .md-codeblock .hljs-section,
+  .md-codeblock .hljs-link {
+    color: var(--hl-keyword);
+  }
+
+  .md-codeblock .hljs-string,
+  .md-codeblock .hljs-attr,
+  .md-codeblock .hljs-template-variable,
+  .md-codeblock .hljs-addition {
+    color: var(--hl-string);
+  }
+
+  .md-codeblock .hljs-number,
+  .md-codeblock .hljs-meta {
+    color: var(--hl-number);
+  }
+
+  .md-codeblock .hljs-title,
+  .md-codeblock .hljs-title.function_,
+  .md-codeblock .hljs-title.class_,
+  .md-codeblock .hljs-selector-class,
+  .md-codeblock .hljs-selector-id {
+    color: var(--hl-title);
+  }
+
+  .md-codeblock .hljs-type,
+  .md-codeblock .hljs-built_in,
+  .md-codeblock .hljs-class {
+    color: var(--hl-type);
+  }
+
+  .md-codeblock .hljs-regexp,
+  .md-codeblock .hljs-symbol {
+    color: var(--hl-regexp);
+  }
+
+  .md-codeblock .hljs-variable,
+  .md-codeblock .hljs-operator,
+  .md-codeblock .hljs-deletion {
+    color: var(--hl-deletion);
+  }
+
+  .md-codeblock .hljs-emphasis {
+    font-style: italic;
+  }
+
+  .md-codeblock .hljs-strong {
+    font-weight: 600;
+  }
+}
+
+/* Image size + position directives. Unlayered so they win over the
+ * typography plugin's utilities layer in the article. The class stays on
+ * the <img> (the renderer no longer lifts it onto the <figure>). */
+.md-img-center {
+  display: block;
+  margin-inline: auto;
+}
+
+.md-img-left {
+  display: block;
+  margin-right: auto;
+}
+
+.md-img-right {
+  display: block;
+  margin-left: auto;
+}
+
+.md-img-float-left {
+  float: left;
+  margin-right: 1rem;
+  margin-bottom: 0.5rem;
+  max-width: 45%;
+}
+
+.md-img-float-right {
+  float: right;
+  margin-left: 1rem;
+  margin-bottom: 0.5rem;
+  max-width: 45%;
+}
+
+/* Static-render helpers (postprocess output) */
+.md-math-display {
+  overflow-x: auto;
+}
+
+.md-copy {
+  cursor: pointer;
+}
+
+.md-img-link {
+  font-weight: 500;
 }
 
 @media (prefers-reduced-motion: reduce) {

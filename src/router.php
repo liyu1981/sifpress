@@ -26,6 +26,10 @@ if (str_starts_with($p, 'sifpress/')) {
         handle_api((string) request_param('action', ''), $method);
     }
 
+    if ($inner === 'asset/js/ui-sdk.mjs') {
+        serve_ui_sdk();
+    }
+
     if ($inner === 'migration') {
         handle_migration((string) request_param('action', 'status'), $method);
     }

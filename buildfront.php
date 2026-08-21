@@ -62,6 +62,18 @@ function build_sifront(string $appDir, string $outputDir, string $buildCommand, 
         throw new RuntimeException("Could not normalize asset URLs for $name");
     }
 
+    /*
+     * Inject the shared ui-sdk module script into <head> before the app
+     * bundle. The sifront externalizes React / common libs / ui-sdk to
+     * `window.SifpressUI`, which this tag provides (served by the backend
+     * at ?p=sifpress/asset/js/ui-sdk.mjs).
+     */
+    $uiSdkScript = '<script type="module" src="?p=sifpress/asset/js/ui-sdk.mjs"></script>';
+    $pos = strpos($html, '<head>');
+    if ($pos !== false) {
+        $html = substr_replace($html, '<head>' . $uiSdkScript, $pos, strlen('<head>'));
+    }
+
     $html = inline_assets($html, $dist, $dev);
 
     $output = $outputDir . '/' . $name . '.sifront';

@@ -11,7 +11,7 @@ WATCH_DIRS=(
   "$ROOT/admin_ui/index.html"
   "$ROOT/ui_sdk/src"
   "$ROOT/sifronts/sifpress1/src"
-  "$ROOT/siffronts/sifpress1/index.html"
+  "$ROOT/sifronts/sifpress1/index.html"
 )
 
 cd "$ROOT"

@@ -8,7 +8,8 @@ import type { EditorView } from '@milkdown/kit/prose/view';
 import { ChevronDown, Film, Loader2, Plus } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { isVideoSource } from '@/components/markdown/video';
+import { assetSourceUrl, assetUrl, isVideoSource, rebuildImageAlt } from 'ui-sdk';
+import type { ImageDirectiveAttrs } from 'ui-sdk';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,11 +21,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { assetSourceUrl, assetUrl } from 'ui-sdk';
 import i18n from '@/lib/i18n';
 import { type Asset, assetsApi } from 'ui-sdk';
 import { cn } from '@/lib/utils';
-import { type ImageDirectiveAttrs, rebuildImageAlt } from './image-directives';
 import { bestEffortPositionMiddleware } from './image-directives-position';
 
 export const imageDirectiveTooltip = tooltipFactory('IMAGE_DIRECTIVES');

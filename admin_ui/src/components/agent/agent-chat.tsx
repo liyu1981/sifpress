@@ -36,7 +36,7 @@ import {
 } from '@/lib/agent/models';
 import { deleteSession, listSessionsFull, saveSession, type AgentSession } from '@/lib/agent/store';
 import { buildAgentTools } from '@/lib/agent/tools';
-import { MarkdownView } from '@/lib/marked';
+import { MarkdownView } from 'ui-sdk';
 import { cn } from '@/lib/utils';
 import { ConfirmDialog } from './confirm-dialog';
 

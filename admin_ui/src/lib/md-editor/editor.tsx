@@ -1,10 +1,27 @@
 import type { CrepeBuilder } from '@milkdown/crepe/builder';
+import { blockEdit } from '@milkdown/crepe/feature/block-edit';
+import { cursor } from '@milkdown/crepe/feature/cursor';
+import { linkTooltip } from '@milkdown/crepe/feature/link-tooltip';
+import { listItem } from '@milkdown/crepe/feature/list-item';
+import { placeholder } from '@milkdown/crepe/feature/placeholder';
+import { table } from '@milkdown/crepe/feature/table';
+import { toolbar } from '@milkdown/crepe/feature/toolbar';
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import {
+  createMarkdownEditor,
+  type MermaidTheme,
+  escapeTableCodePipes,
+  setMarkdownContent,
+  setMermaidTheme,
+} from 'ui-sdk';
 import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
-import { type MermaidTheme, setMermaidTheme } from './mermaid';
-import { escapeTableCodePipes } from './preprocess';
-import { createMarkdownEditor, setMarkdownContent } from './shared';
+import { configureDiagramTooltip, diagramTooltip } from './plugins/diagram-tooltip';
+import {
+  configureImageDirectiveTooltip,
+  imageDirectiveTooltip,
+} from './plugins/image-directives-tooltip';
+import { imageDirectivesView } from './plugins/image-directives-view';
 
 export interface MilkdownEditorHandle {
   getMarkdown: () => string;
@@ -44,8 +61,23 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
         root: container,
         defaultValue,
         mode: 'edit',
-        onUpload,
       });
+
+      builder.addFeature(listItem);
+      builder.addFeature(linkTooltip);
+      builder.addFeature(cursor);
+      builder.addFeature(placeholder);
+      builder.addFeature(table);
+      builder.addFeature(toolbar);
+      builder.addFeature(blockEdit);
+
+      builder.editor
+        .use(imageDirectivesView)
+        .config(configureImageDirectiveTooltip(onUpload))
+        .use(imageDirectiveTooltip)
+        .config(configureDiagramTooltip())
+        .use(diagramTooltip);
+
       builderRef.current = builder;
       void builder.create();
 

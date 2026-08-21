@@ -2,9 +2,7 @@ import { imageSchema } from '@milkdown/kit/preset/commonmark';
 import type { Node } from '@milkdown/kit/prose/model';
 import type { EditorView, NodeView } from '@milkdown/kit/prose/view';
 import { $view } from '@milkdown/kit/utils';
-
-import { buildVideoElement } from '../video-element';
-import type { ImageDirectiveAttrs } from './image-directives';
+import { buildVideoElement, type ImageDirectiveAttrs } from 'ui-sdk';
 
 /**
  * Editor-only node view for the image node. Renders the same way the final

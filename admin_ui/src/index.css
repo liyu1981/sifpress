@@ -404,7 +404,7 @@
 }
 
 /*
- * Image size + position directives (src/lib/marked/plugins/image-directives.ts).
+ * Image size + position directives (src/lib/md-editor/plugins/).
  * Unlayered so they win over crepe's `.milkdown * { margin: 0 }` reset in the
  * editor and the typography plugin's utilities layer in the article. The class
  * stays on the <img> (the renderer no longer lifts it onto the <figure>).
@@ -459,7 +459,7 @@
 }
 
 /*
- * Milkdown editor (src/lib/marked). The crepe `classic` palette is mapped
+ * Milkdown editor (src/lib/md-editor). The crepe `classic` palette is mapped
  * onto the app's glass tokens so the editor matches the rest of the UI;
  * dark mode is driven by the app's `.dark` class on <html>.
  */
@@ -507,7 +507,7 @@
   border-radius: calc(var(--radius-sm));
 }
 
-/* Editor image node view (src/lib/marked/plugins/image-directives-view.ts).
+/* Editor image node view (src/lib/md-editor/plugins/image-directives-view.ts).
  * Mirrors the article render: a positioned (block) lone image gets rounded
  * corners and a centered caption; inline images stay inline with no caption.
  * The `md-img-*` position class stays on the <img> so its margin rules work.
@@ -530,7 +530,7 @@
   color: var(--muted-foreground);
 }
 
-/* Floating image-directive editor (src/lib/marked/plugins/image-directives-tooltip.tsx).
+/* Floating image-directive editor (src/lib/md-editor/plugins/image-directives-tooltip.tsx).
  * Portaled to <body> with fixed positioning so crepe's `.milkdown *` reset
  * (margin/padding/border/background) can't override the popup's own styles.
  */

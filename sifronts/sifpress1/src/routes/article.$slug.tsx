@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ArrowLeft, Calendar, Loader2, Tag } from 'lucide-react';
-import { pagesApi } from 'ui-sdk';
+import { MarkdownView, pagesApi } from 'ui-sdk';
 
 export const Route = createFileRoute('/article/$slug')({
   component: ArticleDetailPage,
@@ -90,31 +90,7 @@ function ArticleDetailPage() {
         </div>
       </header>
 
-      <div
-        className="prose prose-lg max-w-none font-serif"
-        dangerouslySetInnerHTML={{ __html: simpleMarkdownToHtml(content) }}
-      />
+      <MarkdownView content={content} className="prose prose-lg max-w-none font-serif" />
     </article>
   );
-}
-
-function simpleMarkdownToHtml(md: string): string {
-  const withoutFrontMatter = md.replace(/^---[\s\S]*?---\s*/, '');
-
-  return withoutFrontMatter
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
-    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" />')
-    .replace(/^- (.+)$/gm, '<li>$1</li>')
-    .replace(/(<li>.*<\/li>\n?)+/g, match => `<ul>${match}</ul>`)
-    .replace(/\n\n/g, '</p><p>')
-    .replace(/^(?!<[hulo])((?!^$).+)$/gm, '<p>$1</p>')
-    .replace(/<p><\/p>/g, '')
-    .replace(/^<p>(<[hulo])/gm, '$1')
-    .replace(/(<\/[hulo][^>]*>)<\/p>/g, '$1');
 }
