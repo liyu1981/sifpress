@@ -73,6 +73,21 @@ function serve_sifront_page(): never
         $activeId = (string) setting_get('active_sifront_id', '');
 
         if ($activeId !== '' && $activeId !== '0') {
+            /*
+             * Dev builds only: the seeded `sifpress1` entry keeps empty
+             * DB content and is served straight from the built bundle on
+             * disk, so front-end iteration needs no re-upload. A missing
+             * bundle falls through to the normal DB/fallback path.
+             */
+            if (defined('SIFPRESS_DEV') && (int) $activeId === SIFRONT_SIFPRESS1_ID) {
+                $bundle = file_get_contents(__DIR__ . '/sifpress1.sifront');
+
+                if ($bundle !== false) {
+                    echo $bundle;
+                    exit;
+                }
+            }
+
             $stmt = db()->prepare('SELECT content FROM sifronts WHERE id = ?');
             $stmt->execute([(int) $activeId]);
             $content = $stmt->fetchColumn();

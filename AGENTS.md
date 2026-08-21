@@ -46,10 +46,18 @@ php buildfront.php release
   chunk (same inlining logic, `<title>` kept) ready to be stored/served
   as a sifront. It never touches the PHP artifact.
 - **Dev vs release**: dev builds include `src/dev.php`
-  (`?p=dev&action=initData`, an admin-gated demo-data seeder).
-  Release builds exclude that fragment **and** strip its dispatch region
-  from `router.php`, so `dist/sifpress.php` contains no trace of the dev
-  endpoint. `dev.sh` always makes dev builds; use `rel.sh` for releases.
+  (`?p=dev&action=initData`, an admin-gated demo-data seeder) and define
+  `SIFPRESS_DEV`. Release builds exclude that fragment **and** strip its
+  dispatch region from `router.php`, so `dist/sifpress.php` contains no
+  trace of the dev endpoint. `dev.sh` always makes dev builds; use
+  `rel.sh` for releases.
+- **Dev sifront file serving**: migration `0015` seeds a `sifpress1`
+  sifront (fixed id `SIFRONT_SIFPRESS1_ID`, empty content, version
+  `0.0.1`) and makes it the default active sifront. In dev builds,
+  when it is the active sifront, `serve_sifront_page()` serves
+  `dist/sifpress1.sifront` from disk instead of the DB content — run
+  `php buildfront.php` to refresh it. Release builds always serve DB
+  content (empty → construction fallback).
 - `dist/*.php` are build artifacts and are gitignored. Never edit them
   directly; edit `src/*.php` instead.
 

@@ -90,7 +90,8 @@ export function SifrontsPage() {
               {sf.is_active && <Badge variant="default">{t('sifront.active')}</Badge>}
             </CardTitle>
             <CardDescription>
-              {t('sifront.version')} {sf.version} · {formatDate(sf.updated_at, i18n.language)}
+              {t('sifront.version', { version: sf.version })} ·{' '}
+              {formatDate(sf.updated_at, i18n.language)}
             </CardDescription>
             {canManage && (
               <CardAction className="flex items-center gap-2">

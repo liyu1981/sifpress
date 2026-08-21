@@ -24,6 +24,12 @@
  * ------------------------------------------------------------
  */
 
+/*
+ * Dev-build marker: this fragment only exists in dev artifacts, so
+ * defined('SIFPRESS_DEV') is true exactly when running a dev build.
+ */
+const SIFPRESS_DEV = true;
+
 const DEMO_PAGE = [
     'slug' => DEMO_PAGE_SLUG,
     'title' => DEMO_PAGE_TITLE,

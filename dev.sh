@@ -10,6 +10,8 @@ WATCH_DIRS=(
   "$ROOT/admin_ui/src"
   "$ROOT/admin_ui/index.html"
   "$ROOT/ui_sdk/src"
+  "$ROOT/sifronts/sifpress1/src"
+  "$ROOT/siffronts/sifpress1/index.html"
 )
 
 cd "$ROOT"
@@ -34,7 +36,7 @@ if ! command -v inotifywait >/dev/null 2>&1; then
 fi
 
 build() {
-  php build.php
+  php build.php && php buildfront.php
 }
 
 # The server needs dist/index.php to exist, so a missing artifact blocks
@@ -66,7 +68,7 @@ trap cleanup EXIT
 trap 'cleanup; exit 1' INT TERM
 
 echo "==> Serving at http://localhost:$PORT"
-echo "==> Watching src/, admin_ui/, and ui_sdk/ for changes (Ctrl-C to stop)"
+echo "==> Watching src/, admin_ui/, ui_sdk/, and sifronts/sifpress1 for changes (Ctrl-C to stop)"
 
 while true; do
   if [ "$LAST_BUILD_OK" -eq 1 ]; then

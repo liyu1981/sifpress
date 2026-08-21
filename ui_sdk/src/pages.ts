@@ -501,7 +501,7 @@ export const migrationApi = {
 export interface SifrontListItem {
   id: number;
   name: string;
-  version: number;
+  version: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
