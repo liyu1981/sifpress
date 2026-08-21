@@ -59,21 +59,19 @@ function ArticleDetailPage() {
   const content = page.content_md;
 
   return (
-    <article className="max-w-3xl mx-auto">
+    <article className="glass-control rounded-2xl px-10 py-12">
       <Link
         to="/"
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-8"
+        className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-4" />
         Back to home
       </Link>
 
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground mb-4 leading-snug">
-          {page.title}
-        </h1>
+      <header className="mt-8 mb-8">
+        <h1 className="font-mono text-2xl font-bold leading-snug text-foreground">{page.title}</h1>
 
-        <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+        <div className="mt-6 flex flex-wrap items-center gap-4 border-t border-border/70 pt-4 text-sm text-muted-foreground">
           {page.updated_at && (
             <span className="inline-flex items-center gap-1.5">
               <Calendar className="size-4" />
@@ -93,7 +91,7 @@ function ArticleDetailPage() {
       </header>
 
       <div
-        className="prose prose-lg max-w-none"
+        className="prose prose-lg max-w-none font-serif"
         dangerouslySetInnerHTML={{ __html: simpleMarkdownToHtml(content) }}
       />
     </article>

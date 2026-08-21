@@ -1,7 +1,13 @@
 import { Link } from '@tanstack/react-router';
-import { Calendar, Tag } from 'lucide-react';
-import type { PageListItem } from 'ui-sdk';
-import { cn } from '@/lib/utils';
+import { Calendar, Folder } from 'lucide-react';
+
+export interface ArticleCardData {
+  slug: string;
+  title: string;
+  excerpt: string;
+  tags: string[];
+  updated_at: string;
+}
 
 function formatDate(dateStr: string): string {
   try {
@@ -15,60 +21,40 @@ function formatDate(dateStr: string): string {
   }
 }
 
-function stripMarkdown(md: string): string {
-  return md
-    .replace(/^---[\s\S]*?---\s*/, '')
-    .replace(/#{1,6}\s+/g, '')
-    .replace(/[*_`~]/g, '')
-    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/\n+/g, ' ')
-    .trim();
-}
-
-export function ArticleCard({ article }: { article: PageListItem }) {
-  const excerpt = stripMarkdown(article.content_md).slice(0, 200);
-  const tags = article.tags ?? [];
-
+export function ArticleCard({ article }: { article: ArticleCardData }) {
   return (
-    <article
-      className={cn(
-        'glass-control rounded-2xl p-6 transition-all duration-200',
-        'hover:shadow-lg hover:-translate-y-0.5',
-      )}
-    >
+    <article className="glass-control rounded-2xl p-8 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5">
       <Link
         to="/article/$slug"
         params={{ slug: article.slug }}
-        className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-xl"
+        className="block focus:outline-none"
       >
-        <h2 className="text-xl font-semibold tracking-tight text-foreground mb-2 leading-snug">
+        <h2 className="font-mono text-xl font-bold leading-snug text-foreground hover:underline">
           {article.title}
         </h2>
       </Link>
 
-      {excerpt && (
-        <p className="text-muted-foreground text-sm leading-relaxed mb-4 line-clamp-3">
-          {excerpt}
-          {excerpt.length >= 200 ? '…' : ''}
-        </p>
-      )}
+      <p className="mt-4 font-serif text-[15px] leading-7 text-muted-foreground">
+        {article.excerpt}
+      </p>
 
-      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1">
+      <Link
+        to="/article/$slug"
+        params={{ slug: article.slug }}
+        className="mt-3 inline-block font-serif text-[15px] text-foreground underline decoration-foreground/50 underline-offset-4 transition-colors hover:text-muted-foreground hover:decoration-muted-foreground/50"
+      >
+        Continue reading →
+      </Link>
+
+      <div className="mt-6 flex flex-wrap items-center gap-4 border-t border-border/70 pt-4 text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
           <Calendar className="size-3.5" />
           {formatDate(article.updated_at)}
         </span>
-
-        {tags.length > 0 && (
-          <span className="inline-flex items-center gap-1">
-            <Tag className="size-3.5" />
-            {tags.join(', ')}
-          </span>
-        )}
-
-        {article.created_by_name && (
-          <span className="ml-auto text-muted-foreground/70">by {article.created_by_name}</span>
-        )}
+        <span className="inline-flex items-center gap-1.5">
+          <Folder className="size-3.5" />
+          {article.tags[0] ?? 'Uncategorized'}
+        </span>
       </div>
     </article>
   );

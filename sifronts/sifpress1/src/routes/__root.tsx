@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { createRootRoute, Link, Outlet, useRouterState } from '@tanstack/react-router';
+import { createRootRoute, Outlet, useRouterState } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 import { AmbientBackground } from '@/components/ambient-background';
 import { SiteFooter } from '@/components/site-footer';
-import { SiteHeader } from '@/components/site-header';
-import { settingsApi } from 'ui-sdk';
+import { Sidebar } from '@/components/sidebar';
+import { settingsApi, tagsApi } from 'ui-sdk';
 
 function RootLayout() {
   const pathname = useRouterState({
@@ -16,6 +16,12 @@ function RootLayout() {
   const settings = useQuery({
     queryKey: ['seo-settings'],
     queryFn: settingsApi.get,
+    staleTime: 60_000,
+  });
+
+  const tags = useQuery({
+    queryKey: ['tags'],
+    queryFn: tagsApi.list,
     staleTime: 60_000,
   });
 
@@ -43,15 +49,23 @@ function RootLayout() {
       </div>
     );
   } else {
-    content = <Outlet />;
+    content = (
+      <div className="flex w-full flex-col gap-10 lg:flex-row">
+        <aside className="w-full shrink-0 lg:sticky lg:top-8 lg:h-fit lg:w-72">
+          <Sidebar tags={tags.data ?? []} settings={settings.data} />
+        </aside>
+        <main className="min-w-0 flex-1">
+          <Outlet />
+        </main>
+      </div>
+    );
   }
 
   return (
     <div className="ambient-bg min-h-screen w-full overflow-x-clip">
       <AmbientBackground />
-      <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-12">
-        <SiteHeader />
-        <main className="animate-in slide-in-from-bottom-3 duration-500 ease-out">{content}</main>
+      <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10">
+        {content}
         <SiteFooter />
       </div>
     </div>
