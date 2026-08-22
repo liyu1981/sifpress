@@ -450,6 +450,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
     }
 
     if (next === 'source') {
+      editorRef.current?.closePopups();
       setSourceBody(editorRef.current?.getMarkdown() ?? '');
       setSourceDirty(false);
     } else if (sourceDirty) {

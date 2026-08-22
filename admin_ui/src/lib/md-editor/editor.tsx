@@ -6,6 +6,8 @@ import { listItem } from '@milkdown/crepe/feature/list-item';
 import { placeholder } from '@milkdown/crepe/feature/placeholder';
 import { table } from '@milkdown/crepe/feature/table';
 import { toolbar } from '@milkdown/crepe/feature/toolbar';
+import { editorViewCtx } from '@milkdown/kit/core';
+import { TextSelection } from '@milkdown/kit/prose/state';
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import {
   createMarkdownEditor,
@@ -26,6 +28,14 @@ import { imageDirectivesView } from './plugins/image-directives-view';
 export interface MilkdownEditorHandle {
   getMarkdown: () => string;
   setMarkdown: (markdown: string) => void;
+  /**
+   * Close every open editor popup (image/video directive panel, diagram
+   * editor, latex edit, toolbar, link tooltip, slash menu). Needed before
+   * hiding the editor (e.g. switching to the markdown source tab): some
+   * popups mount to document.body, so they would stay visible, and the rest
+   * would reappear when the editor is shown again.
+   */
+  closePopups: () => void;
 }
 
 export interface MilkdownEditorProps {
@@ -46,6 +56,35 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
         getMarkdown: () => builderRef.current?.getMarkdown() ?? '',
         setMarkdown: (markdown: string) => {
           builderRef.current?.editor.action(setMarkdownContent(escapeTableCodePipes(markdown)));
+        },
+        closePopups: () => {
+          const builder = builderRef.current;
+          if (!builder) {
+            return;
+          }
+
+          // Collapsing the selection makes every selection-driven popup hide
+          // itself through its own TooltipProvider update, which also runs
+          // their cleanup (e.g. the latex edit destroys its inner view).
+          builder.editor.action(ctx => {
+            const view = ctx.get(editorViewCtx);
+            const { selection } = view.state;
+            if (selection.empty) {
+              return;
+            }
+            view.dispatch(
+              view.state.tr
+                .setSelection(TextSelection.near(view.state.doc.resolve(selection.head)))
+                .setMeta('addToHistory', false),
+            );
+          });
+
+          // Caret-anchored popups (slash menu) and hover previews don't depend
+          // on the selection; flip their data-show directly. This also covers
+          // popups mounted on document.body, which live outside the editor DOM.
+          for (const el of document.querySelectorAll<HTMLElement>('[data-show="true"]')) {
+            el.dataset.show = 'false';
+          }
         },
       }),
       [],
