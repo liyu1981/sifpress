@@ -7,3 +7,4 @@ export { createQueryRewrite } from "./rewrite";
 export * from "./use-page-meta";
 export * from "./site-head";
 export * from "./markdown";
+export * from "./front-matter";

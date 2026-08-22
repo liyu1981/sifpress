@@ -1,24 +1,36 @@
-import type { PageListItem } from 'ui-sdk';
+import { parseFrontMatter, type PageListItem } from 'ui-sdk';
 import { ArticleCard, type ArticleCardData } from '@/components/article-card';
 
-function stripMarkdown(md: string): string {
-  return md
-    .replace(/^---[\s\S]*?---\s*/, '')
-    .replace(/#{1,6}\s+/g, '')
-    .replace(/[*_`~]/g, '')
-    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/\n+/g, ' ')
-    .trim();
+function firstTextLine(md: string): string {
+  const body = md.replace(/^---[\s\S]*?---\s*/, '');
+  for (const raw of body.split('\n')) {
+    const line = raw.trim();
+    if (line === '' || /^#{1,6}\s/.test(line) || /^!\[/.test(line)) continue;
+    return line
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/[*_`~]/g, '')
+      .trim();
+  }
+  return '';
+}
+
+function estimateReadingMinutes(text: string): number {
+  const words = text.trim().split(/\s+/).length;
+  return Math.max(1, Math.round(words / 200));
 }
 
 function toCardData(article: PageListItem): ArticleCardData {
-  const text = stripMarkdown(article.content_md);
-  const truncated = text.length > 300;
+  const { data, content } = parseFrontMatter(article.content_md);
+  const cover = typeof data.cover === 'string' && data.cover !== '' ? data.cover : null;
 
   return {
     slug: article.slug,
     title: article.title,
-    excerpt: text.slice(0, 300) + (truncated ? '…' : ''),
+    excerpt: firstTextLine(article.content_md),
+    cover,
+    reading_minutes: estimateReadingMinutes(content),
+    author: article.created_by_name !== '' ? article.created_by_name : null,
     tags: article.tags ?? [],
     updated_at: article.updated_at,
   };

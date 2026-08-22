@@ -1,10 +1,13 @@
 import { Link } from '@tanstack/react-router';
-import { Calendar, Folder } from 'lucide-react';
+import { Calendar, Clock, Folder } from 'lucide-react';
 
 export interface ArticleCardData {
   slug: string;
   title: string;
   excerpt: string;
+  cover?: string | null;
+  reading_minutes?: number;
+  author?: string | null;
   tags: string[];
   updated_at: string;
 }
@@ -24,6 +27,21 @@ function formatDate(dateStr: string): string {
 export function ArticleCard({ article }: { article: ArticleCardData }) {
   return (
     <article className="glass-control rounded-2xl p-8 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5">
+      {article.cover != null && article.cover !== '' && (
+        <Link
+          to="/article/$slug"
+          params={{ slug: article.slug }}
+          className="mb-5 block focus:outline-none"
+        >
+          <img
+            src={article.cover}
+            alt=""
+            loading="lazy"
+            className="aspect-[16/9] w-full rounded-xl object-cover"
+          />
+        </Link>
+      )}
+
       <Link
         to="/article/$slug"
         params={{ slug: article.slug }}
@@ -51,6 +69,13 @@ export function ArticleCard({ article }: { article: ArticleCardData }) {
           <Calendar className="size-3.5" />
           {formatDate(article.updated_at)}
         </span>
+        {article.reading_minutes !== undefined && (
+          <span className="inline-flex items-center gap-1.5">
+            <Clock className="size-3.5" />
+            {article.reading_minutes} min read
+          </span>
+        )}
+        {article.author != null && article.author !== '' && <span>{article.author}</span>}
         <span className="inline-flex items-center gap-1.5">
           <Folder className="size-3.5" />
           {article.tags[0] ?? 'Uncategorized'}
