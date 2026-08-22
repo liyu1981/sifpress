@@ -49,13 +49,13 @@ const EXTERNALS = new Map(SHARED_EXTERNALS.map(e => [e.id, e.global]));
 
 /**
  * Rewrite `import { a, b as c } from 'react'` -> `const { a, b: c } =
- * window.SifpressUI.React;` and `import * as R from 'react'` ->
- * `const R = window.SifpressUI.React;`. Runs after esbuild has stripped
- * type-only imports, so only runtime imports remain.
+ * window.SifpressUI.React;`, `import * as R from 'react'` ->
+ * `const R = window.SifpressUI.React;`, and `export { x } from 'react'` /
+ * `export * as ns from 'react'` -> destructure + local export. Runs after
+ * esbuild has stripped type-only imports, so only runtime imports remain.
  */
 export function rewriteImports(code: string): string {
   let out = code;
-  let lastIndex = 0;
 
   const importRe =
     /import\s+(?:(?<star>\*\s+as\s+\w+)|(?:\{(?<named>[^}]*)\})|(?<def>\w+))(?:\s*,\s*(?:(?<star2>\*\s+as\s+\w+)|(?:\{(?<named2>[^}]*)\})))?\s+from\s+['"](?<from>[^'"]+)['"];?/g;
@@ -111,35 +111,111 @@ export function rewriteImports(code: string): string {
     });
   }
 
+  /*
+   * `export { x } from 'lib'` / `export * as ns from 'lib'` keep a live
+   * ESM link to the specifier (unlike plain imports they are not just
+   * local bindings), so they must be expanded here or the bundler pulls
+   * the real module into the graph.
+   */
+  const exportFromRe =
+    /export\s+(?:\*\s+as\s+(?<ns>\w+)|\*|(?<named>\{[^}]*\}))\s+from\s+['"](?<from>[^'"]+)['"];?/g;
+
+  for (const match of code.matchAll(exportFromRe)) {
+    const specifier = match.groups?.from;
+    const global = specifier === undefined ? undefined : EXTERNALS.get(specifier);
+
+    if (global === undefined) {
+      continue;
+    }
+
+    const id = match.index ?? 0;
+    const ns = match.groups?.ns;
+
+    if (ns !== undefined) {
+      replacements.push({
+        index: id,
+        length: match[0].length,
+        text: `const ${ns} = ${global}; export { ${ns} };`,
+      });
+      continue;
+    }
+
+    const named = match.groups?.named;
+
+    if (named === undefined) {
+      throw new Error(
+        `vite-external-globals: cannot rewrite "${match[0]}" — ` +
+          `export * from '${specifier}' cannot read from the runtime global ${global}; ` +
+          're-export explicit names instead.',
+      );
+    }
+
+    const specs = named
+      .slice(1, -1)
+      .split(',')
+      .map(part => part.trim())
+      .filter(part => part !== '');
+
+    if (specs.length === 0) {
+      replacements.push({ index: id, length: match[0].length, text: '' });
+      continue;
+    }
+
+    // `x as y` in an export is `x: y` in destructuring; the exported
+    // names are the local (right-hand) aliases.
+    const destructured = specs.map(part => part.replace(/\s+as\s+/g, ': ')).join(', ');
+    const names = specs
+      .map(part => (/^[\w$]+\s+as\s+[\w$]+$/.test(part) ? part.split(/\s+as\s+/)[1] : part))
+      .join(', ');
+
+    replacements.push({
+      index: id,
+      length: match[0].length,
+      text: `const { ${destructured} } = ${global}; export { ${names} };`,
+    });
+  }
+
   // Apply from the end so indices stay valid.
   for (let i = replacements.length - 1; i >= 0; i--) {
     const { index, length, text } = replacements[i];
     out = out.slice(0, index) + text + out.slice(index + length);
   }
 
-  void lastIndex;
-
   return out;
 }
 
 /**
- * Vite plugin that externalizes the shared libraries and rewrites their
+ * Vite plugins that externalize the shared libraries and rewrites their
  * imports to read from window.SifpressUI (provided by ui-sdk.mjs). Consumer
  * apps (admin + sifront) use this so React and the common libs are loaded
  * once from the shared bundle instead of being bundled into each app.
+ *
+ * Two phases:
+ * - pre resolveId: mark bare specifiers external BEFORE Vite's resolver
+ *   maps them to real files, so no copy of a shared module ever enters the
+ *   bundle (covers import, export-from, and dynamic import alike).
+ * - post transform: textually rewrite the remaining statements to read the
+ *   window.SifpressUI globals (runs after esbuild stripped type-only
+ *   imports).
  */
-export function externalGlobals(): Plugin {
-  return {
-    name: 'sifpress-external-globals',
-    enforce: 'post',
-    resolveId(id) {
-      if (EXTERNALS.has(id)) {
-        return { id, external: true };
-      }
-      return null;
+export function externalGlobals(): Plugin[] {
+  return [
+    {
+      name: 'sifpress-external-globals:resolve',
+      enforce: 'pre',
+      resolveId(id) {
+        if (EXTERNALS.has(id)) {
+          return { id, external: true };
+        }
+        return null;
+      },
     },
-    transform(code) {
-      return { code: rewriteImports(code), map: null };
+    {
+      name: 'sifpress-external-globals:rewrite',
+      enforce: 'post',
+      transform(code) {
+        return { code: rewriteImports(code), map: null };
+      },
     },
-  };
+  ];
 }
