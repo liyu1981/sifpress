@@ -69,9 +69,38 @@ function build_sifront(string $appDir, string $outputDir, string $buildCommand, 
      * at ?p=sifpress/asset/js/ui-sdk.mjs).
      */
     $uiSdkScript = '<script type="module" src="?p=sifpress/asset/js/ui-sdk.mjs"></script>';
+    $headInject = $uiSdkScript;
+
+    /*
+     * Inject the sifront's meta.json as a <meta name="sifront_meta"> tag so
+     * the runtime can read the theme's required keys and their defaults
+     * without a separate request. Minimized (no insignificant whitespace)
+     * and HTML-escaped so it survives the attribute value intact.
+     */
+    $metaFile = $appDir . '/meta.json';
+    if (is_file($metaFile)) {
+        $metaObj = json_decode((string) file_get_contents($metaFile), true);
+
+        if ($metaObj === null) {
+            throw new RuntimeException("Invalid JSON in $metaFile");
+        }
+
+        $metaMin = json_encode($metaObj, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        if ($metaMin === false) {
+            throw new RuntimeException("Could not encode $metaFile");
+        }
+
+        $headInject .= '<meta name="sifront_meta" content="'
+            . htmlspecialchars($metaMin, ENT_QUOTES)
+            . '">';
+    } else {
+        echo "  (no meta.json for $name, skipping sifront_meta injection)" . PHP_EOL;
+    }
+
     $pos = strpos($html, '<head>');
     if ($pos !== false) {
-        $html = substr_replace($html, '<head>' . $uiSdkScript, $pos, strlen('<head>'));
+        $html = substr_replace($html, '<head>' . $headInject, $pos, strlen('<head>'));
     }
 
     $html = inline_assets($html, $dist, $dev);

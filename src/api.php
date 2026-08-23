@@ -1959,6 +1959,7 @@ function api_assets_delete(string $method): never
 
 const KV_MAX_KEY_LENGTH = 200;
 const KV_MAX_VALUE_BYTES = 1024 * 1024;
+const KV_BATCH_MAX_KEYS = 100;
 
 function kv_fetch(string $key): ?array
 {
@@ -2241,6 +2242,88 @@ function api_kvs_get(string $method): never
     }
 
     json_response(['kv' => kv_payload($row)]);
+}
+
+function api_kvs_batch_get(string $method): never
+{
+    if ($method !== 'POST') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $body = read_json_body();
+    $raw = $body['keys'] ?? null;
+
+    if (!is_array($raw)) {
+        json_response(
+            ['error' => 'validation failed', 'errors' => ['keys' => ['must be an array']]],
+            422,
+        );
+    }
+
+    $seen = [];
+    $keys = [];
+
+    foreach ($raw as $entry) {
+        if (!is_string($entry)) {
+            json_response(
+                ['error' => 'validation failed', 'errors' => ['keys' => ['must be an array of strings']]],
+                422,
+            );
+        }
+
+        $key = trim($entry);
+
+        if ($key === '' || isset($seen[$key])) {
+            continue;
+        }
+
+        $seen[$key] = true;
+        $keys[] = $key;
+    }
+
+    if (count($keys) > KV_BATCH_MAX_KEYS) {
+        json_response(
+            [
+                'error' => 'validation failed',
+                'errors' => ['keys' => ['too many keys (max ' . KV_BATCH_MAX_KEYS . ')']],
+            ],
+            422,
+        );
+    }
+
+    $data = [];
+    $notFound = $keys;
+
+    if ($keys !== []) {
+        $inParams = [];
+
+        foreach ($keys as $i => $k) {
+            $inParams[':k' . $i] = $k;
+        }
+
+        $placeholders = implode(',', array_keys($inParams));
+        $stmt = db()->prepare('SELECT * FROM kv_pairs WHERE key IN (' . $placeholders . ')');
+        $stmt->execute($inParams);
+        $user = current_user();
+
+        while ($row = $stmt->fetch()) {
+            if (!kv_can_view($user, $row)) {
+                continue;
+            }
+
+            $idx = array_search($row['key'], $keys, true);
+
+            if ($idx !== false) {
+                unset($notFound[$idx]);
+            }
+
+            $data[$row['key']] = json_decode($row['value_json'], true);
+        }
+
+        $notFound = array_values($notFound);
+    }
+
+    json_response(['data' => $data, 'not_found' => $notFound]);
 }
 
 function api_kvs_create(string $method): never
@@ -2947,6 +3030,7 @@ function handle_api(string $action, string $method): never
         'tags.list',
         'kvs.list',
         'kvs.get',
+        'kvs.batchGet',
     ];
 
     if (!in_array($action, $public, true)) {
@@ -3085,6 +3169,9 @@ function handle_api(string $action, string $method): never
 
         case 'kvs.get':
             api_kvs_get($method);
+
+        case 'kvs.batchGet':
+            api_kvs_batch_get($method);
 
         case 'kvs.create':
             api_kvs_create($method);

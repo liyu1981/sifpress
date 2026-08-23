@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { AmbientBackground } from '@/components/ambient-background';
 import { SiteFooter } from '@/components/site-footer';
 import { Sidebar } from '@/components/sidebar';
+import { ThemeConfigProvider } from '@/lib/theme-config';
 import { settingsApi, tagsApi } from 'ui-sdk';
 
 function RootLayout() {
@@ -62,13 +63,15 @@ function RootLayout() {
   }
 
   return (
-    <div className="ambient-bg min-h-screen w-full overflow-x-clip">
-      <AmbientBackground />
-      <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10">
-        {content}
-        <SiteFooter />
+    <ThemeConfigProvider>
+      <div className="ambient-bg min-h-screen w-full overflow-x-clip">
+        <AmbientBackground />
+        <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10">
+          {content}
+          <SiteFooter />
+        </div>
       </div>
-    </div>
+    </ThemeConfigProvider>
   );
 }
 

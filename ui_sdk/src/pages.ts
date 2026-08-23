@@ -443,6 +443,12 @@ export const kvsApi = {
       params: { key },
     }).then(r => r.kv),
 
+  getMany: (keys: string[]) =>
+    apiRequest<{ data: Record<string, unknown>; not_found: string[] }>('kvs.batchGet', {
+      method: 'POST',
+      body: { keys },
+    }),
+
   create: (input: { key: string; value: unknown; schema?: unknown | null }) =>
     apiRequest<{ kv: KvPair }>('kvs.create', {
       method: 'POST',
