@@ -2739,6 +2739,43 @@ function assign_roles(int $userId, array $roleIds): void
 /* Sifronts                                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * In dev builds, sifront bundles live on disk as `dist/<name>.sifront` with
+ * their theme `meta.json` embedded in a `<meta name="sifront_meta">` tag.
+ * Extract and decode that so the admin UI can show a sifront's required keys
+ * and defaults without a re-upload. Returns null when the bundle isn't on
+ * disk (release builds, or non-dev) so the caller falls back to the DB
+ * `meta` column.
+ */
+function sifront_bundle_meta(string $name): ?array
+{
+    if (!defined('SIFPRESS_DEV')) {
+        return null;
+    }
+
+    $file = __DIR__ . '/' . $name . '.sifront';
+
+    if (!is_file($file)) {
+        return null;
+    }
+
+    $html = file_get_contents($file);
+
+    if ($html === false) {
+        return null;
+    }
+
+    if (preg_match('/<meta\s+name="sifront_meta"\s+content="([^"]*)"/i', $html, $match) === 1) {
+        $decoded = json_decode(html_entity_decode($match[1], ENT_QUOTES), true);
+
+        if (is_array($decoded)) {
+            return $decoded;
+        }
+    }
+
+    return null;
+}
+
 function api_sifronts_list(string $method): never
 {
     if ($method !== 'GET') {
@@ -2788,13 +2825,18 @@ function api_sifronts_get(string $method): never
 
     $activeId = (string) setting_get('active_sifront_id', '');
 
+    $meta = sifront_bundle_meta((string) $row['name']);
+    if ($meta === null) {
+        $meta = json_decode((string) $row['meta'], true);
+    }
+
     json_response([
         'sifront' => [
             'id' => (int) $row['id'],
             'name' => (string) $row['name'],
             'content' => (string) $row['content'],
             'version' => (string) $row['version'],
-            'meta' => json_decode((string) $row['meta'], true),
+            'meta' => $meta,
             'is_active' => (string) $row['id'] === $activeId,
             'created_at' => (string) $row['created_at'],
             'updated_at' => (string) $row['updated_at'],
