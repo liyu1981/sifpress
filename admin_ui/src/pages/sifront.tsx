@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight, Loader2, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Eye, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
@@ -131,14 +131,14 @@ function SifrontCard({
           {formatDate(sf.updated_at, i18n.language)}
         </CardDescription>
         <CardAction className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setExpanded((e) => !e)}
-            aria-label={expanded ? 'Collapse' : 'Expand'}
-          >
-            {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-          </Button>
+          {sf.is_active && (
+            <Button asChild variant="outline" size="sm">
+              <a href={window.location.pathname} target="_blank" rel="noopener noreferrer">
+                <Eye className="size-4" />
+                {t('sifront.preview')}
+              </a>
+            </Button>
+          )}
           {canManage && (
             <>
               {!sf.is_active && (
@@ -172,6 +172,14 @@ function SifrontCard({
               )}
             </>
           )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setExpanded((e) => !e)}
+            aria-label={expanded ? 'Collapse' : 'Expand'}
+          >
+            {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+          </Button>
         </CardAction>
       </CardHeader>
       {expanded && (
