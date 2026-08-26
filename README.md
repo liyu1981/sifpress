@@ -93,6 +93,43 @@ and are embedded into `dist/index.php` at build time. The app detects pending
 migrations on bootstrap and applies them on demand via
 `POST ?p=migration&action=run`.
 
+## Releases
+
+Releases are cut by pushing a version tag; GitHub Actions does the rest
+(`.github/workflows/release.yml`):
+
+1. Bump `APP_VERSION` in `src/bootstrap.php` and merge to `main`.
+2. Tag and push:
+
+   ```bash
+   git tag v0.2.0 && git push origin v0.2.0
+   ```
+
+3. The workflow verifies the tag matches `APP_VERSION`, builds
+   `dist/sifpress.php` (`php build.php release`) and
+   `dist/sifpress1.sifront` (`php buildfront.php release`), sanity-checks
+   the artifact (lint, `<?php` header, no dev-only code), then publishes a
+   **GitHub Release** with both files attached.
+4. Finally it writes an updated **`latest.json`** to `main` — the update
+   manifest consumed by the in-app self-updater
+   (`UPDATE_MANIFEST_URL`, see `src/update.php`):
+
+   ```json
+   { "version": "0.2.0", "md5": "…",
+     "url": "https://github.com/liyu1981/sifpress/releases/download/v0.2.0/sifpress.php",
+     "size_bytes": 2710345,
+     "notes": "https://github.com/liyu1981/sifpress/releases/tag/v0.2.0" }
+   ```
+
+Running instances check that manifest and offer a one-click upgrade
+(admin-only), downloading the attached `sifpress.php` and verifying its md5.
+
+Notes:
+
+- The tag must equal `"v" + APP_VERSION`; otherwise the workflow fails fast.
+- Committing `latest.json` back to `main` requires an unprotected default
+  branch (or a branch rule allowing `github-actions[bot]`).
+
 ## Production deployment
 
 After building, only one file is required:

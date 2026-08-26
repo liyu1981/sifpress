@@ -1,0 +1,127 @@
+name: Release
+
+# Cut a release by pushing a version tag:
+#
+#   git tag v0.2.0 && git push origin v0.2.0
+#
+# The tag must match APP_VERSION in src/bootstrap.php (without the "v").
+# The workflow builds the single-file release artifact, publishes a GitHub
+# Release with the artifact (and the sifpress1 sifront bundle) attached,
+# then commits an updated latest.json to main so in-app update checks
+# (?p=sifpress/update&action=status) see the new release.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify tag matches APP_VERSION
+        run: |
+          app_version="$(sed -n "s/^const APP_VERSION = '\(.*\)';/\1/p" src/bootstrap.php)"
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [ -z "$app_version" ]; then
+            echo "::error::Could not read APP_VERSION from src/bootstrap.php"
+            exit 1
+          fi
+          if [ "$app_version" != "$tag_version" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match APP_VERSION '${app_version}' in src/bootstrap.php. Update APP_VERSION, merge, re-tag."
+            exit 1
+          fi
+          echo "VERSION=$tag_version" >> "$GITHUB_ENV"
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: curl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build release artifact
+        run: |
+          php build.php release
+          php buildfront.php release
+
+      - name: Sanity-check artifacts
+        run: |
+          php -l dist/sifpress.php
+          head -c 5 dist/sifpress.php | grep -q '^<?php' || {
+            echo "::error::Artifact does not start with <?php"
+            exit 1
+          }
+          if grep -q 'handle_dev\|SIFPRESS_DEV' dist/sifpress.php; then
+            echo "::error::Release artifact contains dev-only code"
+            exit 1
+          fi
+          test -s dist/sifpress1.sifront
+
+      - name: Compute checksums and write update manifest
+        run: |
+          md5="$(md5sum dist/sifpress.php | cut -d' ' -f1)"
+          size="$(stat -c%s dist/sifpress.php)"
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/sifpress.php"
+          notes="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
+          jq -n \
+            --arg version "$VERSION" \
+            --arg md5 "$md5" \
+            --arg url "$url" \
+            --argjson size_bytes "$size" \
+            --arg notes "$notes" \
+            '{version: $version, md5: $md5, url: $url, size_bytes: $size_bytes, notes: $notes}' \
+            > /tmp/latest.json
+          cat /tmp/latest.json
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/sifpress.php \
+            dist/sifpress1.sifront \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes
+
+      - name: Publish update manifest to main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f latest.json
+          git fetch origin main
+          git switch -C manifest-publish origin/main
+          cp /tmp/latest.json latest.json
+          git add latest.json
+          if git diff --cached --quiet; then
+            echo "latest.json unchanged, nothing to commit"
+            exit 0
+          fi
+          git commit -m "release: publish update manifest for ${GITHUB_REF_NAME}"
+          git push origin HEAD:main
