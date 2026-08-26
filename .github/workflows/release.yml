@@ -7,7 +7,7 @@ name: Release
 # The tag must match APP_VERSION in src/bootstrap.php (without the "v").
 # The workflow builds the single-file release artifact, publishes a GitHub
 # Release with the artifact (and the sifpress1 sifront bundle) attached,
-# then commits an updated latest.json to main so in-app update checks
+# then commits an updated latest.json to master so in-app update checks
 # (?p=sifpress/update&action=status) see the new release.
 
 on:
@@ -108,15 +108,15 @@ jobs:
             --title "$GITHUB_REF_NAME" \
             --generate-notes
 
-      - name: Publish update manifest to main
+      - name: Publish update manifest to master
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           rm -f latest.json
-          git fetch origin main
-          git switch -C manifest-publish origin/main
+          git fetch origin master
+          git switch -C manifest-publish origin/master
           cp /tmp/latest.json latest.json
           git add latest.json
           if git diff --cached --quiet; then
@@ -124,4 +124,4 @@ jobs:
             exit 0
           fi
           git commit -m "release: publish update manifest for ${GITHUB_REF_NAME}"
-          git push origin HEAD:main
+          git push origin HEAD:master

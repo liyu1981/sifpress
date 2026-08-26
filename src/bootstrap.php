@@ -33,7 +33,7 @@ const APP_VERSION = '0.1.0';
  *   { "version": "0.2.0", "md5": "...", "url": "...", "size_bytes": 2710345,
  *     "notes": "..." }
  */
-const UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/liyu1981/sifpress/main/latest.json';
+const UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/liyu1981/sifpress/master/latest.json';
 const UPDATE_MAX_BYTES = 200 * 1024 * 1024;
 const UPDATE_FETCH_TIMEOUT = 30;
 

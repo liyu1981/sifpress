@@ -98,7 +98,7 @@ migrations on bootstrap and applies them on demand via
 Releases are cut by pushing a version tag; GitHub Actions does the rest
 (`.github/workflows/release.yml`):
 
-1. Bump `APP_VERSION` in `src/bootstrap.php` and merge to `main`.
+1. Bump `APP_VERSION` in `src/bootstrap.php` and merge to `master`.
 2. Tag and push:
 
    ```bash
@@ -110,7 +110,7 @@ Releases are cut by pushing a version tag; GitHub Actions does the rest
    `dist/sifpress1.sifront` (`php buildfront.php release`), sanity-checks
    the artifact (lint, `<?php` header, no dev-only code), then publishes a
    **GitHub Release** with both files attached.
-4. Finally it writes an updated **`latest.json`** to `main` — the update
+4. Finally it writes an updated **`latest.json`** to `master` — the update
    manifest consumed by the in-app self-updater
    (`UPDATE_MANIFEST_URL`, see `src/update.php`):
 
@@ -127,7 +127,7 @@ Running instances check that manifest and offer a one-click upgrade
 Notes:
 
 - The tag must equal `"v" + APP_VERSION`; otherwise the workflow fails fast.
-- Committing `latest.json` back to `main` requires an unprotected default
+- Committing `latest.json` back to `master` requires an unprotected default
   branch (or a branch rule allowing `github-actions[bot]`).
 
 ## Production deployment
