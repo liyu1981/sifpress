@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PORT="${PORT:-5000}"
-RETRY_INTERVAL="${RETRY_INTERVAL:-5}"
+SIFPRESS_PORT="${SIFPRESS_PORT:-5000}"
+SIFPRESS_RETRY_INTERVAL="${SIFPRESS_RETRY_INTERVAL:-5}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 WATCH_DIRS=(
@@ -17,8 +17,8 @@ WATCH_DIRS=(
 cd "$ROOT"
 
 # Development database location: ./var/sifpress/sys.db (see src/db.php).
-# Override anytime with APP_DB_DIR=<folder>.
-export APP_DB_DIR="./var/sifpress"
+# Override anytime with SIFPRESS_DB_DIR=<folder>.
+export SIFPRESS_DB_DIR="./var/sifpress"
 
 if ! command -v php >/dev/null 2>&1; then
   echo "error: php not found in PATH" >&2
@@ -42,9 +42,9 @@ build() {
 # The server needs dist/index.php to exist, so a missing artifact blocks
 # (with retries) until the first build succeeds.
 if [ ! -f "$ROOT/dist/index.php" ]; then
-  echo "==> No dist/index.php yet — building (retrying every ${RETRY_INTERVAL}s)..."
+  echo "==> No dist/index.php yet — building (retrying every ${SIFPRESS_RETRY_INTERVAL}s)..."
   while ! build; do
-    sleep "$RETRY_INTERVAL"
+    sleep "$SIFPRESS_RETRY_INTERVAL"
   done
   LAST_BUILD_OK=1
 else
@@ -57,8 +57,8 @@ else
   fi
 fi
 
-echo "==> Starting PHP dev server on port $PORT..."
-php -S "0.0.0.0:$PORT" "$ROOT/dist/index.php" &
+echo "==> Starting PHP dev server on port $SIFPRESS_PORT..."
+php -S "0.0.0.0:$SIFPRESS_PORT" "$ROOT/dist/index.php" &
 PHP_PID=$!
 
 cleanup() {
@@ -67,7 +67,7 @@ cleanup() {
 trap cleanup EXIT
 trap 'cleanup; exit 1' INT TERM
 
-echo "==> Serving at http://localhost:$PORT"
+echo "==> Serving at http://localhost:$SIFPRESS_PORT"
 echo "==> Watching src/, admin_ui/, ui_sdk/, and sifronts/sifpress1 for changes (Ctrl-C to stop)"
 
 while true; do
@@ -77,16 +77,16 @@ while true; do
       "${WATCH_DIRS[@]}" >/dev/null 2>&1 || true
   else
     # Failing: wait for a change OR retry at the fixed interval.
-    inotifywait -q -r -t "$RETRY_INTERVAL" -e modify,create,delete,move \
+    inotifywait -q -r -t "$SIFPRESS_RETRY_INTERVAL" -e modify,create,delete,move \
       "${WATCH_DIRS[@]}" >/dev/null 2>&1 || true
   fi
 
   echo "==> Rebuilding..."
   if build; then
-    echo "==> Rebuild complete. Reload http://localhost:$PORT"
+    echo "==> Rebuild complete. Reload http://localhost:$SIFPRESS_PORT"
     LAST_BUILD_OK=1
   else
-    echo "==> Build failed — server keeps serving the last good build; retrying in ${RETRY_INTERVAL}s"
+    echo "==> Build failed — server keeps serving the last good build; retrying in ${SIFPRESS_RETRY_INTERVAL}s"
     LAST_BUILD_OK=0
   fi
 done

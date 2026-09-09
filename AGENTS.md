@@ -65,7 +65,7 @@ php buildfront.php release
 
 ```bash
 ./dev.sh          # serves http://localhost:5000
-PORT=8080 ./dev.sh
+SIFPRESS_PORT=8080 ./dev.sh
 ```
 
 - Runs the build once, then serves `dist/index.php` with PHP's built-in
@@ -153,7 +153,7 @@ pnpm-lock.yaml      workspace lockfile
 ## Backend model
 
 - **SQLite + FTS5, WAL mode**, at `<folder>/sys.db`. Folder precedence:
-  `APP_DB_DIR` env (dev sets `./var/sifpress`), else
+  `SIFPRESS_DB_DIR` env (dev sets `./var/sifpress`), else
   `<DOCUMENT_ROOT>/../sifpress`, else `<artifact dir>/var/sifpress`.
 - **Migrations**: `migrations/*.sql` are embedded into `dist/index.php` at
   build time. Bootstrap only detects pending migrations; the app serves
@@ -167,7 +167,7 @@ pnpm-lock.yaml      workspace lockfile
 - **Page ownership**: editing needs `pages.write` AND (author OR a
   `page_grants` row OR admin); grants managed via `pages.grant` /
   `pages.revokeGrant`.
-- **First admin**: `admin`/`admin` (override `ADMIN_PASSWORD`) seeded on
+- **First admin**: `admin`/`admin` (override `SIFPRESS_ADMIN_PASSWORD`) seeded on
   first migration, flagged `must_change_password` — app locks to
   `auth.changePassword` until changed.
 

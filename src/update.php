@@ -35,7 +35,7 @@ function update_self_path(): string
 
 /**
  * The update manifest URL. Defaults to UPDATE_MANIFEST_URL; the
- * SIFPRESS_UPDATE_MANIFEST_URL env var overrides it (mirrors the APP_DB_DIR
+ * SIFPRESS_UPDATE_MANIFEST_URL env var overrides it (mirrors the SIFPRESS_DB_DIR
  * pattern) so operators can point the check at their own release channel.
  */
 function update_manifest_url(): string

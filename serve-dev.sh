@@ -40,7 +40,7 @@ port_in_use() {
 
 cmd_start() {
   local pid port
-  port="${PORT:-5000}"
+  port="${SIFPRESS_PORT:-5000}"
   pid="$(get_pid)"
 
   if [ -n "$pid" ] && pid_alive "$pid"; then
@@ -50,7 +50,7 @@ cmd_start() {
 
   if port_in_use "$port"; then
     echo "serve-dev: port $port is already in use by another process." >&2
-    echo "serve-dev: stop that server first, or run with PORT=<other>." >&2
+    echo "serve-dev: stop that server first, or run with SIFPRESS_PORT=<other>." >&2
     return 1
   fi
 
@@ -132,7 +132,7 @@ cmd_status() {
 
   if pid_alive "$pid"; then
     local port
-    port="$(cat "$PORT_FILE" 2>/dev/null || echo "${PORT:-5000}")"
+    port="$(cat "$PORT_FILE" 2>/dev/null || echo "${SIFPRESS_PORT:-5000}")"
     echo "serve-dev: running (pid $pid)"
     echo "  port:     $port"
     echo "  url:      http://localhost:$port"
@@ -159,7 +159,7 @@ Commands:
   status   Show whether the service is running.
 
 Environment:
-  PORT              Port for the dev server (default 5000).
+  SIFPRESS_PORT     Port for the dev server (default 5000).
   DEV_LOG_BACKUPS   Number of rotated log generations to keep (default 3).
   DEV_STOP_TIMEOUT  Seconds to wait for graceful stop (default 10).
 EOF
