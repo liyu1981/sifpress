@@ -17,3 +17,4 @@ fi
 # Release build: no dev.php fragment, no ?p=dev endpoint.
 # Outputs the single-file artifact as dist/sifpress.php.
 php build.php release
+php buildfront.php release
