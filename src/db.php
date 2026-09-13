@@ -11,13 +11,17 @@
 /**
  * The folder holding the SQLite database. Order of precedence:
  *
- *   1. SIFPRESS_DB_DIR env var (absolute, or relative to the working
- *      directory — dev sets it to ./var/sifpress);
- *   2. <DOCUMENT_ROOT>/../sifpress  (production default);
- *   3. <artifact dir>/var/sifpress  (CLI/fallback when no web root).
+ *   1. SIFPRESS_DB_DIR constant (from sifpress_config.php)
+ *   2. SIFPRESS_DB_DIR env var (backward compat)
+ *   3. <DOCUMENT_ROOT>/../sifpress  (production default);
+ *   4. <artifact dir>/var/sifpress  (CLI/fallback when no web root).
  */
 function db_dir(): string
 {
+    if (defined('SIFPRESS_DB_DIR')) {
+        return rtrim(SIFPRESS_DB_DIR, '/\\');
+    }
+
     $env = getenv('SIFPRESS_DB_DIR');
 
     if ($env !== false && $env !== '') {
@@ -306,8 +310,9 @@ function seed_favicon(): void
 /**
  * Idempotent default-admin bootstrap: only when the users table is empty.
  * Credentials default to admin / admin and can be overridden with the
- * SIFPRESS_ADMIN_PASSWORD env var. The account is flagged must_change_password so
- * the app blocks until the operator changes it.
+ * SIFPRESS_ADMIN_PASSWORD constant (from sifpress_config.php) or env var.
+ * The account is flagged must_change_password so the app blocks until the
+ * operator changes it.
  */
 function seed_default_admin(): void
 {
@@ -323,9 +328,15 @@ function seed_default_admin(): void
         return;
     }
 
-    $password = getenv('SIFPRESS_ADMIN_PASSWORD');
+    $password = '';
 
-    if ($password === false || $password === '') {
+    if (defined('SIFPRESS_ADMIN_PASSWORD')) {
+        $password = SIFPRESS_ADMIN_PASSWORD;
+    } elseif (getenv('SIFPRESS_ADMIN_PASSWORD') !== false) {
+        $password = getenv('SIFPRESS_ADMIN_PASSWORD');
+    }
+
+    if ($password === '') {
         $password = 'admin';
     }
 

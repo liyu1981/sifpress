@@ -16,10 +16,6 @@ WATCH_DIRS=(
 
 cd "$ROOT"
 
-# Development database location: ./var/sifpress/sys.db (see src/db.php).
-# Override anytime with SIFPRESS_DB_DIR=<folder>.
-export SIFPRESS_DB_DIR="./var/sifpress"
-
 if ! command -v php >/dev/null 2>&1; then
   echo "error: php not found in PATH" >&2
   exit 1

@@ -23,6 +23,50 @@
  * inlined React bundle into the single dist/index.php artifact.
  */
 
+/**
+ * Configuration loading. Looks for sifpress_config.php in the same directory
+ * as the running artifact (index.php / sifpress.php). If absent, a default
+ * config file is generated with sensible defaults.
+ *
+ * Config uses define() constants (WordPress-style) so accessing the file
+ * directly over HTTP never leaks sensitive values.
+ */
+$sifpress_config_path = dirname(__FILE__) . '/sifpress_config.php';
+
+if (!is_file($sifpress_config_path)) {
+    $default_db_dir = dirname(__FILE__) . '/var/sifpress';
+    $config_content = <<< 'PHP'
+<?php
+/**
+ * Sifpress configuration file.
+ *
+ * This file is auto-generated on first run. Edit the values below to
+ * customise your installation. All values use define() so direct HTTP
+ * access to this file will not leak configuration.
+ */
+
+/** Path to the folder that holds the SQLite database (sys.db inside). */
+define('SIFPRESS_DB_DIR', '%s');
+
+/**
+ * Admin password for the initial admin account (admin/admin by default).
+ * Only used when the users table is empty (first migration).
+ * Leave as empty string to use the built-in default.
+ */
+define('SIFPRESS_ADMIN_PASSWORD', '');
+
+/**
+ * URL of the version-check manifest JSON.
+ * Leave as empty string to use the built-in default.
+ */
+define('SIFPRESS_MANIFEST_URL', '');
+PHP;
+    $config_content = sprintf($config_content, $default_db_dir);
+    file_put_contents($sifpress_config_path, $config_content);
+}
+
+require_once $sifpress_config_path;
+
 const APP_NAME = 'Sifpress';
 const APP_VERSION = '0.1.0';
 

@@ -60,6 +60,14 @@ php buildfront.php release
   content (empty → construction fallback).
 - `dist/*.php` are build artifacts and are gitignored. Never edit them
   directly; edit `src/*.php` instead.
+- **Configuration**: on first request the artifact looks for
+  `sifpress_config.php` in the same directory as the running PHP file.
+  If absent, a default config is auto-generated. Config uses `define()`
+  constants (WordPress-style) so direct HTTP access never leaks values.
+  See `SIFPRESS_DB_DIR`, `SIFPRESS_ADMIN_PASSWORD`, `SIFPRESS_MANIFEST_URL`.
+  Env vars (`SIFPRESS_DB_DIR`, `SIFPRESS_ADMIN_PASSWORD`,
+  `SIFPRESS_UPDATE_MANIFEST_URL`) are still supported as fallbacks for
+  backward compatibility.
 
 ## Development server
 
@@ -142,6 +150,7 @@ buildfront.php      sifront bundles -> dist/<name>.sifront (dev/release)
 rel.sh              release build -> dist/sifpress.php
 dev.sh              dev build + serve (watch) -> dist/index.php
 dist/               build artifacts (gitignored)
+  sifpress_config.php  auto-generated config (NOT gitignored, persists across rebuilds)
 sifronts/           public-facing sifront SPAs (each a pnpm workspace package,
   sifpress1/        built by build.php into dist/sifpress1.sifront)
   src/routes/       file-based routes: / (home + tag filter), /article/$slug, $ (404)
@@ -153,8 +162,9 @@ pnpm-lock.yaml      workspace lockfile
 ## Backend model
 
 - **SQLite + FTS5, WAL mode**, at `<folder>/sys.db`. Folder precedence:
-  `SIFPRESS_DB_DIR` env (dev sets `./var/sifpress`), else
-  `<DOCUMENT_ROOT>/../sifpress`, else `<artifact dir>/var/sifpress`.
+  `SIFPRESS_DB_DIR` constant (from `sifpress_config.php`), else
+  `SIFPRESS_DB_DIR` env var, else `<DOCUMENT_ROOT>/../sifpress`,
+  else `<artifact dir>/var/sifpress`.
 - **Migrations**: `migrations/*.sql` are embedded into `dist/index.php` at
   build time. Bootstrap only detects pending migrations; the app serves
   `503 migration_required` (SPA gets an `app-maintenance` meta tag) until

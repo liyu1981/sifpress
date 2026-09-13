@@ -34,12 +34,18 @@ function update_self_path(): string
 }
 
 /**
- * The update manifest URL. Defaults to UPDATE_MANIFEST_URL; the
- * SIFPRESS_UPDATE_MANIFEST_URL env var overrides it (mirrors the SIFPRESS_DB_DIR
- * pattern) so operators can point the check at their own release channel.
+ * The update manifest URL. Order of precedence:
+ *
+ *   1. SIFPRESS_MANIFEST_URL constant (from sifpress_config.php)
+ *   2. SIFPRESS_UPDATE_MANIFEST_URL env var (backward compat)
+ *   3. UPDATE_MANIFEST_URL constant (built-in default)
  */
 function update_manifest_url(): string
 {
+    if (defined('SIFPRESS_MANIFEST_URL') && SIFPRESS_MANIFEST_URL !== '') {
+        return SIFPRESS_MANIFEST_URL;
+    }
+
     $env = getenv('SIFPRESS_UPDATE_MANIFEST_URL');
 
     return $env !== false && $env !== '' ? $env : UPDATE_MANIFEST_URL;
