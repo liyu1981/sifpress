@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseMutationResult,
+} from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, Eye, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -59,7 +64,7 @@ function MetaTable({
           </tr>
         </thead>
         <tbody>
-          {requireKeys.map((entry) => {
+          {requireKeys.map(entry => {
             const entries = Object.entries(entry);
             if (entries.length === 0) {
               return null;
@@ -110,7 +115,7 @@ function SifrontCard({
 
   const requireKeys = (detail.data?.meta?.require_keys ?? []) as Record<string, unknown>[];
   const keys = requireKeys
-    .map((entry) => (entry !== null && typeof entry === 'object' ? Object.keys(entry)[0] : ''))
+    .map(entry => (entry !== null && typeof entry === 'object' ? Object.keys(entry)[0] : ''))
     .filter((key): key is string => typeof key === 'string' && key !== '');
 
   const values = useQuery({
@@ -175,7 +180,7 @@ function SifrontCard({
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setExpanded((e) => !e)}
+            onClick={() => setExpanded(e => !e)}
             aria-label={expanded ? 'Collapse' : 'Expand'}
           >
             {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}

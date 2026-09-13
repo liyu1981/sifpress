@@ -8,9 +8,11 @@ import {
   Loader2,
   Lock,
   Plus,
+  RotateCcw,
   Save,
   ShieldCheck,
   Trash2,
+  Undo2,
   UserPlus,
   X,
 } from 'lucide-react';
@@ -42,7 +44,7 @@ import {
   RESERVED_FRONT_MATTER_KEYS,
 } from '@/lib/front-matter';
 import { MilkdownEditor, type MilkdownEditorHandle } from '@/lib/md-editor';
-import { escapeTableCodePipes, assetsApi, type Grant, pagesApi } from 'ui-sdk';
+import { escapeTableCodePipes, assetsApi, type Grant, type DiffLine, pagesApi } from 'ui-sdk';
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -230,7 +232,44 @@ function EditorSkeleton() {
   );
 }
 
-export function EditorPage({ slug }: { slug: string | null }) {
+function DiffLines({ lines }: { lines: DiffLine[] }) {
+  const { t } = useTranslation();
+  const visible = lines.length > 200 ? lines.slice(0, 200) : lines;
+  let lineNum = 0;
+  return (
+    <div>
+      {visible.map((line, i) => {
+        const cls =
+          line.type === 'add'
+            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+            : line.type === 'remove'
+              ? 'bg-red-500/10 text-red-700 dark:text-red-400'
+              : 'text-muted-foreground';
+        const prefix = line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' ';
+        if (line.type !== 'add') lineNum++;
+        return (
+          <div key={i} className={`flex whitespace-pre ${cls}`}>
+            <span className="w-8 shrink-0 select-none text-right pr-2 opacity-40">
+              {line.type !== 'add' ? lineNum : ''}
+            </span>
+            <span className="shrink-0 pr-1 opacity-50">{prefix}</span>
+            <span>{line.content}</span>
+          </div>
+        );
+      })}
+      {lines.length > 200 && (
+        <div className="mt-1 text-xs text-muted-foreground">
+          {t('editor.revisionDiffTruncated', { count: lines.length })}
+        </div>
+      )}
+      {lines.length === 0 && (
+        <div className="py-1 text-xs text-muted-foreground">{t('editor.revisionDiffEmpty')}</div>
+      )}
+    </div>
+  );
+}
+
+export function EditorPage({ slug, revision }: { slug: string | null; revision?: string }) {
   const { t } = useTranslation();
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -293,20 +332,68 @@ export function EditorPage({ slug }: { slug: string | null }) {
 
   const [accessOpen, setAccessOpen] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
+  const [revisionsOpen, setRevisionsOpen] = useState(false);
+  const [expandedDiffRevisionId, setExpandedDiffRevisionId] = useState<string | null>(null);
+  const [restorePending, setRestorePending] = useState<string | null>(null);
+  const isRevisionPreview = !!revision;
+  const revisionQuery = useQuery({
+    queryKey: ['revision-preview', revision],
+    queryFn: () => pagesApi.revision(revision!),
+    enabled: !!revision,
+  });
   const [grantUsername, setGrantUsername] = useState('');
   const [grantPermission, setGrantPermission] = useState<'edit' | 'view'>('edit');
   const [grantNote, setGrantNote] = useState('');
   const [grantError, setGrantError] = useState<ApiError | null>(null);
-  const [revisionsOpen, setRevisionsOpen] = useState(false);
 
   useEffect(() => {
-    if (!editing || loaded || pageQuery.data === undefined) {
+    if (!editing || loaded) {
+      return;
+    }
+
+    // In revision preview mode, load from the revision data instead of page
+    if (isRevisionPreview && revisionQuery.data) {
+      const { revision: rev } = revisionQuery.data;
+      const meta = parseFrontMatter(rev.content_md);
+      const data = meta.data;
+
+      setTitle(typeof data.title === 'string' ? data.title : '');
+      setSlugValue(typeof data.slug === 'string' ? data.slug : '');
+      setDate(typeof data.date === 'string' ? data.date : '');
+      setTags(
+        Array.isArray(data.tags)
+          ? data.tags.filter((tag): tag is string => typeof tag === 'string')
+          : [],
+      );
+      setSeoTitle(frontMatterString(data, 'seo_title') ?? '');
+      setSeoDescription(frontMatterString(data, 'description') ?? '');
+      setSeoKeywords(frontMatterString(data, 'keywords') ?? '');
+      setSeoOgImage(frontMatterString(data, 'og_image') ?? '');
+      setSeoCanonical(frontMatterString(data, 'canonical') ?? '');
+      setSeoNoindex(data.noindex === true);
+      const extras: ExtraField[] = Object.entries(data)
+        .filter(([key]) => !RESERVED_FRONT_MATTER_KEYS.has(key))
+        .map(([key, value]) => {
+          extraFieldIdRef.current += 1;
+          return { id: extraFieldIdRef.current, key, value: scalarToString(value) };
+        });
+      setExtraFields(extras);
+      setExtraOpen(extras.length > 0);
+      setBody(escapeTableCodePipes(meta.content));
+      setSourceBody(escapeTableCodePipes(meta.content));
+      setPublished(rev.status === 'published');
+      setLoaded(true);
+    }
+
+    if (isRevisionPreview) return; // waiting for revision data
+
+    if (pageQuery.data === undefined) {
       return;
     }
 
     const page = pageQuery.data;
 
-    if (page !== null) {
+    if (page) {
       const meta = parseFrontMatter(page.content_md);
       const data = meta.data;
 
@@ -338,10 +425,9 @@ export function EditorPage({ slug }: { slug: string | null }) {
       setBody(escapeTableCodePipes(meta.content));
       setSourceBody(escapeTableCodePipes(meta.content));
       setPublished(page.status === 'published');
+      setLoaded(true);
     }
-
-    setLoaded(true);
-  }, [editing, loaded, pageQuery.data]);
+  }, [editing, loaded, pageQuery.data, isRevisionPreview, revisionQuery.data]);
 
   const handleUpload = useCallback(async (file: File): Promise<string> => {
     const formData = new FormData();
@@ -547,12 +633,6 @@ export function EditorPage({ slug }: { slug: string | null }) {
     enabled: editing && page !== null && canManageGrants,
   });
 
-  const revisionsQuery = useQuery({
-    queryKey: ['page-revisions', page?.id],
-    queryFn: () => pagesApi.revisions(page!.id),
-    enabled: editing && page !== null,
-  });
-
   const grant = useMutation({
     mutationFn: (args: { username: string; permission: 'edit' | 'view'; note?: string }) =>
       pagesApi.grant(page!.id, args.username, args.permission, args.note),
@@ -580,6 +660,31 @@ export function EditorPage({ slug }: { slug: string | null }) {
     mutationFn: (username: string) => pagesApi.revokeGrant(page!.id, username),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['page-grants', page?.id] });
+    },
+  });
+
+  const revisionsQuery = useQuery({
+    queryKey: ['page-revisions', page?.id],
+    queryFn: () => pagesApi.revisions(page!.id),
+    enabled: editing && page !== null,
+  });
+
+  const diffQuery = useQuery({
+    queryKey: ['revision-diff', expandedDiffRevisionId, page?.current_revision_id],
+    queryFn: () => pagesApi.revisionDiff(expandedDiffRevisionId!, page?.current_revision_id!),
+    enabled: !!expandedDiffRevisionId && !!page?.current_revision_id,
+  });
+  const restoreMutation = useMutation({
+    mutationFn: (revId: string) => pagesApi.restoreRevision(revId),
+    onSuccess: updatedPage => {
+      queryClient.invalidateQueries({ queryKey: ['pages'] });
+      queryClient.invalidateQueries({ queryKey: ['page', slug] });
+      queryClient.invalidateQueries({ queryKey: ['page-revisions', updatedPage.id] });
+      setRestorePending(null);
+      navigate({ to: '/admin/editor/$slug', params: { slug: updatedPage.slug } });
+    },
+    onError: () => {
+      setRestorePending(null);
     },
   });
 
@@ -744,7 +849,26 @@ export function EditorPage({ slug }: { slug: string | null }) {
   return (
     <>
       <div className="w-full">
-        <form onSubmit={handleSave} className="w-full space-y-4">
+        {isRevisionPreview && (
+          <div className="glass-control mb-4 flex items-center justify-between gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+            <div className="flex items-center gap-2 text-sm">
+              <Undo2 className="size-4 text-amber-600" />
+              <span className="text-amber-700 dark:text-amber-400">
+                {t('editor.revisionPreview')}: <span className="font-mono text-xs">{revision}</span>
+              </span>
+            </div>
+            <Button asChild variant="outline" size="xs">
+              <Link to="/admin/editor/$slug" params={{ slug: slug ?? '' }}>
+                <ArrowLeft className="size-3" />
+                {t('editor.revisionBackToCurrent')}
+              </Link>
+            </Button>
+          </div>
+        )}
+        <form
+          onSubmit={isRevisionPreview ? e => e.preventDefault() : handleSave}
+          className="w-full space-y-4"
+        >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h1 className="font-heading text-3xl font-bold tracking-tight">
               {editing ? t('editor.editTitle') : t('editor.newTitle')}
@@ -775,10 +899,12 @@ export function EditorPage({ slug }: { slug: string | null }) {
                     </Button>
                   </DeletePageMenu>
                 )}
-              <Button type="submit" size="sm" disabled={save.isPending}>
-                {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
-                {t('editor.save')}
-              </Button>
+              {!isRevisionPreview && (
+                <Button type="submit" size="sm" disabled={save.isPending}>
+                  {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
+                  {t('editor.save')}
+                </Button>
+              )}
             </div>
           </div>
 
@@ -912,6 +1038,188 @@ export function EditorPage({ slug }: { slug: string | null }) {
             </div>
           )}
 
+          {editing && page !== null && (
+            <div className="glass-control overflow-hidden rounded-2xl">
+              <button
+                type="button"
+                onClick={() => setRevisionsOpen(value => !value)}
+                className="flex w-full items-center justify-between gap-3 border-b border-border/60 px-4 py-3 text-left"
+              >
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <GitCommitHorizontal className="size-4 text-muted-foreground" />
+                  {t('editor.revisionsTitle')}
+                  {revisionsQuery.data && (
+                    <span className="text-xs text-muted-foreground">
+                      ({revisionsQuery.data.items.length})
+                    </span>
+                  )}
+                </span>
+                <ChevronDown
+                  className={`size-4 text-muted-foreground transition-transform ${
+                    revisionsOpen ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
+              {revisionsOpen && (
+                <div className="p-4">
+                  {revisionsQuery.isLoading && (
+                    <div className="flex items-center justify-center py-6">
+                      <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+
+                  {revisionsQuery.data && revisionsQuery.data.items.length === 0 && (
+                    <p className="py-2 text-sm text-muted-foreground">
+                      {t('editor.revisionsEmpty')}
+                    </p>
+                  )}
+
+                  {revisionsQuery.data && revisionsQuery.data.items.length > 0 && (
+                    <div className="relative space-y-0">
+                      {[...revisionsQuery.data.items]
+                        .sort((a: { committed_at: string }, b: { committed_at: string }) =>
+                          b.committed_at.localeCompare(a.committed_at),
+                        )
+                        .map(
+                          (
+                            rev: {
+                              revision_id: string;
+                              committed_at: string;
+                              commit_message: string;
+                            },
+                            index: number,
+                          ) => {
+                            const isCurrent = rev.revision_id === page.current_revision_id;
+                            const sortedItems = [...revisionsQuery.data.items].sort(
+                              (a: { committed_at: string }, b: { committed_at: string }) =>
+                                b.committed_at.localeCompare(a.committed_at),
+                            );
+                            const isLast = index === sortedItems.length - 1;
+                            const isDiffExpanded = expandedDiffRevisionId === rev.revision_id;
+                            return (
+                              <div key={rev.revision_id} className="relative flex gap-3 py-2">
+                                <div className="flex flex-col items-center pt-1">
+                                  <div
+                                    className={`size-3 shrink-0 rounded-full ${
+                                      isCurrent ? 'bg-primary' : 'bg-muted-foreground/40'
+                                    }`}
+                                  />
+                                  {!isLast && <div className="w-px flex-1 bg-border" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                                      {rev.revision_id.slice(0, 8)}
+                                    </span>
+                                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                                      {rev.commit_message}
+                                    </span>
+                                    <div className="flex shrink-0 items-center gap-1">
+                                      {!isCurrent && (
+                                        <>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="xs"
+                                            className={`h-5 px-1.5 text-[0.65rem] ${isDiffExpanded ? 'text-primary' : ''}`}
+                                            onClick={() =>
+                                              setExpandedDiffRevisionId(
+                                                isDiffExpanded ? null : rev.revision_id,
+                                              )
+                                            }
+                                          >
+                                            {t('editor.revisionDiff')}
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="xs"
+                                            className="h-5 px-1.5 text-[0.65rem]"
+                                            asChild
+                                          >
+                                            <Link
+                                              to="/admin/editor/$slug"
+                                              params={{ slug: slug ?? '' }}
+                                              search={{ revision: rev.revision_id }}
+                                            >
+                                              {t('editor.revisionView')}
+                                            </Link>
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="xs"
+                                            className="h-5 px-1.5 text-[0.65rem] text-amber-600 hover:text-amber-700"
+                                            onClick={() => {
+                                              setRestorePending(rev.revision_id);
+                                              restoreMutation.mutate(rev.revision_id);
+                                            }}
+                                            disabled={restorePending === rev.revision_id}
+                                          >
+                                            {restorePending === rev.revision_id ? (
+                                              <Loader2 className="size-3 animate-spin" />
+                                            ) : (
+                                              <RotateCcw className="size-3" />
+                                            )}
+                                            {t('editor.revisionRestore')}
+                                          </Button>
+                                        </>
+                                      )}
+                                      {isCurrent && (
+                                        <span className="text-xs font-medium text-primary">
+                                          {t('editor.revisionsCurrent')}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <p className="mt-0.5 text-xs text-muted-foreground">
+                                    {new Date(rev.committed_at).toLocaleString()}
+                                  </p>
+                                  {isDiffExpanded && diffQuery.data && (
+                                    <div className="mt-3 space-y-3 rounded-lg border border-border/40 bg-background/60 p-3">
+                                      <div>
+                                        <p className="mb-1 text-xs font-medium text-muted-foreground">
+                                          {t('editor.revisionDiffTitle')}
+                                        </p>
+                                        {diffQuery.data.title.some(l => l.type !== 'same') ? (
+                                          <div className="rounded-lg border border-border/40 bg-background/60 p-2 font-mono text-xs leading-relaxed">
+                                            <DiffLines lines={diffQuery.data.title} />
+                                          </div>
+                                        ) : (
+                                          <p className="text-xs text-muted-foreground italic">
+                                            {t('editor.revisionDiffNoDiff')}
+                                          </p>
+                                        )}
+                                      </div>
+                                      <div>
+                                        <p className="mb-1 text-xs font-medium text-muted-foreground">
+                                          {t('editor.revisionDiffContent')}
+                                        </p>
+                                        {diffQuery.data.content_md.some(l => l.type !== 'same') ? (
+                                          <div className="max-h-80 overflow-y-auto rounded-lg border border-border/40 bg-background/60 p-2 font-mono text-xs leading-relaxed">
+                                            <DiffLines lines={diffQuery.data.content_md} />
+                                          </div>
+                                        ) : (
+                                          <p className="text-xs text-muted-foreground italic">
+                                            {t('editor.revisionDiffNoDiff')}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          },
+                        )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="glass-control overflow-hidden rounded-2xl shadow-[0_10px_24px_-8px_rgba(0,0,0,0.28)] dark:shadow-[0_10px_24px_-8px_rgba(0,0,0,0.6)]">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
               <span className="text-sm font-medium">{t('editor.frontmatterTitle')}</span>
@@ -971,6 +1279,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
                       value={date}
                       onChange={event => setDate(event.target.value)}
                       placeholder="YYYY-MM-DD"
+                      readOnly={isRevisionPreview}
                     />
                   </label>
                   <label className="flex flex-col gap-1.5">
@@ -1027,6 +1336,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
                         onChange={event => setSeoTitle(event.target.value)}
                         placeholder={t('editor.seoTitlePlaceholder')}
                         className="h-8"
+                        readOnly={isRevisionPreview}
                       />
                     </label>
                     <label className="flex flex-col gap-1.5">
@@ -1038,6 +1348,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
                         onChange={event => setSeoDescription(event.target.value)}
                         placeholder={t('editor.seoDescriptionPlaceholder')}
                         className="min-h-20 w-full resize-y rounded-xl border border-input bg-background p-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+                        readOnly={isRevisionPreview}
                       />
                       <span className="text-[0.65rem] leading-none text-muted-foreground">
                         {t('editor.seoDescriptionCount', { count: seoDescription.length })}
@@ -1053,6 +1364,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
                           onChange={event => setSeoKeywords(event.target.value)}
                           placeholder={t('editor.seoKeywordsPlaceholder')}
                           className="h-8"
+                          readOnly={isRevisionPreview}
                         />
                       </label>
                       <label className="flex flex-col gap-1.5">
@@ -1064,6 +1376,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
                           onChange={event => setSeoOgImage(event.target.value)}
                           placeholder="https://example.com/og.png"
                           className="h-8"
+                          readOnly={isRevisionPreview}
                         />
                       </label>
                     </div>
@@ -1076,6 +1389,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
                         onChange={event => setSeoCanonical(event.target.value)}
                         placeholder={t('editor.seoCanonicalPlaceholder')}
                         className="h-8"
+                        readOnly={isRevisionPreview}
                       />
                     </label>
                   </div>
@@ -1115,6 +1429,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
                           }
                           placeholder={t('editor.fieldKeyPlaceholder')}
                           className="h-8 w-32"
+                          readOnly={isRevisionPreview}
                         />
                         <Input
                           value={field.value}
@@ -1123,6 +1438,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
                           }
                           placeholder={t('editor.fieldValuePlaceholder')}
                           className="h-8 flex-1"
+                          readOnly={isRevisionPreview}
                         />
                         <Button
                           type="button"
@@ -1147,6 +1463,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
                     setRawFront(event.target.value);
                     setRawDirty(true);
                   }}
+                  readOnly={isRevisionPreview}
                   className="h-64 w-full resize-y rounded-xl border border-input bg-background p-3 font-mono text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
                   spellCheck={false}
                 />
@@ -1155,102 +1472,6 @@ export function EditorPage({ slug }: { slug: string | null }) {
               </div>
             )}
           </div>
-
-          {editing && page !== null && (
-            <div className="glass-control overflow-hidden rounded-2xl">
-              <button
-                type="button"
-                onClick={() => setRevisionsOpen(value => !value)}
-                className="flex w-full items-center justify-between gap-3 border-b border-border/60 px-4 py-3 text-left"
-              >
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  <GitCommitHorizontal className="size-4 text-muted-foreground" />
-                  {t('editor.revisionsTitle')}
-                  {revisionsQuery.data && (
-                    <span className="text-xs text-muted-foreground">
-                      ({revisionsQuery.data.items.length})
-                    </span>
-                  )}
-                </span>
-                <ChevronDown
-                  className={`size-4 text-muted-foreground transition-transform ${
-                    revisionsOpen ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-
-              {revisionsOpen && (
-                <div className="p-4">
-                  {revisionsQuery.isLoading && (
-                    <div className="flex items-center justify-center py-6">
-                      <Loader2 className="size-4 animate-spin text-muted-foreground" />
-                    </div>
-                  )}
-
-                  {revisionsQuery.data && revisionsQuery.data.items.length === 0 && (
-                    <p className="py-2 text-sm text-muted-foreground">
-                      {t('editor.revisionsEmpty')}
-                    </p>
-                  )}
-
-                  {revisionsQuery.data && revisionsQuery.data.items.length > 0 && (
-                    <div className="relative space-y-0">
-                      {[...revisionsQuery.data.items]
-                        .sort((a: { committed_at: string }, b: { committed_at: string }) => b.committed_at.localeCompare(a.committed_at))
-                        .map((rev: { revision_id: string; committed_at: string; commit_message: string }, index: number) => {
-                          const isCurrent = rev.revision_id === page.current_revision_id;
-                          const sortedItems = [...revisionsQuery.data.items].sort((a: { committed_at: string }, b: { committed_at: string }) => b.committed_at.localeCompare(a.committed_at));
-                          const isLast = index === sortedItems.length - 1;
-                          return (
-                            <div
-                              key={rev.revision_id}
-                              className="relative flex gap-3 py-2"
-                            >
-                              <div className="flex flex-col items-center">
-                                <div
-                                  className={`flex size-3.5 items-center justify-center rounded-full ${
-                                    isCurrent
-                                      ? 'bg-primary ring-2 ring-primary/30'
-                                      : 'bg-muted-foreground/40'
-                                  }`}
-                                />
-                                {!isLast && (
-                                  <div className="mt-1 w-px flex-1 bg-border/60" />
-                                )}
-                              </div>
-                              <div className="flex-1 pb-1">
-                                <div className="flex items-center gap-2">
-                                  <span
-                                    className={`font-mono text-xs ${
-                                      isCurrent
-                                        ? 'font-semibold text-foreground'
-                                        : 'text-muted-foreground'
-                                    }`}
-                                  >
-                                    {rev.revision_id.slice(0, 6)}
-                                  </span>
-                                  {isCurrent && (
-                                    <Badge variant="outline" className="text-[0.6rem] px-1.5 py-0">
-                                      {t('editor.revisionsCurrent')}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <p className="mt-0.5 text-sm text-foreground">
-                                  {rev.commit_message}
-                                </p>
-                                <p className="mt-0.5 text-xs text-muted-foreground">
-                                  {new Date(rev.committed_at).toLocaleString()}
-                                </p>
-                              </div>
-                            </div>
-                          );
-                        })}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
 
           <div className="glass-control overflow-hidden rounded-2xl">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-4 py-2">
@@ -1279,6 +1500,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
                   setSourceBody(event.target.value);
                   setSourceDirty(true);
                 }}
+                readOnly={isRevisionPreview}
                 className="min-h-[60vh] w-full resize-y bg-transparent p-4 font-mono text-sm leading-6 outline-none"
                 spellCheck={false}
               />

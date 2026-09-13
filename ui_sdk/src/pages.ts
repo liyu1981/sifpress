@@ -61,6 +61,16 @@ export interface RevisionListResult {
   total: number;
 }
 
+export interface DiffLine {
+  type: 'add' | 'remove' | 'same';
+  content: string;
+}
+
+export interface RevisionDiffResult {
+  title: DiffLine[];
+  content_md: DiffLine[];
+}
+
 export interface PageSeo {
   title: string;
   description: string;
@@ -291,6 +301,20 @@ export const pagesApi = {
     apiRequest<{ revision: Revision; page: Page }>('pages.revision.get', {
       params: { revision_id },
     }),
+
+  revisionDiff: (revision_id: string, compare_to?: string) =>
+    apiRequest<RevisionDiffResult>('pages.revision.diff', {
+      params: {
+        revision_id,
+        ...(compare_to !== undefined ? { compare_to } : {}),
+      },
+    }),
+
+  restoreRevision: (revision_id: string) =>
+    apiRequest<{ page: Page }>('pages.revision.restore', {
+      method: 'POST',
+      body: { revision_id },
+    }).then(r => r.page),
 
   remove: (id: number) =>
     apiRequest<{ ok: true }>('pages.delete', {

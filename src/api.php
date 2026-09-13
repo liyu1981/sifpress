@@ -1271,6 +1271,149 @@ function api_pages_revision_get(string $method): never
     ]);
 }
 
+/**
+ * Line-level diff between two strings.
+ * Returns an array of ['type' => 'same'|'add'|'remove', 'content' => string].
+ */
+function line_diff(string $old, string $new): array
+{
+    $oldLines = explode("\n", $old);
+    $newLines = explode("\n", $new);
+
+    // Simple LCS-based diff
+    $m = count($oldLines);
+    $n = count($newLines);
+    $dp = array_fill(0, $m + 1, array_fill(0, $n + 1, 0));
+
+    for ($i = 1; $i <= $m; $i++) {
+        for ($j = 1; $j <= $n; $j++) {
+            if ($oldLines[$i - 1] === $newLines[$j - 1]) {
+                $dp[$i][$j] = $dp[$i - 1][$j - 1] + 1;
+            } else {
+                $dp[$i][$j] = max($dp[$i - 1][$j], $dp[$i][$j - 1]);
+            }
+        }
+    }
+
+    $result = [];
+    $i = $m;
+    $j = $n;
+    $stack = [];
+
+    while ($i > 0 || $j > 0) {
+        if ($i > 0 && $j > 0 && $oldLines[$i - 1] === $newLines[$j - 1]) {
+            $stack[] = ['type' => 'same', 'content' => $oldLines[$i - 1]];
+            $i--;
+            $j--;
+        } elseif ($j > 0 && ($i === 0 || $dp[$i][$j - 1] >= $dp[$i - 1][$j])) {
+            $stack[] = ['type' => 'add', 'content' => $newLines[$j - 1]];
+            $j--;
+        } else {
+            $stack[] = ['type' => 'remove', 'content' => $oldLines[$i - 1]];
+            $i--;
+        }
+    }
+
+    return array_reverse($stack);
+}
+
+function api_pages_revision_diff(string $method): never
+{
+    if ($method !== 'GET') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_permission('pages.read');
+
+    $revisionId = (string) request_param('revision_id', '');
+    $compareTo = (string) request_param('compare_to', '');
+
+    if ($revisionId === '') {
+        json_response(['error' => 'revision_id required'], 422);
+    }
+
+    $revision = fetch_revision($revisionId);
+
+    if ($revision === null) {
+        json_response(['error' => 'revision not found'], 404);
+    }
+
+    $page = fetch_page((int) $revision['page_id']);
+
+    if ($compareTo === '') {
+        // Compare against current revision
+        if ($page === null) {
+            json_response(['error' => 'page not found'], 404);
+        }
+        $compareRevision = fetch_revision((string) ($page['current_revision_id'] ?? ''));
+    } else {
+        $compareRevision = fetch_revision($compareTo);
+    }
+
+    if ($compareRevision === null) {
+        json_response(['error' => 'compare_to revision not found'], 404);
+    }
+
+    // Diff title and content (exclude created_at/committed_at which are always different)
+    $titleDiff = line_diff($compareRevision['title'], $revision['title']);
+    $contentDiff = line_diff($compareRevision['content_md'], $revision['content_md']);
+
+    json_response([
+        'title' => $titleDiff,
+        'content_md' => $contentDiff,
+    ]);
+}
+
+function api_pages_revision_restore(string $method): never
+{
+    if ($method !== 'POST') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_permission('pages.write');
+
+    $body = read_json_body();
+    $revisionId = (string) ($body['revision_id'] ?? '');
+
+    if ($revisionId === '') {
+        json_response(['error' => 'revision_id required'], 422);
+    }
+
+    $revision = fetch_revision($revisionId);
+
+    if ($revision === null) {
+        json_response(['error' => 'revision not found'], 404);
+    }
+
+    $page = fetch_page((int) $revision['page_id']);
+
+    if ($page === null) {
+        json_response(['error' => 'page not found'], 404);
+    }
+
+    // Simply point the page back to this existing revision.
+    $now = date('Y-m-d H:i:s');
+    $user = current_user();
+
+    db()->prepare(
+        'UPDATE pages SET slug = ?, title = ?, content_md = ?, status = ?,
+               created_at = ?, updated_at = ?, updated_by = ?, current_revision_id = ?
+         WHERE id = ?'
+    )->execute([
+        $revision['slug'],
+        $revision['title'],
+        $revision['content_md'],
+        $revision['status'],
+        $revision['created_at'],
+        $now,
+        $user['id'],
+        $revision['revision_id'],
+        $page['id'],
+    ]);
+
+    json_response(['page' => page_payload(fetch_page($page['id']))]);
+}
+
 function api_pages_grants(string $method): never
 {
     if ($method !== 'GET') {
@@ -3244,7 +3387,7 @@ function handle_api(string $action, string $method): never
                     'settings.get', 'settings.update',
                     'tracking.get', 'tracking.update',
                     'pages.list', 'pages.get', 'pages.create', 'pages.update',
-                    'pages.delete', 'pages.search', 'pages.revisions', 'pages.revision.get',
+                    'pages.delete', 'pages.search', 'pages.revisions', 'pages.revision.get', 'pages.revision.diff', 'pages.revision.restore',
                     'pages.grants', 'pages.grant', 'pages.revokeGrant',
                     'users.list', 'users.create', 'users.update', 'users.setRoles',
                     'roles.list', 'tags.list',
@@ -3313,6 +3456,12 @@ function handle_api(string $action, string $method): never
 
         case 'pages.revision.get':
             api_pages_revision_get($method);
+
+        case 'pages.revision.diff':
+            api_pages_revision_diff($method);
+
+        case 'pages.revision.restore':
+            api_pages_revision_restore($method);
 
         case 'pages.grants':
             api_pages_grants($method);

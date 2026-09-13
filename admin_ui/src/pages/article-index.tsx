@@ -1,6 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { ArrowRight, Calendar, Clock, FilePenLine, GitCommitHorizontal, Search, Trash2 } from 'lucide-react';
+import {
+  ArrowRight,
+  Calendar,
+  Clock,
+  FilePenLine,
+  GitCommitHorizontal,
+  Search,
+  Trash2,
+} from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DeletePageMenu } from '@/components/delete-page-menu';
