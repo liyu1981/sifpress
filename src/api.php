@@ -317,7 +317,6 @@ function compute_revision_hash(array $fields): string
         $fields['slug'],
         $fields['title'],
         $fields['content_md'],
-        $fields['status'],
         (string) $fields['created_by'],
         $fields['created_at'],
     ]));
