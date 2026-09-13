@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Bot,
   ChevronDown,
+  GitCommitHorizontal,
   Loader2,
   Lock,
   Plus,
@@ -296,6 +297,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
   const [grantPermission, setGrantPermission] = useState<'edit' | 'view'>('edit');
   const [grantNote, setGrantNote] = useState('');
   const [grantError, setGrantError] = useState<ApiError | null>(null);
+  const [revisionsOpen, setRevisionsOpen] = useState(false);
 
   useEffect(() => {
     if (!editing || loaded || pageQuery.data === undefined) {
@@ -543,6 +545,12 @@ export function EditorPage({ slug }: { slug: string | null }) {
     queryKey: ['page-grants', page?.id],
     queryFn: () => pagesApi.grants(page!.id),
     enabled: editing && page !== null && canManageGrants,
+  });
+
+  const revisionsQuery = useQuery({
+    queryKey: ['page-revisions', page?.id],
+    queryFn: () => pagesApi.revisions(page!.id),
+    enabled: editing && page !== null,
   });
 
   const grant = useMutation({
@@ -1147,6 +1155,102 @@ export function EditorPage({ slug }: { slug: string | null }) {
               </div>
             )}
           </div>
+
+          {editing && page !== null && (
+            <div className="glass-control overflow-hidden rounded-2xl">
+              <button
+                type="button"
+                onClick={() => setRevisionsOpen(value => !value)}
+                className="flex w-full items-center justify-between gap-3 border-b border-border/60 px-4 py-3 text-left"
+              >
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <GitCommitHorizontal className="size-4 text-muted-foreground" />
+                  {t('editor.revisionsTitle')}
+                  {revisionsQuery.data && (
+                    <span className="text-xs text-muted-foreground">
+                      ({revisionsQuery.data.items.length})
+                    </span>
+                  )}
+                </span>
+                <ChevronDown
+                  className={`size-4 text-muted-foreground transition-transform ${
+                    revisionsOpen ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
+              {revisionsOpen && (
+                <div className="p-4">
+                  {revisionsQuery.isLoading && (
+                    <div className="flex items-center justify-center py-6">
+                      <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+
+                  {revisionsQuery.data && revisionsQuery.data.items.length === 0 && (
+                    <p className="py-2 text-sm text-muted-foreground">
+                      {t('editor.revisionsEmpty')}
+                    </p>
+                  )}
+
+                  {revisionsQuery.data && revisionsQuery.data.items.length > 0 && (
+                    <div className="relative space-y-0">
+                      {[...revisionsQuery.data.items]
+                        .sort((a: { committed_at: string }, b: { committed_at: string }) => b.committed_at.localeCompare(a.committed_at))
+                        .map((rev: { revision_id: string; committed_at: string; commit_message: string }, index: number) => {
+                          const isCurrent = rev.revision_id === page.current_revision_id;
+                          const sortedItems = [...revisionsQuery.data.items].sort((a: { committed_at: string }, b: { committed_at: string }) => b.committed_at.localeCompare(a.committed_at));
+                          const isLast = index === sortedItems.length - 1;
+                          return (
+                            <div
+                              key={rev.revision_id}
+                              className="relative flex gap-3 py-2"
+                            >
+                              <div className="flex flex-col items-center">
+                                <div
+                                  className={`flex size-3.5 items-center justify-center rounded-full ${
+                                    isCurrent
+                                      ? 'bg-primary ring-2 ring-primary/30'
+                                      : 'bg-muted-foreground/40'
+                                  }`}
+                                />
+                                {!isLast && (
+                                  <div className="mt-1 w-px flex-1 bg-border/60" />
+                                )}
+                              </div>
+                              <div className="flex-1 pb-1">
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className={`font-mono text-xs ${
+                                      isCurrent
+                                        ? 'font-semibold text-foreground'
+                                        : 'text-muted-foreground'
+                                    }`}
+                                  >
+                                    {rev.revision_id.slice(0, 6)}
+                                  </span>
+                                  {isCurrent && (
+                                    <Badge variant="outline" className="text-[0.6rem] px-1.5 py-0">
+                                      {t('editor.revisionsCurrent')}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="mt-0.5 text-sm text-foreground">
+                                  {rev.commit_message}
+                                </p>
+                                <p className="mt-0.5 text-xs text-muted-foreground">
+                                  {new Date(rev.committed_at).toLocaleString()}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="glass-control overflow-hidden rounded-2xl">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-4 py-2">

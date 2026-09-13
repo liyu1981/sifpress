@@ -77,6 +77,7 @@ export interface PageListItem {
   content_md: string;
   tags: string[];
   status: PageStatus;
+  current_revision_id: string | null;
   created_by: number | null;
   created_by_name: string;
   updated_at: string;
@@ -92,6 +93,7 @@ export interface SearchResult {
   created_by_name: string;
   updated_at: string;
   can_edit: boolean;
+  current_revision_id?: string | null;
 }
 
 export interface UserListItem {

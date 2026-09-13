@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { ArrowRight, Calendar, Clock, FilePenLine, Search, Trash2 } from 'lucide-react';
+import { ArrowRight, Calendar, Clock, FilePenLine, GitCommitHorizontal, Search, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DeletePageMenu } from '@/components/delete-page-menu';
@@ -87,6 +87,12 @@ function ArticleCard({ article, locale }: { article: PageListItem; locale: strin
           </span>
           {article.created_by_name !== '' && <span>{article.created_by_name}</span>}
           {article.status === 'draft' && <Badge variant="outline">{t('article.draft')}</Badge>}
+          {article.current_revision_id !== null && article.current_revision_id !== undefined && (
+            <span className="inline-flex items-center gap-1.5 font-mono text-[0.65rem] text-muted-foreground/70">
+              <GitCommitHorizontal className="size-3" />
+              {article.current_revision_id.slice(0, 6)}
+            </span>
+          )}
         </div>
         <h2 className="font-heading text-xl leading-snug font-semibold tracking-tight">
           <Link

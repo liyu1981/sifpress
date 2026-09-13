@@ -214,6 +214,9 @@ const en = {
     seoOgImagePlaceholder: 'https://example.com/og.png',
     seoCanonicalField: 'Canonical URL',
     seoCanonicalPlaceholder: 'Leave empty to use the article URL',
+    revisionsTitle: 'Revisions',
+    revisionsEmpty: 'No revisions yet',
+    revisionsCurrent: 'current',
   },
   settings: {
     badge: 'System settings',
@@ -774,6 +777,9 @@ const zh = {
     seoOgImagePlaceholder: 'https://example.com/og.png',
     seoCanonicalField: '规范链接（Canonical URL）',
     seoCanonicalPlaceholder: '留空则使用文章地址',
+    revisionsTitle: '修订历史',
+    revisionsEmpty: '暂无修订记录',
+    revisionsCurrent: '当前版本',
   },
   settings: {
     badge: '系统设置',
