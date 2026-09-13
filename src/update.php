@@ -34,11 +34,10 @@ function update_self_path(): string
 }
 
 /**
- * The update manifest URL. Order of precedence:
+ * The update manifest URL. Precedence:
  *
  *   1. SIFPRESS_MANIFEST_URL constant (from sifpress_config.php)
- *   2. SIFPRESS_UPDATE_MANIFEST_URL env var (backward compat)
- *   3. UPDATE_MANIFEST_URL constant (built-in default)
+ *   2. UPDATE_MANIFEST_URL constant (built-in default)
  */
 function update_manifest_url(): string
 {
@@ -46,9 +45,7 @@ function update_manifest_url(): string
         return SIFPRESS_MANIFEST_URL;
     }
 
-    $env = getenv('SIFPRESS_UPDATE_MANIFEST_URL');
-
-    return $env !== false && $env !== '' ? $env : UPDATE_MANIFEST_URL;
+    return UPDATE_MANIFEST_URL;
 }
 
 /**
