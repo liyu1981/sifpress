@@ -30,6 +30,7 @@ export interface Page {
   content_md: string;
   tags: string[];
   status: PageStatus;
+  current_revision_id: string | null;
   created_by: number | null;
   created_by_name: string;
   updated_by: number | null;
@@ -38,6 +39,26 @@ export interface Page {
   updated_at: string;
   can_edit: boolean;
   seo: PageSeo;
+}
+
+export interface Revision {
+  revision_id: string;
+  page_id: number;
+  parent_ids: string[];
+  slug: string;
+  title: string;
+  content_md: string;
+  status: PageStatus;
+  created_by: number | null;
+  created_by_name: string;
+  created_at: string;
+  committed_at: string;
+  commit_message: string;
+}
+
+export interface RevisionListResult {
+  items: Revision[];
+  total: number;
 }
 
 export interface PageSeo {
@@ -147,7 +168,12 @@ export interface PageInput {
   content_md: string;
   status: PageStatus;
   created_at?: string;
-  updated_at?: string;
+  commit_message: string;
+}
+
+export interface PageUpdateInput extends Partial<Omit<PageInput, 'commit_message'>> {
+  id: number;
+  commit_message: string;
 }
 
 export const systemApi = {
@@ -248,11 +274,21 @@ export const pagesApi = {
       body: input,
     }).then(r => r.page),
 
-  update: (input: Partial<PageInput> & { id: number }) =>
+  update: (input: PageUpdateInput) =>
     apiRequest<{ page: Page }>('pages.update', {
       method: 'PATCH',
       body: input,
     }).then(r => r.page),
+
+  revisions: (page_id: number) =>
+    apiRequest<RevisionListResult>('pages.revisions', {
+      params: { page_id: String(page_id) },
+    }),
+
+  revision: (revision_id: string) =>
+    apiRequest<{ revision: Revision; page: Page }>('pages.revision.get', {
+      params: { revision_id },
+    }),
 
   remove: (id: number) =>
     apiRequest<{ ok: true }>('pages.delete', {

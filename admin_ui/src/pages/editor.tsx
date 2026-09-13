@@ -356,7 +356,7 @@ export function EditorPage({ slug }: { slug: string | null }) {
         status: meta.status,
         content_md: meta.content_md,
         created_at: meta.created_at,
-        updated_at: meta.updated_at,
+        commit_message: editing ? 'Update article' : 'Initial version',
       };
 
       return editing ? pagesApi.update({ id: pageQuery.data!.id, ...base }) : pagesApi.create(base);

@@ -233,6 +233,7 @@ function page_payload(array $page): array
         'content_md' => $page['content_md'],
         'tags' => front_matter_tags($page['content_md']),
         'status' => $page['status'],
+        'current_revision_id' => $page['current_revision_id'] ?? null,
         'created_by' => $page['created_by'] !== null ? (int) $page['created_by'] : null,
         'created_by_name' => (string) $page['created_by_name'],
         'updated_by' => $page['updated_by'] !== null ? (int) $page['updated_by'] : null,
@@ -301,6 +302,98 @@ function search_pages(string $q, ?string $status): array
     }, $rows);
 
     return ['items' => $items, 'total' => count($items)];
+}
+
+/* ------------------------------------------------------------------ */
+/* Revision helpers                                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Compute a SHA1 revision hash from article fields.
+ */
+function compute_revision_hash(array $fields): string
+{
+    return sha1(implode('|', [
+        $fields['slug'],
+        $fields['title'],
+        $fields['content_md'],
+        $fields['status'],
+        (string) $fields['created_by'],
+        $fields['created_at'],
+    ]));
+}
+
+/**
+ * Create a new revision for a page. Returns the revision_id (SHA1 hash).
+ */
+function create_revision(
+    int $pageId,
+    array $pageFields,
+    string $parentIds,
+    string $commitMessage,
+    ?string $committedAt = null,
+): string {
+    $revisionId = compute_revision_hash($pageFields);
+
+    $stmt = db()->prepare(
+        'INSERT INTO page_revisions
+            (page_id, revision_id, parent_ids, slug, title, content_md,
+             status, created_by, created_at, committed_at, commit_message)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    $stmt->execute([
+        $pageId,
+        $revisionId,
+        $parentIds,
+        $pageFields['slug'],
+        $pageFields['title'],
+        $pageFields['content_md'],
+        $pageFields['status'],
+        $pageFields['created_by'],
+        $pageFields['created_at'],
+        $committedAt ?? date('Y-m-d H:i:s'),
+        $commitMessage,
+    ]);
+
+    return $revisionId;
+}
+
+/**
+ * Fetch a single revision by its SHA1 id.
+ */
+function fetch_revision(string $revisionId): ?array
+{
+    $stmt = db()->prepare(
+        'SELECT r.*, u.name AS created_by_name
+           FROM page_revisions r
+           LEFT JOIN users u ON u.id = r.created_by
+          WHERE r.revision_id = ?'
+    );
+    $stmt->execute([$revisionId]);
+    $row = $stmt->fetch();
+
+    return $row === false ? null : $row;
+}
+
+/**
+ * Revision payload for API responses.
+ */
+function revision_payload(array $revision): array
+{
+    return [
+        'revision_id' => $revision['revision_id'],
+        'page_id' => (int) $revision['page_id'],
+        'parent_ids' => json_decode($revision['parent_ids'], true) ?? [],
+        'slug' => $revision['slug'],
+        'title' => $revision['title'],
+        'content_md' => $revision['content_md'],
+        'status' => $revision['status'],
+        'created_by' => $revision['created_by'] !== null ? (int) $revision['created_by'] : null,
+        'created_by_name' => (string) ($revision['created_by_name'] ?? ''),
+        'created_at' => $revision['created_at'],
+        'committed_at' => $revision['committed_at'],
+        'commit_message' => $revision['commit_message'],
+    ];
 }
 
 /* ------------------------------------------------------------------ */
@@ -899,7 +992,7 @@ function api_pages_create(string $method): never
     $content = (string) ($body['content_md'] ?? '');
     $status = (string) ($body['status'] ?? 'draft');
     $createdAt = normalize_datetime($body['created_at'] ?? '');
-    $updatedAt = normalize_datetime($body['updated_at'] ?? '');
+    $commitMessage = trim((string) ($body['commit_message'] ?? ''));
 
     $errors = [];
 
@@ -929,11 +1022,8 @@ function api_pages_create(string $method): never
         $errors['created_at'] = ['must be YYYY-MM-DD HH:MM(:SS)'];
     }
 
-    if (array_key_exists('updated_at', $body)
-        && is_string($body['updated_at'])
-        && trim($body['updated_at']) !== ''
-        && $updatedAt === '') {
-        $errors['updated_at'] = ['must be YYYY-MM-DD HH:MM(:SS)'];
+    if ($commitMessage === '') {
+        $errors['commit_message'] = ['required'];
     }
 
     if ($errors !== []) {
@@ -946,6 +1036,8 @@ function api_pages_create(string $method): never
         json_response(['error' => 'slug already exists'], 409);
     }
 
+    $createdAtValue = $createdAt !== '' ? $createdAt : date('Y-m-d H:i:s');
+
     $stmt = db()->prepare(
         'INSERT INTO pages (slug, title, content_md, status, created_by, updated_by, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
@@ -957,12 +1049,25 @@ function api_pages_create(string $method): never
         $status,
         $user['id'],
         $user['id'],
-        $createdAt !== '' ? $createdAt : date('Y-m-d H:i:s'),
-        $updatedAt !== '' ? $updatedAt : date('Y-m-d H:i:s'),
+        $createdAtValue,
+        $createdAtValue,
     ]);
 
     $pageId = (int) db()->lastInsertId();
     grant_default_guest_view($pageId, $user['id']);
+
+    $pageFields = [
+        'slug' => $slug,
+        'title' => $title,
+        'content_md' => $content,
+        'status' => $status,
+        'created_by' => $user['id'],
+        'created_at' => $createdAtValue,
+    ];
+    $revisionId = create_revision($pageId, $pageFields, '[]', $commitMessage);
+
+    db()->prepare('UPDATE pages SET current_revision_id = ? WHERE id = ?')
+        ->execute([$revisionId, $pageId]);
 
     json_response(['page' => page_payload(fetch_page($pageId))], 201);
 }
@@ -985,12 +1090,18 @@ function api_pages_update(string $method): never
 
     require_page_edit($page);
 
-    $sets = [];
-    $params = [];
     $errors = [];
 
+    $slug = array_key_exists('slug', $body) ? trim((string) $body['slug']) : $page['slug'];
+    $title = array_key_exists('title', $body) ? trim((string) $body['title']) : $page['title'];
+    $content = array_key_exists('content_md', $body) ? (string) $body['content_md'] : $page['content_md'];
+    $status = array_key_exists('status', $body) ? (string) $body['status'] : $page['status'];
+    $createdAt = array_key_exists('created_at', $body)
+        ? normalize_datetime($body['created_at'])
+        : $page['created_at'];
+    $commitMessage = trim((string) ($body['commit_message'] ?? ''));
+
     if (array_key_exists('slug', $body)) {
-        $slug = trim((string) $body['slug']);
         $slugErrors = validate_slug($slug);
         if ($slugErrors !== []) {
             $errors['slug'] = $slugErrors;
@@ -999,89 +1110,65 @@ function api_pages_update(string $method): never
             $stmt->execute([$slug, $id]);
             if ($stmt->fetch() !== false) {
                 $errors['slug'] = ['already exists'];
-            } else {
-                $sets[] = 'slug = :slug';
-                $params['slug'] = $slug;
             }
         }
     }
 
-    if (array_key_exists('title', $body)) {
-        $title = trim((string) $body['title']);
-        if ($title === '') {
-            $errors['title'] = ['required'];
-        } elseif (mb_strlen($title) > 200) {
-            $errors['title'] = ['must be at most 200 characters'];
-        } else {
-            $sets[] = 'title = :title';
-            $params['title'] = $title;
-        }
+    if ($title === '') {
+        $errors['title'] = ['required'];
+    } elseif (mb_strlen($title) > 200) {
+        $errors['title'] = ['must be at most 200 characters'];
     }
 
-    if (array_key_exists('content_md', $body)) {
-        $content = (string) $body['content_md'];
-        if (strlen($content) > 1024 * 1024) {
-            $errors['content_md'] = ['too large (max 1 MB)'];
-        } else {
-            $sets[] = 'content_md = :content_md';
-            $params['content_md'] = $content;
-        }
+    if (strlen($content) > 1024 * 1024) {
+        $errors['content_md'] = ['too large (max 1 MB)'];
     }
 
-    if (array_key_exists('status', $body)) {
-        $status = (string) $body['status'];
-        if (!in_array($status, ['draft', 'published'], true)) {
-            $errors['status'] = ['must be draft or published'];
-        } else {
-            $sets[] = 'status = :status';
-            $params['status'] = $status;
-        }
+    if (!in_array($status, ['draft', 'published'], true)) {
+        $errors['status'] = ['must be draft or published'];
     }
 
-    if (array_key_exists('created_at', $body)) {
-        $createdAt = is_string($body['created_at']) ? normalize_datetime($body['created_at']) : '';
-
-        if ($createdAt === '') {
-            if (is_string($body['created_at']) && trim($body['created_at']) !== '') {
-                $errors['created_at'] = ['must be YYYY-MM-DD HH:MM(:SS)'];
-            }
-        } else {
-            $sets[] = 'created_at = :created_at';
-            $params['created_at'] = $createdAt;
-        }
+    if (array_key_exists('created_at', $body)
+        && is_string($body['created_at'])
+        && trim($body['created_at']) !== ''
+        && $createdAt === '') {
+        $errors['created_at'] = ['must be YYYY-MM-DD HH:MM(:SS)'];
     }
 
-    if (array_key_exists('updated_at', $body)) {
-        $updatedAt = is_string($body['updated_at']) ? normalize_datetime($body['updated_at']) : '';
-
-        if ($updatedAt === '') {
-            if (is_string($body['updated_at']) && trim($body['updated_at']) !== '') {
-                $errors['updated_at'] = ['must be YYYY-MM-DD HH:MM(:SS)'];
-            }
-        } else {
-            $sets[] = 'updated_at = :updated_at';
-            $params['updated_at'] = $updatedAt;
-        }
+    if ($commitMessage === '') {
+        $errors['commit_message'] = ['required'];
     }
 
     if ($errors !== []) {
         json_response(['error' => 'validation failed', 'errors' => $errors], 422);
     }
 
-    if ($sets === []) {
+    $newFields = [
+        'slug' => $slug,
+        'title' => $title,
+        'content_md' => $content,
+        'status' => $status,
+        'created_by' => $page['created_by'],
+        'created_at' => $createdAt,
+    ];
+
+    $newHash = compute_revision_hash($newFields);
+    $currentHash = $page['current_revision_id'] ?? '';
+
+    if ($newHash === $currentHash) {
         json_response(['page' => page_payload($page)]);
     }
 
-    $sets[] = 'updated_by = :uid';
-    $params['uid'] = current_user()['id'];
-    $params['id'] = $id;
+    $parentIds = $currentHash !== '' ? json_encode([$currentHash]) : '[]';
+    $now = date('Y-m-d H:i:s');
 
-    if (!isset($params['updated_at'])) {
-        $sets[] = 'updated_at = datetime(\'now\')';
-    }
+    $revisionId = create_revision($id, $newFields, $parentIds, $commitMessage, $now);
 
-    $stmt = db()->prepare('UPDATE pages SET ' . implode(', ', $sets) . ' WHERE id = :id');
-    $stmt->execute($params);
+    db()->prepare(
+        'UPDATE pages SET slug = ?, title = ?, content_md = ?, status = ?,
+               created_at = ?, updated_at = ?, updated_by = ?, current_revision_id = ?
+         WHERE id = ?'
+    )->execute([$slug, $title, $content, $status, $createdAt, $now, current_user()['id'], $revisionId, $id]);
 
     json_response(['page' => page_payload(fetch_page($id))]);
 }
@@ -1125,6 +1212,64 @@ function api_pages_search(string $method): never
     }
 
     json_response(search_pages(trim((string) request_param('q', '')), api_status_param()));
+}
+
+function api_pages_revisions(string $method): never
+{
+    if ($method !== 'GET') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_permission('pages.read');
+
+    $pageId = (int) request_param('page_id', '0');
+    $page = fetch_page($pageId);
+
+    if ($page === null) {
+        json_response(['error' => 'page not found'], 404);
+    }
+
+    $stmt = db()->prepare(
+        'SELECT r.*, u.name AS created_by_name
+           FROM page_revisions r
+           LEFT JOIN users u ON u.id = r.created_by
+          WHERE r.page_id = ?
+          ORDER BY r.committed_at DESC'
+    );
+    $stmt->execute([$pageId]);
+    $rows = $stmt->fetchAll();
+
+    $items = array_map('revision_payload', $rows);
+
+    json_response(['items' => $items, 'total' => count($items)]);
+}
+
+function api_pages_revision_get(string $method): never
+{
+    if ($method !== 'GET') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_permission('pages.read');
+
+    $revisionId = (string) request_param('revision_id', '');
+
+    if ($revisionId === '') {
+        json_response(['error' => 'revision_id required'], 422);
+    }
+
+    $revision = fetch_revision($revisionId);
+
+    if ($revision === null) {
+        json_response(['error' => 'revision not found'], 404);
+    }
+
+    $page = fetch_page((int) $revision['page_id']);
+
+    json_response([
+        'revision' => revision_payload($revision),
+        'page' => $page !== null ? page_payload($page) : null,
+    ]);
 }
 
 function api_pages_grants(string $method): never
@@ -3100,8 +3245,8 @@ function handle_api(string $action, string $method): never
                     'settings.get', 'settings.update',
                     'tracking.get', 'tracking.update',
                     'pages.list', 'pages.get', 'pages.create', 'pages.update',
-                    'pages.delete', 'pages.search', 'pages.grants', 'pages.grant',
-                    'pages.revokeGrant',
+                    'pages.delete', 'pages.search', 'pages.revisions', 'pages.revision.get',
+                    'pages.grants', 'pages.grant', 'pages.revokeGrant',
                     'users.list', 'users.create', 'users.update', 'users.setRoles',
                     'roles.list', 'tags.list',
                     'assets.list', 'assets.get', 'assets.create', 'assets.update',
@@ -3163,6 +3308,12 @@ function handle_api(string $action, string $method): never
 
         case 'pages.search':
             api_pages_search($method);
+
+        case 'pages.revisions':
+            api_pages_revisions($method);
+
+        case 'pages.revision.get':
+            api_pages_revision_get($method);
 
         case 'pages.grants':
             api_pages_grants($method);
