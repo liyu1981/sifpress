@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { ApiError, assetSourceUrl } from 'ui-sdk';
 import { useAuth } from 'ui-sdk';
@@ -323,6 +324,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
 
   const [body, setBody] = useState('');
   const [bodyTab, setBodyTab] = useState<'editor' | 'source'>('editor');
+  const [activeTab, setActiveTab] = useState<'editor' | 'revisions' | 'permissions'>('editor');
   const [sourceBody, setSourceBody] = useState('');
   const [sourceDirty, setSourceDirty] = useState(false);
 
@@ -331,9 +333,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
   const [rawDirty, setRawDirty] = useState(false);
   const [rawError, setRawError] = useState<string | null>(null);
 
-  const [accessOpen, setAccessOpen] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
-  const [revisionsOpen, setRevisionsOpen] = useState(false);
   const [expandedDiffRevisionId, setExpandedDiffRevisionId] = useState<string | null>(null);
   const [restorePending, setRestorePending] = useState<string | null>(null);
   const isRevisionPreview = !!revision;
@@ -911,126 +911,6 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
 
           {!editing && <p className="text-sm text-muted-foreground">{t('editor.newHint')}</p>}
 
-          {editing && page !== null && canManageGrants && (
-            <div className="glass-control rounded-2xl">
-              <button
-                type="button"
-                onClick={() => setAccessOpen(value => !value)}
-                className="flex w-full items-center justify-between gap-3 p-4 text-left"
-              >
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  <ShieldCheck className="size-4 text-muted-foreground" />
-                  {t('editor.grantsTitle')}
-                </span>
-                <ChevronDown
-                  className={`size-4 text-muted-foreground transition-transform ${
-                    accessOpen ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-
-              {accessOpen && (
-                <div className="space-y-3 border-t border-border/60 p-4">
-                  <p className="text-xs text-muted-foreground">{t('editor.grantsDescription')}</p>
-
-                  <div className="overflow-x-auto rounded-xl border-2 border-black/25 dark:border-border">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b-2 border-black/25 text-left text-xs text-muted-foreground dark:border-border">
-                          <th className="px-3 py-2 font-medium">{t('editor.grantUsername')}</th>
-                          <th className="px-3 py-2 font-medium">
-                            {t('editor.grantPermissionField')}
-                          </th>
-                          <th className="px-3 py-2 font-medium">{t('editor.grantNote')}</th>
-                          <th className="px-3 py-2 font-medium" />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr className="border-b border-black/25 dark:border-border">
-                          <td className="px-3 py-2">
-                            <Input
-                              value={grantUsername}
-                              onChange={event => setGrantUsername(event.target.value)}
-                              placeholder={t('editor.grantPlaceholder')}
-                              className="h-8"
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <Select
-                              value={grantPermission}
-                              onValueChange={value => setGrantPermission(value as 'edit' | 'view')}
-                            >
-                              <SelectTrigger
-                                className="h-8 w-full min-w-[6.5rem]"
-                                aria-label={t('editor.grantPermissionField')}
-                              >
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="edit">{t('editor.permissionEdit')}</SelectItem>
-                                <SelectItem value="view">{t('editor.permissionView')}</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </td>
-                          <td className="px-3 py-2">
-                            <Input
-                              value={grantNote}
-                              onChange={event => setGrantNote(event.target.value)}
-                              placeholder={t('editor.grantNotePlaceholder')}
-                              className="h-8"
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <div className="flex justify-end">
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={handleAddGrant}
-                                disabled={grant.isPending || grantUsername.trim() === ''}
-                              >
-                                <UserPlus />
-                                {t('editor.grantAdd')}
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-
-                        {grantsQuery.data?.map((g, index) => (
-                          <GrantRow
-                            key={g.username}
-                            grant={g}
-                            index={index}
-                            onSave={permission =>
-                              grant.mutate({
-                                username: g.username,
-                                permission,
-                              })
-                            }
-                            onRevoke={() => revoke.mutate(g.username)}
-                            saving={grant.isPending || revoke.isPending}
-                          />
-                        ))}
-                        {grantsQuery.data?.length === 0 && (
-                          <tr>
-                            <td colSpan={4} className="py-2 text-sm text-muted-foreground">
-                              {t('editor.grantsEmpty')}
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {grantError !== null && (
-                    <p className="text-sm text-destructive">
-                      {grantError.data.error ?? t('editor.grantError')}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
           {messages.length > 0 && (
             <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
               {messages.map(message => (
@@ -1039,448 +919,568 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
             </div>
           )}
 
-          {editing && page !== null && (
-            <div className="glass-control overflow-hidden rounded-2xl">
-              <button
-                type="button"
-                onClick={() => setRevisionsOpen(value => !value)}
-                className="flex w-full items-center justify-between gap-3 border-b border-border/60 px-4 py-3 text-left"
-              >
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  <GitCommitHorizontal className="size-4 text-muted-foreground" />
+          <Tabs
+            value={activeTab}
+            onValueChange={v => setActiveTab(v as typeof activeTab)}
+            orientation="vertical"
+            className="flex flex-row gap-4"
+          >
+            <TabsList className="glass-control flex-col items-stretch justify-start gap-1 rounded-2xl p-2">
+              <TabsTrigger value="editor" className="justify-start">
+                {t('editor.bodyTitle')}
+              </TabsTrigger>
+              {editing && page !== null && (
+                <TabsTrigger value="revisions" className="justify-start">
                   {t('editor.revisionsTitle')}
                   {revisionsQuery.data && (
-                    <span className="text-xs text-muted-foreground">
+                    <span className="ml-1 text-xs text-muted-foreground">
                       ({revisionsQuery.data.items.length})
                     </span>
                   )}
-                </span>
-                <ChevronDown
-                  className={`size-4 text-muted-foreground transition-transform ${
-                    revisionsOpen ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-
-              {revisionsOpen && (
-                <div className="p-4">
-                  {revisionsQuery.isLoading && (
-                    <div className="flex items-center justify-center py-6">
-                      <Loader2 className="size-4 animate-spin text-muted-foreground" />
-                    </div>
-                  )}
-
-                  {revisionsQuery.data && revisionsQuery.data.items.length === 0 && (
-                    <p className="py-2 text-sm text-muted-foreground">
-                      {t('editor.revisionsEmpty')}
-                    </p>
-                  )}
-
-                  {revisionsQuery.data && revisionsQuery.data.items.length > 0 && (
-                    <RevisionGraph
-                      revisions={revisionsQuery.data.items}
-                      currentRevisionId={page.current_revision_id}
-                    >
-                      {(rev, { isCurrent, isLast }) => {
-                        const isDiffExpanded = expandedDiffRevisionId === rev.revision_id;
-                        return (
-                          <div className="w-full">
-                            <div className="flex items-center gap-2">
-                              <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                                {rev.revision_id.slice(0, 8)}
-                              </span>
-                              <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                                {rev.commit_message}
-                              </span>
-                              <div className="flex shrink-0 items-center gap-1">
-                                {!isCurrent && (
-                                  <>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="xs"
-                                      className={`h-5 px-1.5 text-[0.65rem] ${isDiffExpanded ? 'text-primary' : ''}`}
-                                      onClick={() =>
-                                        setExpandedDiffRevisionId(
-                                          isDiffExpanded ? null : rev.revision_id,
-                                        )
-                                      }
-                                    >
-                                      {t('editor.revisionDiff')}
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="xs"
-                                      className="h-5 px-1.5 text-[0.65rem]"
-                                      asChild
-                                    >
-                                      <Link
-                                        to="/admin/editor/$slug"
-                                        params={{ slug: slug ?? '' }}
-                                        search={{ revision: rev.revision_id }}
-                                      >
-                                        {t('editor.revisionView')}
-                                      </Link>
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="xs"
-                                      className="h-5 px-1.5 text-[0.65rem] text-amber-600 hover:text-amber-700"
-                                      onClick={() => {
-                                        setRestorePending(rev.revision_id);
-                                        restoreMutation.mutate(rev.revision_id);
-                                      }}
-                                      disabled={restorePending === rev.revision_id}
-                                    >
-                                      {restorePending === rev.revision_id ? (
-                                        <Loader2 className="size-3 animate-spin" />
-                                      ) : (
-                                        <RotateCcw className="size-3" />
-                                      )}
-                                      {t('editor.revisionRestore')}
-                                    </Button>
-                                  </>
-                                )}
-                                {isCurrent && (
-                                  <span className="text-xs font-medium text-primary">
-                                    {t('editor.revisionsCurrent')}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <p className="mt-0.5 text-xs text-muted-foreground">
-                              {new Date(rev.committed_at).toLocaleString()}
-                            </p>
-                            {isDiffExpanded && diffQuery.data && (
-                              <div className="mt-3 space-y-3 rounded-lg border border-border/40 bg-background/60 p-3">
-                                <div>
-                                  <p className="mb-1 text-xs font-medium text-muted-foreground">
-                                    {t('editor.revisionDiffTitle')}
-                                  </p>
-                                  {diffQuery.data.title.some(l => l.type !== 'same') ? (
-                                    <div className="rounded-lg border border-border/40 bg-background/60 p-2 font-mono text-xs leading-relaxed">
-                                      <DiffLines lines={diffQuery.data.title} />
-                                    </div>
-                                  ) : (
-                                    <p className="text-xs text-muted-foreground italic">
-                                      {t('editor.revisionDiffNoDiff')}
-                                    </p>
-                                  )}
-                                </div>
-                                <div>
-                                  <p className="mb-1 text-xs font-medium text-muted-foreground">
-                                    {t('editor.revisionDiffContent')}
-                                  </p>
-                                  {diffQuery.data.content_md.some(l => l.type !== 'same') ? (
-                                    <div className="max-h-80 overflow-y-auto rounded-lg border border-border/40 bg-background/60 p-2 font-mono text-xs leading-relaxed">
-                                      <DiffLines lines={diffQuery.data.content_md} />
-                                    </div>
-                                  ) : (
-                                    <p className="text-xs text-muted-foreground italic">
-                                      {t('editor.revisionDiffNoDiff')}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      }}
-                    </RevisionGraph>
-                  )}
-                </div>
+                </TabsTrigger>
               )}
-            </div>
-          )}
+              {editing && page !== null && canManageGrants && (
+                <TabsTrigger value="permissions" className="justify-start">
+                  {t('editor.grantsTitle')}
+                </TabsTrigger>
+              )}
+            </TabsList>
 
-          <div className="glass-control overflow-hidden rounded-2xl shadow-[0_10px_24px_-8px_rgba(0,0,0,0.28)] dark:shadow-[0_10px_24px_-8px_rgba(0,0,0,0.6)]">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
-              <span className="text-sm font-medium">{t('editor.frontmatterTitle')}</span>
-              <SegmentedControl
-                value={frontTab}
-                onChange={switchFrontTab}
-                options={[
-                  { value: 'fields', label: t('editor.fieldsTab') },
-                  { value: 'raw', label: t('editor.rawTab') },
-                ]}
-              />
-            </div>
-
-            {frontTab === 'fields' ? (
-              <div className="p-4">
-                <div className="flex flex-wrap items-end gap-3">
-                  <label className="flex min-w-0 flex-1 flex-col gap-1.5">
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {t('editor.titleField')}
-                    </span>
-                    <Input
-                      value={title}
-                      onChange={event => setTitle(event.target.value)}
-                      placeholder={t('editor.titleField')}
-                      className="h-9"
+            <div className="flex-1">
+              {/* ── Editor Tab ── */}
+              <TabsContent value="editor" className="mt-0 space-y-4">
+                <div className="glass-control overflow-hidden rounded-2xl shadow-[0_10px_24px_-8px_rgba(0,0,0,0.28)] dark:shadow-[0_10px_24px_-8px_rgba(0,0,0,0.6)]">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
+                    <span className="text-sm font-medium">{t('editor.frontmatterTitle')}</span>
+                    <SegmentedControl
+                      value={frontTab}
+                      onChange={switchFrontTab}
+                      options={[
+                        { value: 'fields', label: t('editor.fieldsTab') },
+                        { value: 'raw', label: t('editor.rawTab') },
+                      ]}
                     />
-                  </label>
-                  <label className="flex w-full flex-col gap-1.5 sm:w-56">
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {t('editor.slugField')}
-                    </span>
-                    <Input
-                      value={slugValue}
-                      onChange={event => setSlugValue(event.target.value)}
-                      placeholder="my-post-slug"
-                      className="h-9"
-                    />
-                  </label>
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 gap-3 border-t border-border/60 pt-4 sm:grid-cols-3">
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {t('editor.updatedAtField')}
-                    </span>
-                    <Input
-                      value={updatedDate}
-                      onChange={event => setUpdatedDate(event.target.value)}
-                      placeholder={t('editor.updatedAtHint')}
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {t('editor.createdAtField')}
-                    </span>
-                    <Input
-                      value={date}
-                      onChange={event => setDate(event.target.value)}
-                      placeholder="YYYY-MM-DD"
-                      readOnly={isRevisionPreview}
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {t('editor.tagsField')}
-                    </span>
-                    <TagsInput
-                      value={tags}
-                      onChange={setTags}
-                      placeholder={t('editor.tagsPlaceholder')}
-                    />
-                    {tags.length === 0 && (
-                      <span className="text-[0.65rem] leading-none text-muted-foreground">
-                        {t('editor.tagsHint')}
-                      </span>
-                    )}
-                  </label>
-                </div>
-
-                <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/60 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setSeoOpen(value => !value)}
-                    className="flex items-center gap-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-                    aria-expanded={seoOpen}
-                  >
-                    <ChevronDown
-                      className={`size-3.5 transition-transform ${seoOpen ? 'rotate-180' : ''}`}
-                    />
-                    {t('editor.seoTitle')}
-                  </button>
-                  {seoOpen && (
-                    <label className="flex cursor-pointer items-center gap-2">
-                      <Switch
-                        checked={seoNoindex}
-                        onCheckedChange={setSeoNoindex}
-                        aria-label={t('editor.seoNoindex')}
-                      />
-                      <span className="text-xs text-muted-foreground">
-                        {t('editor.seoNoindex')}
-                      </span>
-                    </label>
-                  )}
-                </div>
-
-                {seoOpen && (
-                  <div className="mt-3 space-y-3 border-t border-border/60 pt-3">
-                    <label className="flex flex-col gap-1.5">
-                      <span className="text-xs font-medium text-muted-foreground">
-                        {t('editor.seoTitleField')}
-                      </span>
-                      <Input
-                        value={seoTitle}
-                        onChange={event => setSeoTitle(event.target.value)}
-                        placeholder={t('editor.seoTitlePlaceholder')}
-                        className="h-8"
-                        readOnly={isRevisionPreview}
-                      />
-                    </label>
-                    <label className="flex flex-col gap-1.5">
-                      <span className="text-xs font-medium text-muted-foreground">
-                        {t('editor.seoDescriptionField')}
-                      </span>
-                      <textarea
-                        value={seoDescription}
-                        onChange={event => setSeoDescription(event.target.value)}
-                        placeholder={t('editor.seoDescriptionPlaceholder')}
-                        className="min-h-20 w-full resize-y rounded-xl border border-input bg-background p-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
-                        readOnly={isRevisionPreview}
-                      />
-                      <span className="text-[0.65rem] leading-none text-muted-foreground">
-                        {t('editor.seoDescriptionCount', { count: seoDescription.length })}
-                      </span>
-                    </label>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <label className="flex flex-col gap-1.5">
-                        <span className="text-xs font-medium text-muted-foreground">
-                          {t('editor.seoKeywordsField')}
-                        </span>
-                        <Input
-                          value={seoKeywords}
-                          onChange={event => setSeoKeywords(event.target.value)}
-                          placeholder={t('editor.seoKeywordsPlaceholder')}
-                          className="h-8"
-                          readOnly={isRevisionPreview}
-                        />
-                      </label>
-                      <label className="flex flex-col gap-1.5">
-                        <span className="text-xs font-medium text-muted-foreground">
-                          {t('editor.seoOgImageField')}
-                        </span>
-                        <Input
-                          value={seoOgImage}
-                          onChange={event => setSeoOgImage(event.target.value)}
-                          placeholder="https://example.com/og.png"
-                          className="h-8"
-                          readOnly={isRevisionPreview}
-                        />
-                      </label>
-                    </div>
-                    <label className="flex flex-col gap-1.5">
-                      <span className="text-xs font-medium text-muted-foreground">
-                        {t('editor.seoCanonicalField')}
-                      </span>
-                      <Input
-                        value={seoCanonical}
-                        onChange={event => setSeoCanonical(event.target.value)}
-                        placeholder={t('editor.seoCanonicalPlaceholder')}
-                        className="h-8"
-                        readOnly={isRevisionPreview}
-                      />
-                    </label>
                   </div>
-                )}
 
-                <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/60 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setExtraOpen(value => !value)}
-                    className="flex items-center gap-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-                    aria-expanded={extraOpen}
-                  >
-                    <ChevronDown
-                      className={`size-3.5 transition-transform ${extraOpen ? 'rotate-180' : ''}`}
-                    />
-                    {t('editor.extraFieldsTitle')}
-                  </button>
-                  <Button type="button" variant="outline" size="xs" onClick={addExtraField}>
-                    <Plus />
-                    {t('editor.addField')}
-                  </Button>
-                </div>
+                  {frontTab === 'fields' ? (
+                    <div className="p-4">
+                      <div className="flex flex-wrap items-end gap-3">
+                        <label className="flex min-w-0 flex-1 flex-col gap-1.5">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {t('editor.titleField')}
+                          </span>
+                          <Input
+                            value={title}
+                            onChange={event => setTitle(event.target.value)}
+                            placeholder={t('editor.titleField')}
+                            className="h-9"
+                          />
+                        </label>
+                        <label className="flex w-full flex-col gap-1.5 sm:w-56">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {t('editor.slugField')}
+                          </span>
+                          <Input
+                            value={slugValue}
+                            onChange={event => setSlugValue(event.target.value)}
+                            placeholder="my-post-slug"
+                            className="h-9"
+                          />
+                        </label>
+                      </div>
 
-                {extraOpen && (
-                  <div className="mt-3 space-y-2">
-                    {extraFields.length === 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        {t('editor.extraFieldsEmpty')}
-                      </p>
-                    )}
-                    {extraFields.map(field => (
-                      <div key={field.id} className="flex items-center gap-2">
-                        <Input
-                          value={field.key}
-                          onChange={event =>
-                            updateExtraField(field.id, { key: event.target.value })
-                          }
-                          placeholder={t('editor.fieldKeyPlaceholder')}
-                          className="h-8 w-32"
-                          readOnly={isRevisionPreview}
-                        />
-                        <Input
-                          value={field.value}
-                          onChange={event =>
-                            updateExtraField(field.id, { value: event.target.value })
-                          }
-                          placeholder={t('editor.fieldValuePlaceholder')}
-                          className="h-8 flex-1"
-                          readOnly={isRevisionPreview}
-                        />
-                        <Button
+                      <div className="mt-4 grid grid-cols-1 gap-3 border-t border-border/60 pt-4 sm:grid-cols-3">
+                        <label className="flex flex-col gap-1.5">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {t('editor.updatedAtField')}
+                          </span>
+                          <Input
+                            value={updatedDate}
+                            onChange={event => setUpdatedDate(event.target.value)}
+                            placeholder={t('editor.updatedAtHint')}
+                          />
+                        </label>
+                        <label className="flex flex-col gap-1.5">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {t('editor.createdAtField')}
+                          </span>
+                          <Input
+                            value={date}
+                            onChange={event => setDate(event.target.value)}
+                            placeholder="YYYY-MM-DD"
+                            readOnly={isRevisionPreview}
+                          />
+                        </label>
+                        <label className="flex flex-col gap-1.5">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {t('editor.tagsField')}
+                          </span>
+                          <TagsInput
+                            value={tags}
+                            onChange={setTags}
+                            placeholder={t('editor.tagsPlaceholder')}
+                          />
+                          {tags.length === 0 && (
+                            <span className="text-[0.65rem] leading-none text-muted-foreground">
+                              {t('editor.tagsHint')}
+                            </span>
+                          )}
+                        </label>
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/60 pt-4">
+                        <button
                           type="button"
-                          variant="ghost"
-                          size="xs"
-                          onClick={() => removeExtraField(field.id)}
-                          aria-label={t('editor.removeField')}
+                          onClick={() => setSeoOpen(value => !value)}
+                          className="flex items-center gap-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+                          aria-expanded={seoOpen}
                         >
-                          <X className="size-4" />
+                          <ChevronDown
+                            className={`size-3.5 transition-transform ${seoOpen ? 'rotate-180' : ''}`}
+                          />
+                          {t('editor.seoTitle')}
+                        </button>
+                        {seoOpen && (
+                          <label className="flex cursor-pointer items-center gap-2">
+                            <Switch
+                              checked={seoNoindex}
+                              onCheckedChange={setSeoNoindex}
+                              aria-label={t('editor.seoNoindex')}
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              {t('editor.seoNoindex')}
+                            </span>
+                          </label>
+                        )}
+                      </div>
+
+                      {seoOpen && (
+                        <div className="mt-3 space-y-3 border-t border-border/60 pt-3">
+                          <label className="flex flex-col gap-1.5">
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {t('editor.seoTitleField')}
+                            </span>
+                            <Input
+                              value={seoTitle}
+                              onChange={event => setSeoTitle(event.target.value)}
+                              placeholder={t('editor.seoTitlePlaceholder')}
+                              className="h-8"
+                              readOnly={isRevisionPreview}
+                            />
+                          </label>
+                          <label className="flex flex-col gap-1.5">
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {t('editor.seoDescriptionField')}
+                            </span>
+                            <textarea
+                              value={seoDescription}
+                              onChange={event => setSeoDescription(event.target.value)}
+                              placeholder={t('editor.seoDescriptionPlaceholder')}
+                              className="min-h-20 w-full resize-y rounded-xl border border-input bg-background p-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+                              readOnly={isRevisionPreview}
+                            />
+                            <span className="text-[0.65rem] leading-none text-muted-foreground">
+                              {t('editor.seoDescriptionCount', { count: seoDescription.length })}
+                            </span>
+                          </label>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <label className="flex flex-col gap-1.5">
+                              <span className="text-xs font-medium text-muted-foreground">
+                                {t('editor.seoKeywordsField')}
+                              </span>
+                              <Input
+                                value={seoKeywords}
+                                onChange={event => setSeoKeywords(event.target.value)}
+                                placeholder={t('editor.seoKeywordsPlaceholder')}
+                                className="h-8"
+                                readOnly={isRevisionPreview}
+                              />
+                            </label>
+                            <label className="flex flex-col gap-1.5">
+                              <span className="text-xs font-medium text-muted-foreground">
+                                {t('editor.seoOgImageField')}
+                              </span>
+                              <Input
+                                value={seoOgImage}
+                                onChange={event => setSeoOgImage(event.target.value)}
+                                placeholder="https://example.com/og.png"
+                                className="h-8"
+                                readOnly={isRevisionPreview}
+                              />
+                            </label>
+                          </div>
+                          <label className="flex flex-col gap-1.5">
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {t('editor.seoCanonicalField')}
+                            </span>
+                            <Input
+                              value={seoCanonical}
+                              onChange={event => setSeoCanonical(event.target.value)}
+                              placeholder={t('editor.seoCanonicalPlaceholder')}
+                              className="h-8"
+                              readOnly={isRevisionPreview}
+                            />
+                          </label>
+                        </div>
+                      )}
+
+                      <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/60 pt-4">
+                        <button
+                          type="button"
+                          onClick={() => setExtraOpen(value => !value)}
+                          className="flex items-center gap-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+                          aria-expanded={extraOpen}
+                        >
+                          <ChevronDown
+                            className={`size-3.5 transition-transform ${extraOpen ? 'rotate-180' : ''}`}
+                          />
+                          {t('editor.extraFieldsTitle')}
+                        </button>
+                        <Button type="button" variant="outline" size="xs" onClick={addExtraField}>
+                          <Plus />
+                          {t('editor.addField')}
                         </Button>
                       </div>
-                    ))}
+
+                      {extraOpen && (
+                        <div className="mt-3 space-y-2">
+                          {extraFields.length === 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              {t('editor.extraFieldsEmpty')}
+                            </p>
+                          )}
+                          {extraFields.map(field => (
+                            <div key={field.id} className="flex items-center gap-2">
+                              <Input
+                                value={field.key}
+                                onChange={event =>
+                                  updateExtraField(field.id, { key: event.target.value })
+                                }
+                                placeholder={t('editor.fieldKeyPlaceholder')}
+                                className="h-8 w-32"
+                                readOnly={isRevisionPreview}
+                              />
+                              <Input
+                                value={field.value}
+                                onChange={event =>
+                                  updateExtraField(field.id, { value: event.target.value })
+                                }
+                                placeholder={t('editor.fieldValuePlaceholder')}
+                                className="h-8 flex-1"
+                                readOnly={isRevisionPreview}
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="xs"
+                                onClick={() => removeExtraField(field.id)}
+                                aria-label={t('editor.removeField')}
+                              >
+                                <X className="size-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-4">
+                      <textarea
+                        aria-label={t('editor.rawTab')}
+                        value={rawFront}
+                        onChange={event => {
+                          setRawFront(event.target.value);
+                          setRawDirty(true);
+                        }}
+                        readOnly={isRevisionPreview}
+                        className="h-64 w-full resize-y rounded-xl border border-input bg-background p-3 font-mono text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+                        spellCheck={false}
+                      />
+                      {rawError !== null && (
+                        <p className="mt-2 text-sm text-destructive">{rawError}</p>
+                      )}
+                      <p className="mt-2 text-xs text-muted-foreground">{t('editor.rawHint')}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="glass-control overflow-hidden rounded-2xl">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-4 py-2">
+                    <span className="text-sm font-medium">{t('editor.bodyTitle')}</span>
+                    <SegmentedControl
+                      value={bodyTab}
+                      onChange={switchBodyTab}
+                      options={[
+                        { value: 'editor', label: t('editor.editorTab') },
+                        { value: 'source', label: t('editor.sourceTab') },
+                      ]}
+                    />
+                  </div>
+
+                  <div className={bodyTab === 'editor' ? 'block' : 'hidden'}>
+                    {(!editing || loaded) && (
+                      <MilkdownEditor ref={editorRef} defaultValue={body} onUpload={handleUpload} />
+                    )}
+                  </div>
+
+                  {bodyTab === 'source' && (
+                    <textarea
+                      aria-label={t('editor.sourceTab')}
+                      value={sourceBody}
+                      onChange={event => {
+                        setSourceBody(event.target.value);
+                        setSourceDirty(true);
+                      }}
+                      readOnly={isRevisionPreview}
+                      className="min-h-[60vh] w-full resize-y bg-transparent p-4 font-mono text-sm leading-6 outline-none"
+                      spellCheck={false}
+                    />
+                  )}
+                </div>
+              </TabsContent>
+
+              {/* ── Revisions Tab ── */}
+              <TabsContent value="revisions" className="mt-0">
+                {editing && page !== null && (
+                  <div className="glass-control overflow-hidden rounded-2xl p-4">
+                    {revisionsQuery.isLoading && (
+                      <div className="flex items-center justify-center py-6">
+                        <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                      </div>
+                    )}
+
+                    {revisionsQuery.data && revisionsQuery.data.items.length === 0 && (
+                      <p className="py-2 text-sm text-muted-foreground">
+                        {t('editor.revisionsEmpty')}
+                      </p>
+                    )}
+
+                    {revisionsQuery.data && revisionsQuery.data.items.length > 0 && (
+                      <RevisionGraph
+                        revisions={revisionsQuery.data.items}
+                        currentRevisionId={page.current_revision_id}
+                      >
+                        {(rev, { isCurrent, isLast }) => {
+                          const isDiffExpanded = expandedDiffRevisionId === rev.revision_id;
+                          return (
+                            <div className="w-full">
+                              <div className="flex items-center gap-2">
+                                <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                                  {rev.revision_id.slice(0, 8)}
+                                </span>
+                                <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                                  {rev.commit_message}
+                                </span>
+                                <div className="flex shrink-0 items-center gap-1">
+                                  {!isCurrent && (
+                                    <>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="xs"
+                                        className={`h-5 px-1.5 text-[0.65rem] ${isDiffExpanded ? 'text-primary' : ''}`}
+                                        onClick={() =>
+                                          setExpandedDiffRevisionId(
+                                            isDiffExpanded ? null : rev.revision_id,
+                                          )
+                                        }
+                                      >
+                                        {t('editor.revisionDiff')}
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="xs"
+                                        className="h-5 px-1.5 text-[0.65rem]"
+                                        asChild
+                                      >
+                                        <Link
+                                          to="/admin/editor/$slug"
+                                          params={{ slug: slug ?? '' }}
+                                          search={{ revision: rev.revision_id }}
+                                        >
+                                          {t('editor.revisionView')}
+                                        </Link>
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="xs"
+                                        className="h-5 px-1.5 text-[0.65rem] text-amber-600 hover:text-amber-700"
+                                        onClick={() => {
+                                          setRestorePending(rev.revision_id);
+                                          restoreMutation.mutate(rev.revision_id);
+                                        }}
+                                        disabled={restorePending === rev.revision_id}
+                                      >
+                                        {restorePending === rev.revision_id ? (
+                                          <Loader2 className="size-3 animate-spin" />
+                                        ) : (
+                                          <RotateCcw className="size-3" />
+                                        )}
+                                        {t('editor.revisionRestore')}
+                                      </Button>
+                                    </>
+                                  )}
+                                  {isCurrent && (
+                                    <span className="text-xs font-medium text-primary">
+                                      {t('editor.revisionsCurrent')}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <p className="mt-0.5 text-xs text-muted-foreground">
+                                {new Date(rev.committed_at).toLocaleString()}
+                              </p>
+                              {isDiffExpanded && diffQuery.data && (
+                                <div className="mt-3 space-y-3 rounded-lg border border-border/40 bg-background/60 p-3">
+                                  <div>
+                                    <p className="mb-1 text-xs font-medium text-muted-foreground">
+                                      {t('editor.revisionDiffTitle')}
+                                    </p>
+                                    {diffQuery.data.title.some(l => l.type !== 'same') ? (
+                                      <div className="rounded-lg border border-border/40 bg-background/60 p-2 font-mono text-xs leading-relaxed">
+                                        <DiffLines lines={diffQuery.data.title} />
+                                      </div>
+                                    ) : (
+                                      <p className="text-xs text-muted-foreground italic">
+                                        {t('editor.revisionDiffNoDiff')}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <p className="mb-1 text-xs font-medium text-muted-foreground">
+                                      {t('editor.revisionDiffContent')}
+                                    </p>
+                                    {diffQuery.data.content_md.some(l => l.type !== 'same') ? (
+                                      <div className="max-h-80 overflow-y-auto rounded-lg border border-border/40 bg-background/60 p-2 font-mono text-xs leading-relaxed">
+                                        <DiffLines lines={diffQuery.data.content_md} />
+                                      </div>
+                                    ) : (
+                                      <p className="text-xs text-muted-foreground italic">
+                                        {t('editor.revisionDiffNoDiff')}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }}
+                      </RevisionGraph>
+                    )}
                   </div>
                 )}
-              </div>
-            ) : (
-              <div className="p-4">
-                <textarea
-                  aria-label={t('editor.rawTab')}
-                  value={rawFront}
-                  onChange={event => {
-                    setRawFront(event.target.value);
-                    setRawDirty(true);
-                  }}
-                  readOnly={isRevisionPreview}
-                  className="h-64 w-full resize-y rounded-xl border border-input bg-background p-3 font-mono text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
-                  spellCheck={false}
-                />
-                {rawError !== null && <p className="mt-2 text-sm text-destructive">{rawError}</p>}
-                <p className="mt-2 text-xs text-muted-foreground">{t('editor.rawHint')}</p>
-              </div>
-            )}
-          </div>
+              </TabsContent>
 
-          <div className="glass-control overflow-hidden rounded-2xl">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-4 py-2">
-              <span className="text-sm font-medium">{t('editor.bodyTitle')}</span>
-              <SegmentedControl
-                value={bodyTab}
-                onChange={switchBodyTab}
-                options={[
-                  { value: 'editor', label: t('editor.editorTab') },
-                  { value: 'source', label: t('editor.sourceTab') },
-                ]}
-              />
+              {/* ── Permissions Tab ── */}
+              <TabsContent value="permissions" className="mt-0">
+                {editing && page !== null && canManageGrants && (
+                  <div className="glass-control rounded-2xl p-4">
+                    <p className="mb-3 text-xs text-muted-foreground">
+                      {t('editor.grantsDescription')}
+                    </p>
+
+                    <div className="overflow-x-auto rounded-xl border-2 border-black/25 dark:border-border">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b-2 border-black/25 text-left text-xs text-muted-foreground dark:border-border">
+                            <th className="px-3 py-2 font-medium">{t('editor.grantUsername')}</th>
+                            <th className="px-3 py-2 font-medium">
+                              {t('editor.grantPermissionField')}
+                            </th>
+                            <th className="px-3 py-2 font-medium">{t('editor.grantNote')}</th>
+                            <th className="px-3 py-2 font-medium" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="border-b border-black/25 dark:border-border">
+                            <td className="px-3 py-2">
+                              <Input
+                                value={grantUsername}
+                                onChange={event => setGrantUsername(event.target.value)}
+                                placeholder={t('editor.grantPlaceholder')}
+                                className="h-8"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <Select
+                                value={grantPermission}
+                                onValueChange={value =>
+                                  setGrantPermission(value as 'edit' | 'view')
+                                }
+                              >
+                                <SelectTrigger
+                                  className="h-8 w-full min-w-[6.5rem]"
+                                  aria-label={t('editor.grantPermissionField')}
+                                >
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="edit">{t('editor.permissionEdit')}</SelectItem>
+                                  <SelectItem value="view">{t('editor.permissionView')}</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className="px-3 py-2">
+                              <Input
+                                value={grantNote}
+                                onChange={event => setGrantNote(event.target.value)}
+                                placeholder={t('editor.grantNotePlaceholder')}
+                                className="h-8"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <div className="flex justify-end">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={handleAddGrant}
+                                  disabled={grant.isPending || grantUsername.trim() === ''}
+                                >
+                                  <UserPlus />
+                                  {t('editor.grantAdd')}
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+
+                          {grantsQuery.data?.map((g, index) => (
+                            <GrantRow
+                              key={g.username}
+                              grant={g}
+                              index={index}
+                              onSave={permission =>
+                                grant.mutate({
+                                  username: g.username,
+                                  permission,
+                                })
+                              }
+                              onRevoke={() => revoke.mutate(g.username)}
+                              saving={grant.isPending || revoke.isPending}
+                            />
+                          ))}
+                          {grantsQuery.data?.length === 0 && (
+                            <tr>
+                              <td colSpan={4} className="py-2 text-sm text-muted-foreground">
+                                {t('editor.grantsEmpty')}
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {grantError !== null && (
+                      <p className="mt-3 text-sm text-destructive">
+                        {grantError.data.error ?? t('editor.grantError')}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </TabsContent>
             </div>
-
-            <div className={bodyTab === 'editor' ? 'block' : 'hidden'}>
-              {(!editing || loaded) && (
-                <MilkdownEditor ref={editorRef} defaultValue={body} onUpload={handleUpload} />
-              )}
-            </div>
-
-            {bodyTab === 'source' && (
-              <textarea
-                aria-label={t('editor.sourceTab')}
-                value={sourceBody}
-                onChange={event => {
-                  setSourceBody(event.target.value);
-                  setSourceDirty(true);
-                }}
-                readOnly={isRevisionPreview}
-                className="min-h-[60vh] w-full resize-y bg-transparent p-4 font-mono text-sm leading-6 outline-none"
-                spellCheck={false}
-              />
-            )}
-          </div>
+          </Tabs>
         </form>
       </div>
 
