@@ -339,7 +339,12 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
   const isRevisionPreview = !!revision;
   const revisionQuery = useQuery({
     queryKey: ['revision-preview', revision],
-    queryFn: () => pagesApi.revision(revision!),
+    queryFn: () => {
+      if (revision === undefined) {
+        throw new Error('No revision');
+      }
+      return pagesApi.revision(revision);
+    },
     enabled: !!revision,
   });
   const [grantUsername, setGrantUsername] = useState('');
@@ -448,7 +453,10 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
         commit_message: editing ? 'Update article' : 'Initial version',
       };
 
-      return editing ? pagesApi.update({ id: pageQuery.data!.id, ...base }) : pagesApi.create(base);
+      const existing = pageQuery.data;
+      return editing && existing != null
+        ? pagesApi.update({ id: existing.id, ...base })
+        : pagesApi.create(base);
     },
     onSuccess: page => {
       queryClient.invalidateQueries({ queryKey: ['pages'] });
@@ -630,13 +638,22 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
 
   const grantsQuery = useQuery({
     queryKey: ['page-grants', page?.id],
-    queryFn: () => pagesApi.grants(page!.id),
+    queryFn: () => {
+      if (page === null) {
+        throw new Error('No page');
+      }
+      return pagesApi.grants(page.id);
+    },
     enabled: editing && page !== null && canManageGrants,
   });
 
   const grant = useMutation({
-    mutationFn: (args: { username: string; permission: 'edit' | 'view'; note?: string }) =>
-      pagesApi.grant(page!.id, args.username, args.permission, args.note),
+    mutationFn: (args: { username: string; permission: 'edit' | 'view'; note?: string }) => {
+      if (page === null) {
+        throw new Error('No page');
+      }
+      return pagesApi.grant(page.id, args.username, args.permission, args.note);
+    },
     onSuccess: () => {
       setGrantError(null);
       queryClient.invalidateQueries({ queryKey: ['page-grants', page?.id] });
@@ -658,7 +675,12 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
   }
 
   const revoke = useMutation({
-    mutationFn: (username: string) => pagesApi.revokeGrant(page!.id, username),
+    mutationFn: (username: string) => {
+      if (page === null) {
+        throw new Error('No page');
+      }
+      return pagesApi.revokeGrant(page.id, username);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['page-grants', page?.id] });
     },
@@ -666,13 +688,24 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
 
   const revisionsQuery = useQuery({
     queryKey: ['page-revisions', page?.id],
-    queryFn: () => pagesApi.revisions(page!.id),
+    queryFn: () => {
+      if (page === null) {
+        throw new Error('No page');
+      }
+      return pagesApi.revisions(page.id);
+    },
     enabled: editing && page !== null,
   });
 
   const diffQuery = useQuery({
     queryKey: ['revision-diff', expandedDiffRevisionId, page?.current_revision_id],
-    queryFn: () => pagesApi.revisionDiff(expandedDiffRevisionId!, page?.current_revision_id!),
+    queryFn: () => {
+      const currentRevisionId = page?.current_revision_id;
+      if (expandedDiffRevisionId === null || currentRevisionId == null) {
+        throw new Error('No revision selected');
+      }
+      return pagesApi.revisionDiff(expandedDiffRevisionId, currentRevisionId);
+    },
     enabled: !!expandedDiffRevisionId && !!page?.current_revision_id,
   });
   const restoreMutation = useMutation({

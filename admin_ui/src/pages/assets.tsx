@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Copy, Film, Loader2, Search, Trash2, Upload, X } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { Check, Copy, Loader2, Search, Trash2, Upload, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,11 +16,14 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePageTitle } from '@/hooks/use-page-title';
-import { ApiError, assetMarkdownLink, assetUrl, copyText } from 'ui-sdk';
+import { ApiError, assetMarkdownLink, copyText } from 'ui-sdk';
 import { makeImageThumb, makeVideoThumb } from 'ui-sdk';
 import { useAuth } from 'ui-sdk';
 import { type Asset, type AssetKind, assetsApi, systemApi } from 'ui-sdk';
 import { cn } from '@/lib/utils';
+import { formatTimestamp } from '@/lib/format';
+import { AssetThumb } from '@/components/asset-thumb';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 
 const PER_PAGE = 24;
 const ACCEPT =
@@ -40,54 +43,12 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[i]}`;
 }
 
-function formatDate(value: string, language: string): string {
-  const date = new Date(value.replace(' ', 'T') + 'Z');
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return date.toLocaleDateString(language, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
 interface UploadItem {
   key: string;
   file: File;
   status: 'queued' | 'processing' | 'done' | 'error';
   error?: string;
   duplicate?: boolean;
-}
-
-function AssetThumb({ asset }: { asset: Asset }) {
-  if (asset.has_thumb) {
-    return (
-      <img
-        src={assetUrl(asset.id, true)}
-        alt={asset.name}
-        loading="lazy"
-        className="size-full object-cover"
-      />
-    );
-  }
-
-  if (asset.kind === 'image') {
-    return (
-      <img
-        src={assetUrl(asset.id)}
-        alt={asset.name}
-        loading="lazy"
-        className="size-full object-contain"
-      />
-    );
-  }
-
-  return (
-    <div className="flex size-full items-center justify-center bg-muted/30 text-muted-foreground">
-      <Film className="size-10" />
-    </div>
-  );
 }
 
 export function AssetsPage() {
@@ -106,7 +67,19 @@ export function AssetsPage() {
   const [queue, setQueue] = useState<UploadItem[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [copyFallback, setCopyFallback] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Asset | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const copyTimerRef = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (copyTimerRef.current !== null) {
+        window.clearTimeout(copyTimerRef.current);
+      }
+    },
+    [],
+  );
 
   const listQuery = useQuery({
     queryKey: ['assets', { kind, q: submitted, page }],
@@ -237,17 +210,21 @@ export function AssetsPage() {
     const text = assetMarkdownLink(asset.name, asset.id, asset.kind);
 
     if (!(await copyText(text))) {
-      window.prompt(t('assets.copyManual'), text);
+      setCopyFallback(text);
     }
 
     setCopiedId(asset.id);
-    window.setTimeout(() => setCopiedId(null), 1500);
+    if (copyTimerRef.current !== null) {
+      window.clearTimeout(copyTimerRef.current);
+    }
+    copyTimerRef.current = window.setTimeout(() => {
+      copyTimerRef.current = null;
+      setCopiedId(null);
+    }, 1500);
   }
 
   function handleDelete(asset: Asset) {
-    if (window.confirm(t('assets.deleteConfirm'))) {
-      remove.mutate(asset.id);
-    }
+    setPendingDelete(asset);
   }
 
   const pendingCount = queue.filter(entry => entry.status === 'queued').length;
@@ -453,7 +430,7 @@ export function AssetsPage() {
                   </div>
                   <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                     <span className="truncate">
-                      {formatDate(asset.created_at, i18n.language)}
+                      {formatTimestamp(asset.created_at, i18n.language)}
                       {' · '}
                       {t('assets.by', { name: asset.uploaded_by_name || '—' })}
                     </span>
@@ -522,6 +499,40 @@ export function AssetsPage() {
           )}
         </>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={open => {
+          if (!open) setPendingDelete(null);
+        }}
+        title={t('assets.deleteConfirm')}
+        confirmLabel={t('common.delete')}
+        cancelLabel={t('common.cancel')}
+        destructive
+        onConfirm={() => {
+          if (pendingDelete !== null) {
+            remove.mutate(pendingDelete.id);
+          }
+          setPendingDelete(null);
+        }}
+      />
+
+      <ConfirmDialog
+        open={copyFallback !== null}
+        onOpenChange={open => {
+          if (!open) setCopyFallback(null);
+        }}
+        title={t('assets.copyManual')}
+        confirmLabel={t('common.close')}
+        onConfirm={() => setCopyFallback(null)}
+      >
+        <Input
+          readOnly
+          value={copyFallback ?? ''}
+          onFocus={event => event.target.select()}
+          className="h-9 font-mono text-xs"
+        />
+      </ConfirmDialog>
     </div>
   );
 }

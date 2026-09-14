@@ -83,10 +83,14 @@ class LocalCredentialStore implements CredentialStore {
       }
       return next;
     });
-    this.chains.set(
-      providerId,
-      run.catch(() => undefined),
-    );
+    const tracked = run.catch(() => undefined);
+    this.chains.set(providerId, tracked);
+    void tracked.then(() => {
+      // Evict the chain once it settles, unless a newer modify superseded it.
+      if (this.chains.get(providerId) === tracked) {
+        this.chains.delete(providerId);
+      }
+    });
     return run;
   }
 

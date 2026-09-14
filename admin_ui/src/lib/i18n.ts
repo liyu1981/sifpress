@@ -5,6 +5,11 @@ const LANGUAGE_KEY = 'language';
 
 const en = {
   app: 'Sifpress',
+  common: {
+    cancel: 'Cancel',
+    delete: 'Delete',
+    close: 'Close',
+  },
   nav: {
     home: 'Home',
     sifront: 'Sifront',
@@ -569,11 +574,6 @@ const en = {
       xhigh: 'Extra high',
       max: 'Max',
     },
-    confirmCreateTitle: 'Create page?',
-    confirmUpdateTitle: 'Update page?',
-    confirmHint: 'The agent cannot change your content without your approval.',
-    confirmApprove: 'Approve',
-    confirmReject: 'Reject',
     systemPrompt:
       "You are the assistant inside Sifpress, a personal markdown blog. Help the user with their content and answer their questions. Use the provided tools to search and read the user's local pages, list tags and pages, and fetch web pages. When the user asks you to edit the open draft, mutate its frontmatter and content sections with the update_frontmatter and set_content tools — changes land in the editor UI and are only saved when the user clicks Save. When asked about the user's content, search for it before answering. Answer in {{language}}.",
   },
@@ -581,6 +581,11 @@ const en = {
 
 const zh = {
   app: 'Sifpress',
+  common: {
+    cancel: '取消',
+    delete: '删除',
+    close: '关闭',
+  },
   nav: {
     home: '首页',
     sifront: '前台',
@@ -1136,11 +1141,6 @@ const zh = {
       xhigh: '极高',
       max: '最大',
     },
-    confirmCreateTitle: '创建页面？',
-    confirmUpdateTitle: '更新页面？',
-    confirmHint: '未经你的批准，智能体不能修改你的内容。',
-    confirmApprove: '批准',
-    confirmReject: '拒绝',
     systemPrompt:
       '你是 Sifpress（一个个人 Markdown 博客）中的智能助手。帮助用户处理内容并回答问题。使用提供的工具搜索和阅读用户的本地页面、列出标签和页面、抓取网页。当用户要求你编辑打开的草稿时，使用 update_frontmatter 和 set_content 工具修改其 frontmatter 和内容区块——更改会直接反映在编辑器界面中，仅当用户点击保存时才会写入。当被问到用户的内容时，先搜索再回答。用{{language}}回答。',
   },

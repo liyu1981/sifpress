@@ -26,7 +26,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { buildAgent } from '@/lib/agent/agent';
-import { type ConfirmRequest, setConfirmHandler } from '@/lib/agent/confirm';
 import type { EditorMutationBridge } from '@/lib/agent/editor-mutations';
 import {
   getModel,
@@ -38,7 +37,6 @@ import { deleteSession, listSessionsFull, saveSession, type AgentSession } from 
 import { buildAgentTools } from '@/lib/agent/tools';
 import { MarkdownView } from 'ui-sdk';
 import { cn } from '@/lib/utils';
-import { ConfirmDialog } from './confirm-dialog';
 
 const LAST_MODEL_KEY = 'agent.lastModel';
 const THINKING_LEVELS: ThinkingLevel[] = ['off', 'low', 'medium', 'high'];
@@ -123,15 +121,14 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
   const [isThinking, setIsThinking] = useState(false);
   const [toolChips, setToolChips] = useState<ToolChip[]>([]);
   const [expandedToolCalls, setExpandedToolCalls] = useState<Set<string>>(new Set());
-  const [pendingConfirm, setPendingConfirm] = useState<ConfirmRequest | null>(null);
   const [input, setInput] = useState('');
   const [runError, setRunError] = useState<string | null>(null);
 
   const agentRef = useRef<Agent | null>(null);
+  const unsubRef = useRef<(() => void) | null>(null);
   const latestRef = useRef<AgentSession | null>(null);
   const draftRef = useRef(draft ?? null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const initialized = useRef(false);
 
   useEffect(() => {
     draftRef.current = draft ?? null;
@@ -191,7 +188,8 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
 
   const subscribeAgent = useCallback(
     (instance: Agent, sessionNow: AgentSession) => {
-      instance.subscribe(event => {
+      unsubRef.current?.();
+      unsubRef.current = instance.subscribe(event => {
         if (agentRef.current !== instance || latestRef.current?.id !== sessionNow.id) {
           return;
         }
@@ -332,14 +330,13 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
   }, [buildForSession, defaultModel, i18n.language, sessions, t]);
 
   useEffect(() => {
-    if (initialized.current) {
-      return;
-    }
-    initialized.current = true;
-    setConfirmHandler(request => setPendingConfirm(request));
+    let cancelled = false;
     void (async () => {
       await refreshModels().catch(() => undefined);
       const all = await listSessionsFull();
+      if (cancelled) {
+        return;
+      }
       all.sort((a, b) => a.updatedAt - b.updatedAt);
       if (all.length > 0) {
         setSessions(all);
@@ -352,7 +349,9 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
       }
     })();
     return () => {
-      setConfirmHandler(null);
+      cancelled = true;
+      unsubRef.current?.();
+      unsubRef.current = null;
       agentRef.current?.abort();
       agentRef.current = null;
     };
@@ -480,7 +479,7 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
   const renderMessage = (message: AgentMessage, index: number, allMessages?: AgentMessage[]) => {
     if (message.role === 'user') {
       return (
-        <div key={index} className="flex justify-end">
+        <div key={`user-${message.timestamp}-${index}`} className="flex justify-end">
           <div className="max-w-[88%] rounded-2xl bg-accent px-3 py-2 text-sm text-accent-foreground">
             <p className="whitespace-pre-wrap">{messageText(message)}</p>
           </div>
@@ -509,7 +508,7 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
     }
 
     return (
-      <div key={index} className="flex items-start gap-2">
+      <div key={`assistant-${message.timestamp}-${index}`} className="flex items-start gap-2">
         <div className="glass-control-opaque mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-lg">
           <Bot className="size-3.5 text-muted-foreground" />
         </div>
@@ -519,12 +518,12 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
               <MarkdownView content={text} />
             </div>
           )}
-          {calledTools.map((call, i) => {
+          {calledTools.map(call => {
             const expanded = expandedToolCalls.has(call.id);
             const resultMsg = toolResultMap.get(call.id);
             const hasDetails = resultMsg !== undefined;
             return (
-              <div key={i}>
+              <div key={call.id}>
                 <button
                   type="button"
                   onClick={hasDetails ? () => toggleToolCall(call.id) : undefined}
@@ -814,16 +813,6 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
           )}
         </form>
       </footer>
-
-      {pendingConfirm !== null && (
-        <ConfirmDialog
-          request={pendingConfirm}
-          onResolve={ok => {
-            pendingConfirm.resolve(ok);
-            setPendingConfirm(null);
-          }}
-        />
-      )}
     </div>
   );
 }

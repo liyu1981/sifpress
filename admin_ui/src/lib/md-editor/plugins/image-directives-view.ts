@@ -24,7 +24,7 @@ export const imageDirectivesView = $view(imageSchema.node, () => {
     dom.className = 'md-image-view';
 
     const sync = (node: Node): void => {
-      const attrs = node.attrs as unknown as ImageDirectiveAttrs;
+      const attrs = node.attrs as ImageDirectiveAttrs;
       const lone = isLoneImage(view, getPos());
 
       // A position directive makes the image a block (with a caption); without

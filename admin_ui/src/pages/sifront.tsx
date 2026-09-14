@@ -18,20 +18,10 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { usePageTitle } from '@/hooks/use-page-title';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useAuth } from 'ui-sdk';
 import { kvsApi, sifrontsApi, type SifrontListItem } from 'ui-sdk';
-
-function formatDate(value: string, language: string): string {
-  const date = new Date(value.replace(' ', 'T') + 'Z');
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return date.toLocaleDateString(language, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
+import { formatTimestamp } from '@/lib/format';
 
 function ValueCell({ value }: { value: unknown }) {
   const text = typeof value === 'string' ? value : JSON.stringify(value);
@@ -45,9 +35,10 @@ function MetaTable({
   meta: Record<string, unknown> | null;
   values?: Record<string, unknown>;
 }) {
-  const requireKeys = Array.isArray(meta?.require_keys)
-    ? (meta!.require_keys as Record<string, unknown>[])
-    : [];
+  const requireKeys: Record<string, unknown>[] =
+    meta !== null && Array.isArray(meta.require_keys)
+      ? (meta.require_keys as Record<string, unknown>[])
+      : [];
 
   if (requireKeys.length === 0) {
     return <p className="text-sm text-muted-foreground">No theme keys declared.</p>;
@@ -106,6 +97,7 @@ function SifrontCard({
 }) {
   const { t, i18n } = useTranslation();
   const [expanded, setExpanded] = useState(sf.is_active);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const detail = useQuery({
     queryKey: ['sifront', sf.id],
@@ -133,7 +125,7 @@ function SifrontCard({
         </CardTitle>
         <CardDescription>
           {t('sifront.version', { version: sf.version })} ·{' '}
-          {formatDate(sf.updated_at, i18n.language)}
+          {formatTimestamp(sf.updated_at, i18n.language)}
         </CardDescription>
         <CardAction className="flex items-center gap-2">
           {sf.is_active && (
@@ -165,11 +157,7 @@ function SifrontCard({
                   variant="ghost"
                   size="icon"
                   className="text-destructive hover:text-destructive"
-                  onClick={() => {
-                    if (window.confirm(t('sifront.deleteConfirm', { name: sf.name }))) {
-                      remove.mutate(sf.id);
-                    }
-                  }}
+                  onClick={() => setConfirmDelete(true)}
                   disabled={remove.isPending}
                 >
                   <Trash2 className="size-4" />
@@ -198,6 +186,15 @@ function SifrontCard({
           )}
         </CardContent>
       )}
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={t('sifront.deleteConfirm', { name: sf.name })}
+        confirmLabel={t('common.delete')}
+        cancelLabel={t('common.cancel')}
+        destructive
+        onConfirm={() => remove.mutate(sf.id)}
+      />
     </Card>
   );
 }

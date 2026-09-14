@@ -17,6 +17,7 @@ class DiagramTooltipView implements PluginView {
   #view: EditorView;
   #currentNode: Node | null = null;
   #textarea: HTMLTextAreaElement | null = null;
+  #focusTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(view: EditorView) {
     this.#view = view;
@@ -58,7 +59,11 @@ class DiagramTooltipView implements PluginView {
     this.#tooltipProvider.onShow = () => {
       if (this.#currentNode && this.#textarea) {
         this.#textarea.value = (this.#currentNode.attrs.value as string) ?? '';
-        setTimeout(() => {
+        if (this.#focusTimer !== null) {
+          clearTimeout(this.#focusTimer);
+        }
+        this.#focusTimer = setTimeout(() => {
+          this.#focusTimer = null;
           this.#textarea?.focus();
           this.#textarea?.setSelectionRange(
             this.#textarea.value.length,
@@ -105,6 +110,10 @@ class DiagramTooltipView implements PluginView {
   };
 
   destroy = (): void => {
+    if (this.#focusTimer !== null) {
+      clearTimeout(this.#focusTimer);
+      this.#focusTimer = null;
+    }
     this.#tooltipProvider.destroy();
     this.#content.remove();
   };

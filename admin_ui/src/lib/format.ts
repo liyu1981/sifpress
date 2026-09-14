@@ -6,6 +6,22 @@ export function formatDate(iso: string, locale: string): string {
   });
 }
 
+/**
+ * Format a SQLite `YYYY-MM-DD HH:MM:SS` UTC timestamp for display. Returns the
+ * raw value when it cannot be parsed, so bad data degrades gracefully.
+ */
+export function formatTimestamp(value: string, locale: string): string {
+  const date = new Date(`${value.replace(' ', 'T')}Z`);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleDateString(locale, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 export function estimateReadingMinutes(text: string): number {
   const words = text.trim().split(/\s+/).length;
   return Math.max(1, Math.round(words / 200));

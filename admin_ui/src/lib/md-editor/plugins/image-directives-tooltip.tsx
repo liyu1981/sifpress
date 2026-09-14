@@ -5,10 +5,10 @@ import type { Node } from '@milkdown/kit/prose/model';
 import type { EditorState, PluginView } from '@milkdown/kit/prose/state';
 import { NodeSelection } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
-import { ChevronDown, Film, Loader2, Plus } from 'lucide-react';
+import { ChevronDown, Loader2, Plus } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { assetSourceUrl, assetUrl, isVideoSource, rebuildImageAlt } from 'ui-sdk';
+import { assetSourceUrl, isVideoSource, rebuildImageAlt } from 'ui-sdk';
 import type { ImageDirectiveAttrs } from 'ui-sdk';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,7 @@ import { Switch } from '@/components/ui/switch';
 import i18n from '@/lib/i18n';
 import { type Asset, assetsApi } from 'ui-sdk';
 import { cn } from '@/lib/utils';
+import { AssetThumb } from '@/components/asset-thumb';
 import { bestEffortPositionMiddleware } from './image-directives-position';
 
 export const imageDirectiveTooltip = tooltipFactory('IMAGE_DIRECTIVES');
@@ -52,36 +53,6 @@ interface ImageDirectivePopupProps {
 
 const ASSETS_PER_PAGE = 9;
 
-function AssetThumb({ asset }: { asset: Asset }) {
-  if (asset.has_thumb) {
-    return (
-      <img
-        src={assetUrl(asset.id, true)}
-        alt={asset.name}
-        loading="lazy"
-        className="size-full object-cover"
-      />
-    );
-  }
-
-  if (asset.kind === 'image') {
-    return (
-      <img
-        src={assetUrl(asset.id)}
-        alt={asset.name}
-        loading="lazy"
-        className="size-full object-contain"
-      />
-    );
-  }
-
-  return (
-    <div className="flex size-full items-center justify-center bg-muted/30 text-muted-foreground">
-      <Film className="size-6" />
-    </div>
-  );
-}
-
 function ImageDirectivePopup({ node, onCommit, onUpload }: ImageDirectivePopupProps) {
   const t = i18n.t.bind(i18n);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -91,7 +62,7 @@ function ImageDirectivePopup({ node, onCommit, onUpload }: ImageDirectivePopupPr
   const [assetsPage, setAssetsPage] = useState(1);
   const [assetsTotal, setAssetsTotal] = useState(0);
   const [assetsLoading, setAssetsLoading] = useState(false);
-  const attrs = node.attrs as unknown as ImageDirectiveAttrs;
+  const attrs = node.attrs as ImageDirectiveAttrs;
 
   const setDimension = (key: 'width' | 'height') => (raw: string) => {
     const value = raw.trim();
@@ -138,16 +109,19 @@ function ImageDirectivePopup({ node, onCommit, onUpload }: ImageDirectivePopupPr
   }, [kind, loadedKind, assetsOpen, loadAssets]);
 
   const toggleAssets = (): void => {
-    setAssetsOpen(open => {
-      const next = !open;
-      // The popup's React state outlives node selections (the view mounts the
-      // root once), so a grid previously loaded for an image node would show
-      // image assets inside a video popup. Reload when the kind changed.
-      if (next && (assets.length === 0 || loadedKind !== kind)) {
-        void loadAssets(1);
-      }
-      return next;
-    });
+    if (assetsOpen) {
+      setAssetsOpen(false);
+      setAssets([]);
+      setLoadedKind(null);
+      return;
+    }
+    setAssetsOpen(true);
+    // The popup's React state outlives node selections (the view mounts the
+    // root once), so a grid previously loaded for an image node would show
+    // image assets inside a video popup. Reload when the kind changed.
+    if (assets.length === 0 || loadedKind !== kind) {
+      void loadAssets(1);
+    }
   };
 
   const handleFile = async (file: File | undefined): Promise<void> => {
@@ -337,7 +311,7 @@ function ImageDirectivePopup({ node, onCommit, onUpload }: ImageDirectivePopupPr
                 title={asset.name}
                 className="aspect-square overflow-hidden rounded-lg border border-border/60 bg-muted/30 transition-colors hover:border-ring"
               >
-                <AssetThumb asset={asset} />
+                <AssetThumb asset={asset} iconClassName="size-6" />
               </button>
             ))}
           </div>
@@ -426,7 +400,7 @@ class ImageDirectiveTooltipView implements PluginView {
     }
 
     const { from } = selection;
-    const nextAttrs = { ...selection.node.attrs, ...patch } as unknown as Record<string, unknown>;
+    const nextAttrs = { ...selection.node.attrs, ...patch } as Record<string, unknown>;
 
     // setNodeMarkup collapses the NodeSelection into a TextSelection, which
     // would make the tooltip's shouldShow return false and hide the popup

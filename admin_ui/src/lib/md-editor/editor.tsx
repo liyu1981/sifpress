@@ -146,13 +146,22 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
 
       let wasEqShown = false;
       let wasDiagShown = false;
+      const timers = new Set<ReturnType<typeof setTimeout>>();
+
+      const schedule = (fn: () => void): void => {
+        const id = setTimeout(() => {
+          timers.delete(id);
+          fn();
+        }, 100);
+        timers.add(id);
+      };
 
       const observer = new MutationObserver(() => {
         const eqEdit = container.querySelector('.milkdown-latex-inline-edit');
         const eqShown = eqEdit?.getAttribute('data-show') === 'true';
 
         if (eqShown && !wasEqShown) {
-          setTimeout(() => {
+          schedule(() => {
             const prose = eqEdit?.querySelector('.ProseMirror');
             if (prose instanceof HTMLElement) {
               prose.focus();
@@ -163,7 +172,7 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
               sel?.removeAllRanges();
               sel?.addRange(range);
             }
-          }, 100);
+          });
         }
         wasEqShown = eqShown;
 
@@ -171,13 +180,13 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
         const diagShown = diagTooltip?.getAttribute('data-show') === 'true';
 
         if (diagShown && !wasDiagShown) {
-          setTimeout(() => {
+          schedule(() => {
             const textarea = diagTooltip?.querySelector('.milkdown-diagram-tooltip-input');
             if (textarea instanceof HTMLTextAreaElement) {
               textarea.focus();
               textarea.setSelectionRange(textarea.value.length, textarea.value.length);
             }
-          }, 100);
+          });
         }
         wasDiagShown = diagShown;
       });
@@ -188,7 +197,13 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
         attributeFilter: ['data-show'],
       });
 
-      return () => observer.disconnect();
+      return () => {
+        observer.disconnect();
+        for (const id of timers) {
+          clearTimeout(id);
+        }
+        timers.clear();
+      };
     }, []);
 
     return (

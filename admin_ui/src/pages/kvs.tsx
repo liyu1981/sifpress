@@ -36,6 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { ApiError, kvsApi, type KvGrant, type KvPair } from 'ui-sdk';
 import { useAuth } from 'ui-sdk';
+import { formatTimestamp } from '@/lib/format';
 
 const PER_PAGE = 20;
 
@@ -47,18 +48,6 @@ function formatJson(value: unknown): string {
     return 'null';
   }
   return JSON.stringify(value, null, 2);
-}
-
-function formatDate(value: string, language: string): string {
-  const date = new Date(value.replace(' ', 'T') + 'Z');
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return date.toLocaleDateString(language, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
 }
 
 let _ajv: Ajv | null = null;
@@ -86,15 +75,22 @@ function validateJsonSchema(schema: unknown): { valid: boolean; error?: string }
   }
 }
 
-function NewKvCard() {
+interface KvFormProps {
+  pair?: KvPair;
+  onDone?: () => void;
+}
+
+function KvForm({ pair, onDone }: KvFormProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [key, setKey] = useState('');
-  const [content, setContent] = useState<Content>({ json: {} });
+  const isEdit = pair !== undefined;
+
+  const [key, setKey] = useState(pair?.key ?? '');
+  const [content, setContent] = useState<Content>({ json: pair?.value ?? {} });
   const [formKey, setFormKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [schemaOpen, setSchemaOpen] = useState(false);
-  const [schemaContent, setSchemaContent] = useState<Content>({ json: {} });
+  const [schemaOpen, setSchemaOpen] = useState(pair?.schema != null);
+  const [schemaContent, setSchemaContent] = useState<Content>({ json: pair?.schema ?? {} });
   const [schemaFormKey, setSchemaFormKey] = useState(0);
 
   const schemaValue = useMemo(() => {
@@ -129,20 +125,25 @@ function NewKvCard() {
     }
   }, [schemaValidation.valid, schemaValue]);
 
+  const validateContent = () => {
+    const parsed = contentToJson(content);
+    if (!parsed.ok) {
+      throw new ApiError(422, { error: t('kvs.invalidJson') });
+    }
+    if (validator) {
+      const errors = validator(parsed.value);
+      if (errors.length > 0) {
+        throw new ApiError(422, {
+          error: t('kvs.schemaValidationError', { message: errors[0].message }),
+        });
+      }
+    }
+    return parsed;
+  };
+
   const create = useMutation({
     mutationFn: () => {
-      const parsed = contentToJson(content);
-      if (!parsed.ok) {
-        throw new ApiError(422, { error: t('kvs.invalidJson') });
-      }
-      if (validator) {
-        const errors = validator(parsed.value);
-        if (errors.length > 0) {
-          throw new ApiError(422, {
-            error: t('kvs.schemaValidationError', { message: errors[0].message }),
-          });
-        }
-      }
+      const parsed = validateContent();
       return kvsApi.create({
         key: key.trim(),
         value: parsed.value,
@@ -167,166 +168,19 @@ function NewKvCard() {
     },
   });
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    create.mutate();
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardAction>
-          <KeyRound className="size-5 text-muted-foreground" />
-        </CardAction>
-        <CardTitle>{t('kvs.newTitle')}</CardTitle>
-        <CardDescription>{t('kvs.newDescription')}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="kv-new-key">{t('kvs.keyField')}</Label>
-            <Input
-              id="kv-new-key"
-              value={key}
-              onChange={event => setKey(event.target.value)}
-              placeholder={t('kvs.keyPlaceholder')}
-              required
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <Label>{t('kvs.schemaTitle')}</Label>
-              {!schemaOpen && (
-                <Button type="button" variant="ghost" size="xs" onClick={() => setSchemaOpen(true)}>
-                  <Plus />
-                  {t('kvs.schemaAdd')}
-                </Button>
-              )}
-              {schemaOpen && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => {
-                    setSchemaOpen(false);
-                    setSchemaContent({ json: {} });
-                    setSchemaFormKey(v => v + 1);
-                  }}
-                >
-                  {t('kvs.schemaRemove')}
-                </Button>
-              )}
-            </div>
-            {schemaOpen && (
-              <div className="space-y-1.5 rounded-xl border border-border/60 p-3">
-                <p className="text-xs text-muted-foreground">{t('kvs.schemaDescription')}</p>
-                <JsonEditor
-                  key={schemaFormKey}
-                  initialValue={{}}
-                  onChange={setSchemaContent}
-                  className="h-[480px]"
-                  ariaLabel={t('kvs.schemaTitle')}
-                />
-                {schemaValidation.error && (
-                  <p className="text-xs text-destructive">{schemaValidation.error}</p>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="kv-new-value">{t('kvs.valueLabel')}</Label>
-            <JsonEditor
-              key={formKey}
-              id="kv-new-value"
-              initialValue={{}}
-              validator={validator}
-              onChange={setContent}
-              className="h-[480px]"
-              ariaLabel={t('kvs.valueLabel')}
-            />
-            <p className="text-xs text-muted-foreground">{t('kvs.valueHint')}</p>
-          </div>
-          {error !== null && <p className="text-sm text-destructive">{error}</p>}
-          <Button type="submit" disabled={create.isPending}>
-            {create.isPending ? <Loader2 className="animate-spin" /> : <Plus />}
-            {t('kvs.create')}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
-  );
-}
-
-function KvEditForm({ pair, onDone }: { pair: KvPair; onDone: () => void }) {
-  const { t } = useTranslation();
-  const queryClient = useQueryClient();
-  const [key, setKey] = useState(pair.key);
-  const [content, setContent] = useState<Content>({ json: pair.value });
-  const [error, setError] = useState<string | null>(null);
-  const [schemaOpen, setSchemaOpen] = useState(pair.schema !== null && pair.schema !== undefined);
-  const [schemaContent, setSchemaContent] = useState<Content>(
-    pair.schema !== null && pair.schema !== undefined ? { json: pair.schema } : { json: {} },
-  );
-  const [schemaFormKey, setSchemaFormKey] = useState(0);
-
-  const schemaValue = useMemo(() => {
-    if (!schemaOpen) return null;
-    const result = contentToJson(schemaContent);
-    return result.ok ? result.value : null;
-  }, [schemaOpen, schemaContent]);
-
-  const schemaValidation = useMemo(() => {
-    if (!schemaValue || typeof schemaValue !== 'object' || Array.isArray(schemaValue)) {
-      return { valid: true, error: undefined as string | undefined };
-    }
-    return validateJsonSchema(schemaValue);
-  }, [schemaValue]);
-
-  const validator = useMemo(() => {
-    if (
-      !schemaValidation.valid ||
-      !schemaValue ||
-      typeof schemaValue !== 'object' ||
-      Array.isArray(schemaValue)
-    ) {
-      return undefined;
-    }
-    try {
-      return createAjvValidator({
-        schema: schemaValue as Record<string, unknown>,
-        errorSeverity: ValidationSeverity.error,
-      });
-    } catch {
-      return undefined;
-    }
-  }, [schemaValidation.valid, schemaValue]);
-
   const save = useMutation({
     mutationFn: () => {
-      const parsed = contentToJson(content);
-      if (!parsed.ok) {
-        throw new ApiError(422, { error: t('kvs.invalidJson') });
-      }
-      if (validator) {
-        const errors = validator(parsed.value);
-        if (errors.length > 0) {
-          throw new ApiError(422, {
-            error: t('kvs.schemaValidationError', { message: errors[0].message }),
-          });
-        }
-      }
+      const parsed = validateContent();
       return kvsApi.update({
-        key: pair.key,
-        ...(key.trim() !== pair.key ? { new_key: key.trim() } : {}),
+        key: pair?.key ?? '',
+        ...(pair !== undefined && key.trim() !== pair.key ? { new_key: key.trim() } : {}),
         value: parsed.value,
         schema: schemaOpen ? schemaValue : null,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['kvs'] });
-      onDone();
+      onDone?.();
     },
     onError: err => {
       setError(
@@ -335,19 +189,24 @@ function KvEditForm({ pair, onDone }: { pair: KvPair; onDone: () => void }) {
     },
   });
 
+  const mutation = isEdit ? save : create;
+  const pending = mutation.isPending;
+  const idPrefix = pair !== undefined ? `kv-edit-${pair.id}` : 'kv-new';
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    save.mutate();
+    mutation.mutate();
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div className="space-y-1.5">
-        <Label htmlFor={`kv-edit-key-${pair.id}`}>{t('kvs.keyField')}</Label>
+        <Label htmlFor={`${idPrefix}-key`}>{t('kvs.keyField')}</Label>
         <Input
-          id={`kv-edit-key-${pair.id}`}
+          id={`${idPrefix}-key`}
           value={key}
           onChange={event => setKey(event.target.value)}
+          placeholder={pair === undefined ? t('kvs.keyPlaceholder') : undefined}
           required
         />
       </div>
@@ -381,7 +240,7 @@ function KvEditForm({ pair, onDone }: { pair: KvPair; onDone: () => void }) {
             <p className="text-xs text-muted-foreground">{t('kvs.schemaDescription')}</p>
             <JsonEditor
               key={schemaFormKey}
-              initialValue={pair.schema ?? {}}
+              initialValue={pair?.schema ?? {}}
               onChange={setSchemaContent}
               className="h-[480px]"
               ariaLabel={t('kvs.schemaTitle')}
@@ -394,28 +253,61 @@ function KvEditForm({ pair, onDone }: { pair: KvPair; onDone: () => void }) {
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor={`kv-edit-value-${pair.id}`}>{t('kvs.valueLabel')}</Label>
+        <Label htmlFor={`${idPrefix}-value`}>{t('kvs.valueLabel')}</Label>
         <JsonEditor
-          id={`kv-edit-value-${pair.id}`}
-          initialValue={pair.value}
+          key={formKey}
+          id={`${idPrefix}-value`}
+          initialValue={pair !== undefined ? pair.value : {}}
           validator={validator}
           onChange={setContent}
           className="h-[480px]"
           ariaLabel={t('kvs.valueLabel')}
         />
+        {pair === undefined && (
+          <p className="text-xs text-muted-foreground">{t('kvs.valueHint')}</p>
+        )}
       </div>
       {error !== null && <p className="text-sm text-destructive">{error}</p>}
-      <div className="flex items-center gap-2">
-        <Button type="submit" size="sm" disabled={save.isPending}>
-          {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
-          {t('kvs.save')}
+      {pair !== undefined ? (
+        <div className="flex items-center gap-2">
+          <Button type="submit" size="sm" disabled={pending}>
+            {pending ? <Loader2 className="animate-spin" /> : <Save />}
+            {t('kvs.save')}
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={onDone} disabled={pending}>
+            {t('kvs.cancel')}
+          </Button>
+        </div>
+      ) : (
+        <Button type="submit" disabled={pending}>
+          {pending ? <Loader2 className="animate-spin" /> : <Plus />}
+          {t('kvs.create')}
         </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={onDone} disabled={save.isPending}>
-          {t('kvs.cancel')}
-        </Button>
-      </div>
+      )}
     </form>
   );
+}
+
+function NewKvCard() {
+  const { t } = useTranslation();
+  return (
+    <Card>
+      <CardHeader>
+        <CardAction>
+          <KeyRound className="size-5 text-muted-foreground" />
+        </CardAction>
+        <CardTitle>{t('kvs.newTitle')}</CardTitle>
+        <CardDescription>{t('kvs.newDescription')}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <KvForm />
+      </CardContent>
+    </Card>
+  );
+}
+
+function KvEditForm({ pair, onDone }: { pair: KvPair; onDone: () => void }) {
+  return <KvForm pair={pair} onDone={onDone} />;
 }
 
 function KvGrantRow({
@@ -687,7 +579,7 @@ function KvCard({ pair, canManage }: { pair: KvPair; canManage: boolean }) {
       {/* Updated info */}
       <div className="flex flex-wrap items-center gap-2 px-4 pb-3 text-xs text-muted-foreground">
         <span>
-          {t('kvs.updatedAt')} {formatDate(pair.updated_at, i18n.language)}
+          {t('kvs.updatedAt')} {formatTimestamp(pair.updated_at, i18n.language)}
           {' · '}
           {t('kvs.by', { name: pair.updated_by_name || '—' })}
         </span>

@@ -106,17 +106,21 @@ export function RevisionGraph({ revisions, currentRevisionId, children }: Revisi
   const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [rowHeights, setRowHeights] = useState<number[]>([]);
 
+  const sorted = useMemo(
+    () => [...revisions].sort((a, b) => b.committed_at.localeCompare(a.committed_at)),
+    [revisions],
+  );
+
+  // Rows can grow when a diff expands (the expansion is owned by `children`),
+  // so heights must be re-measured after every commit. The equality bail-out
+  // below prevents a render loop.
   useLayoutEffect(() => {
+    rowRefs.current.length = sorted.length;
     const next = rowRefs.current.map(el => el?.offsetHeight ?? ROW_H);
     setRowHeights(prev =>
       prev.length === next.length && prev.every((h, i) => h === next[i]) ? prev : next,
     );
   });
-
-  const sorted = useMemo(
-    () => [...revisions].sort((a, b) => b.committed_at.localeCompare(a.committed_at)),
-    [revisions],
-  );
 
   const { laneOf, maxLane } = useMemo(() => {
     const { roots } = buildTree(revisions);

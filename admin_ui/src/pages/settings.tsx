@@ -642,16 +642,27 @@ function UsersCard() {
   );
 }
 
-function SeoSettingsCard() {
+interface SettingsFormConfig<T extends object> {
+  queryKey: string[];
+  queryFn: () => Promise<T>;
+  mutationFn: (input: Partial<T>) => Promise<unknown>;
+  buildPatch: (form: T) => Partial<T>;
+  errorKey: string;
+}
+
+function useSettingsForm<T extends object>({
+  queryKey,
+  queryFn,
+  mutationFn,
+  buildPatch,
+  errorKey,
+}: SettingsFormConfig<T>) {
   const { t } = useTranslation();
-  const [form, setForm] = useState<SeoSettings | null>(null);
+  const [form, setForm] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  const query = useQuery({
-    queryKey: ['seo-settings'],
-    queryFn: settingsApi.get,
-  });
+  const query = useQuery({ queryKey, queryFn });
 
   useEffect(() => {
     if (query.data !== undefined && form === null) {
@@ -660,18 +671,14 @@ function SeoSettingsCard() {
   }, [query.data, form]);
 
   const save = useMutation({
-    mutationFn: (input: Partial<SeoSettings>) => settingsApi.update(input),
+    mutationFn,
     onSuccess: () => {
       setError(null);
       setDone(true);
     },
-    onError: err => {
+    onError: (err: unknown) => {
       setDone(false);
-      setError(
-        err instanceof ApiError
-          ? (err.data.error ?? t('seo.settingsError'))
-          : t('seo.settingsError'),
-      );
+      setError(err instanceof ApiError ? (err.data.error ?? t(errorKey)) : t(errorKey));
     },
   });
 
@@ -679,37 +686,82 @@ function SeoSettingsCard() {
     event.preventDefault();
     setError(null);
     setDone(false);
-
     if (form === null) {
       return;
     }
-
-    save.mutate({
-      site_name: form.site_name.trim(),
-      site_description: form.site_description.trim(),
-      site_url: form.site_url.trim(),
-      default_og_image: form.default_og_image.trim(),
-      twitter_handle: form.twitter_handle.trim(),
-      enable_sitemap: form.enable_sitemap,
-      robots_content: form.robots_content,
-    });
+    save.mutate(buildPatch(form));
   }
+
+  const update = (updater: (prev: T) => T) => {
+    setForm(prev => (prev !== null ? updater(prev) : prev));
+  };
+
+  return { t, form, update, error, done, query, save, handleSubmit };
+}
+
+function SettingsLoadingCard() {
+  const { t } = useTranslation();
+  return (
+    <Card size="sm">
+      <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" />
+        {t('settings.loading')}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SettingsFeedback({
+  error,
+  done,
+  doneLabel,
+}: {
+  error: string | null;
+  done: boolean;
+  doneLabel: string;
+}) {
+  return (
+    <>
+      {error !== null && <p className="text-sm text-destructive">{error}</p>}
+      {done && <p className="text-sm text-muted-foreground">{doneLabel}</p>}
+    </>
+  );
+}
+
+function SettingsSaveButton({ pending, label }: { pending: boolean; label: string }) {
+  return (
+    <div className="flex justify-end">
+      <Button type="submit" size="sm" disabled={pending}>
+        {pending ? <Loader2 className="animate-spin" /> : <Save />}
+        {label}
+      </Button>
+    </div>
+  );
+}
+
+function SeoSettingsCard() {
+  const { t, form, update, error, done, query, save, handleSubmit } = useSettingsForm<SeoSettings>({
+    queryKey: ['seo-settings'],
+    queryFn: settingsApi.get,
+    mutationFn: settingsApi.update,
+    buildPatch: value => ({
+      site_name: value.site_name.trim(),
+      site_description: value.site_description.trim(),
+      site_url: value.site_url.trim(),
+      default_og_image: value.default_og_image.trim(),
+      twitter_handle: value.twitter_handle.trim(),
+      enable_sitemap: value.enable_sitemap,
+      robots_content: value.robots_content,
+    }),
+    errorKey: 'seo.settingsError',
+  });
 
   if (query.isLoading || form === null) {
-    return (
-      <Card size="sm">
-        <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin" />
-          {t('settings.loading')}
-        </CardContent>
-      </Card>
-    );
+    return <SettingsLoadingCard />;
   }
 
-  const seoUrl = (action: 'sitemap' | 'robots'): string => {
-    const base = `${window.location.pathname}?p=sifpress/seo&action=${action}`;
-    return base;
-  };
+  const seoUrl = (action: 'sitemap' | 'robots'): string =>
+    `${window.location.pathname}?p=sifpress/seo&action=${action}`;
 
   return (
     <Card size="sm">
@@ -729,11 +781,7 @@ function SeoSettingsCard() {
               </span>
               <Input
                 value={form.site_name}
-                onChange={event =>
-                  setForm(prev =>
-                    prev !== null ? { ...prev, site_name: event.target.value } : prev,
-                  )
-                }
+                onChange={event => update(prev => ({ ...prev, site_name: event.target.value }))}
                 placeholder="Sifpress"
                 className="h-9"
               />
@@ -744,11 +792,7 @@ function SeoSettingsCard() {
               </span>
               <Input
                 value={form.site_url}
-                onChange={event =>
-                  setForm(prev =>
-                    prev !== null ? { ...prev, site_url: event.target.value } : prev,
-                  )
-                }
+                onChange={event => update(prev => ({ ...prev, site_url: event.target.value }))}
                 placeholder="https://example.com/index.php"
                 className="h-9"
               />
@@ -762,9 +806,7 @@ function SeoSettingsCard() {
             <textarea
               value={form.site_description}
               onChange={event =>
-                setForm(prev =>
-                  prev !== null ? { ...prev, site_description: event.target.value } : prev,
-                )
+                update(prev => ({ ...prev, site_description: event.target.value }))
               }
               placeholder={t('seo.siteDescriptionPlaceholder')}
               className="min-h-20 w-full resize-y rounded-xl border border-input bg-background p-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
@@ -779,9 +821,7 @@ function SeoSettingsCard() {
               <Input
                 value={form.default_og_image}
                 onChange={event =>
-                  setForm(prev =>
-                    prev !== null ? { ...prev, default_og_image: event.target.value } : prev,
-                  )
+                  update(prev => ({ ...prev, default_og_image: event.target.value }))
                 }
                 placeholder="https://example.com/og.png"
                 className="h-9"
@@ -794,9 +834,7 @@ function SeoSettingsCard() {
               <Input
                 value={form.twitter_handle}
                 onChange={event =>
-                  setForm(prev =>
-                    prev !== null ? { ...prev, twitter_handle: event.target.value } : prev,
-                  )
+                  update(prev => ({ ...prev, twitter_handle: event.target.value }))
                 }
                 placeholder="@sifpress"
                 className="h-9"
@@ -812,9 +850,7 @@ function SeoSettingsCard() {
             <Switch
               checked={form.enable_sitemap === '1'}
               onCheckedChange={checked =>
-                setForm(prev =>
-                  prev !== null ? { ...prev, enable_sitemap: checked ? '1' : '0' } : prev,
-                )
+                update(prev => ({ ...prev, enable_sitemap: checked ? '1' : '0' }))
               }
               aria-label={t('seo.enableSitemapField')}
             />
@@ -835,26 +871,15 @@ function SeoSettingsCard() {
             </Button>
           </div>
 
-          {error !== null && <p className="text-sm text-destructive">{error}</p>}
-          {done && <p className="text-sm text-muted-foreground">{t('seo.saved')}</p>}
-
-          <div className="flex justify-end">
-            <Button type="submit" size="sm" disabled={save.isPending}>
-              {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
-              {t('seo.save')}
-            </Button>
-          </div>
+          <SettingsFeedback error={error} done={done} doneLabel={t('seo.saved')} />
+          <SettingsSaveButton pending={save.isPending} label={t('seo.save')} />
         </form>
 
         <label className="flex flex-col gap-1.5 border-t border-border/60 pt-4">
           <span className="text-xs font-medium text-muted-foreground">{t('seo.robotsField')}</span>
           <textarea
             value={form.robots_content}
-            onChange={event =>
-              setForm(prev =>
-                prev !== null ? { ...prev, robots_content: event.target.value } : prev,
-              )
-            }
+            onChange={event => update(prev => ({ ...prev, robots_content: event.target.value }))}
             placeholder={t('seo.robotsPlaceholder')}
             className="min-h-24 w-full resize-y rounded-xl border border-input bg-background p-3 font-mono text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
             spellCheck={false}
@@ -866,65 +891,23 @@ function SeoSettingsCard() {
 }
 
 function TrackingSettingsCard() {
-  const { t } = useTranslation();
-  const [form, setForm] = useState<TrackingSettings | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
-
-  const query = useQuery({
-    queryKey: ['tracking-settings'],
-    queryFn: trackingApi.get,
-  });
-
-  useEffect(() => {
-    if (query.data !== undefined && form === null) {
-      setForm(query.data);
-    }
-  }, [query.data, form]);
-
-  const save = useMutation({
-    mutationFn: (input: Partial<TrackingSettings>) => trackingApi.update(input),
-    onSuccess: () => {
-      setError(null);
-      setDone(true);
-    },
-    onError: err => {
-      setDone(false);
-      setError(
-        err instanceof ApiError
-          ? (err.data.error ?? t('tracking.settingsError'))
-          : t('tracking.settingsError'),
-      );
-    },
-  });
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setDone(false);
-
-    if (form === null) {
-      return;
-    }
-
-    save.mutate({
-      enabled: form.enabled,
-      provider: form.provider,
-      id: form.id.trim(),
-      script_url: form.script_url.trim(),
-      anonymize_ip: form.anonymize_ip,
+  const { t, form, update, error, done, query, save, handleSubmit } =
+    useSettingsForm<TrackingSettings>({
+      queryKey: ['tracking-settings'],
+      queryFn: trackingApi.get,
+      mutationFn: trackingApi.update,
+      buildPatch: value => ({
+        enabled: value.enabled,
+        provider: value.provider,
+        id: value.id.trim(),
+        script_url: value.script_url.trim(),
+        anonymize_ip: value.anonymize_ip,
+      }),
+      errorKey: 'tracking.settingsError',
     });
-  }
 
   if (query.isLoading || form === null) {
-    return (
-      <Card size="sm">
-        <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin" />
-          {t('settings.loading')}
-        </CardContent>
-      </Card>
-    );
+    return <SettingsLoadingCard />;
   }
 
   const showId = form.provider !== '';
@@ -948,7 +931,7 @@ function TrackingSettingsCard() {
             <Switch
               checked={form.enabled === '1'}
               onCheckedChange={checked =>
-                setForm(prev => (prev !== null ? { ...prev, enabled: checked ? '1' : '0' } : prev))
+                update(prev => ({ ...prev, enabled: checked ? '1' : '0' }))
               }
               aria-label={t('tracking.enabledField')}
             />
@@ -960,9 +943,7 @@ function TrackingSettingsCard() {
             </span>
             <Select
               value={form.provider}
-              onValueChange={value =>
-                setForm(prev => (prev !== null ? { ...prev, provider: value } : prev))
-              }
+              onValueChange={value => update(prev => ({ ...prev, provider: value }))}
             >
               <SelectTrigger className="h-9 w-full">
                 <SelectValue placeholder={t('tracking.providerPlaceholder')} />
@@ -983,9 +964,7 @@ function TrackingSettingsCard() {
               </span>
               <Input
                 value={form.id}
-                onChange={event =>
-                  setForm(prev => (prev !== null ? { ...prev, id: event.target.value } : prev))
-                }
+                onChange={event => update(prev => ({ ...prev, id: event.target.value }))}
                 placeholder={t('tracking.idPlaceholder')}
                 className="h-9"
               />
@@ -999,11 +978,7 @@ function TrackingSettingsCard() {
             </span>
             <Input
               value={form.script_url}
-              onChange={event =>
-                setForm(prev =>
-                  prev !== null ? { ...prev, script_url: event.target.value } : prev,
-                )
-              }
+              onChange={event => update(prev => ({ ...prev, script_url: event.target.value }))}
               placeholder={t('tracking.scriptUrlPlaceholder')}
               className="h-9"
             />
@@ -1019,24 +994,15 @@ function TrackingSettingsCard() {
               <Switch
                 checked={form.anonymize_ip === '1'}
                 onCheckedChange={checked =>
-                  setForm(prev =>
-                    prev !== null ? { ...prev, anonymize_ip: checked ? '1' : '0' } : prev,
-                  )
+                  update(prev => ({ ...prev, anonymize_ip: checked ? '1' : '0' }))
                 }
                 aria-label={t('tracking.anonymizeIpField')}
               />
             </div>
           )}
 
-          {error !== null && <p className="text-sm text-destructive">{error}</p>}
-          {done && <p className="text-sm text-muted-foreground">{t('tracking.saved')}</p>}
-
-          <div className="flex justify-end">
-            <Button type="submit" size="sm" disabled={save.isPending}>
-              {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
-              {t('tracking.save')}
-            </Button>
-          </div>
+          <SettingsFeedback error={error} done={done} doneLabel={t('tracking.saved')} />
+          <SettingsSaveButton pending={save.isPending} label={t('tracking.save')} />
         </form>
       </CardContent>
     </Card>
