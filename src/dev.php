@@ -163,6 +163,44 @@ function handle_dev(string $action, string $method): never
 
             grant_default_guest_view($id, $user['id']);
 
+            // Seed revisions with a parent chain if none exist yet.
+            $stmt = db()->prepare('SELECT COUNT(*) FROM page_revisions WHERE page_id = ?');
+            $stmt->execute([$id]);
+            if ((int) $stmt->fetchColumn() === 0) {
+                $now = time();
+                $revA = [
+                    'slug' => DEMO_PAGE['slug'],
+                    'title' => DEMO_PAGE['title'],
+                    'content_md' => '# Hello, Sifpress\n\nWelcome to your new site.',
+                    'status' => DEMO_PAGE['status'],
+                    'created_by' => $user['id'],
+                    'created_at' => DEMO_PAGE['created_at'] ?? date('Y-m-d H:i:s', $now - 7200),
+                ];
+                $revB = [
+                    'slug' => DEMO_PAGE['slug'],
+                    'title' => DEMO_PAGE['title'],
+                    'content_md' => DEMO_PAGE['content_md'],
+                    'status' => DEMO_PAGE['status'],
+                    'created_by' => $user['id'],
+                    'created_at' => DEMO_PAGE['created_at'] ?? date('Y-m-d H:i:s', $now - 3600),
+                ];
+                $revC = [
+                    'slug' => DEMO_PAGE['slug'],
+                    'title' => DEMO_PAGE['title'],
+                    'content_md' => DEMO_PAGE['content_md'] . '\n\n> Updated with a quote block.',
+                    'status' => DEMO_PAGE['status'],
+                    'created_by' => $user['id'],
+                    'created_at' => DEMO_PAGE['created_at'] ?? date('Y-m-d H:i:s', $now),
+                ];
+
+                $hashA = create_revision($id, $revA, '[]', 'Initial draft', $revA['created_at']);
+                $hashB = create_revision($id, $revB, json_encode([$hashA]), 'Add welcome content', $revB['created_at']);
+                $hashC = create_revision($id, $revC, json_encode([$hashB]), 'Add quote block', $revC['created_at']);
+
+                db()->prepare('UPDATE pages SET current_revision_id = ? WHERE id = ?')
+                    ->execute([$hashC, $id]);
+            }
+
             json_response(['page' => page_payload(fetch_page($id))]);
 
         default:

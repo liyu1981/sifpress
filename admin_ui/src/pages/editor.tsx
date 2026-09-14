@@ -23,6 +23,7 @@ import { DeletePageMenu } from '@/components/delete-page-menu';
 import { AgentChat, type AgentDraft } from '@/components/agent/agent-chat';
 import type { EditorMutationBridge } from '@/lib/agent/editor-mutations';
 import { TagsInput } from '@/components/tags-input';
+import { RevisionGraph } from '@/components/revision-graph';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1076,144 +1077,118 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
                   )}
 
                   {revisionsQuery.data && revisionsQuery.data.items.length > 0 && (
-                    <div className="relative space-y-0">
-                      {[...revisionsQuery.data.items]
-                        .sort((a: { committed_at: string }, b: { committed_at: string }) =>
-                          b.committed_at.localeCompare(a.committed_at),
-                        )
-                        .map(
-                          (
-                            rev: {
-                              revision_id: string;
-                              committed_at: string;
-                              commit_message: string;
-                            },
-                            index: number,
-                          ) => {
-                            const isCurrent = rev.revision_id === page.current_revision_id;
-                            const sortedItems = [...revisionsQuery.data.items].sort(
-                              (a: { committed_at: string }, b: { committed_at: string }) =>
-                                b.committed_at.localeCompare(a.committed_at),
-                            );
-                            const isLast = index === sortedItems.length - 1;
-                            const isDiffExpanded = expandedDiffRevisionId === rev.revision_id;
-                            return (
-                              <div key={rev.revision_id} className="relative flex gap-3 py-2">
-                                <div className="flex flex-col items-center pt-1">
-                                  <div
-                                    className={`size-3 shrink-0 rounded-full ${
-                                      isCurrent ? 'bg-primary' : 'bg-muted-foreground/40'
-                                    }`}
-                                  />
-                                  {!isLast && <div className="w-px flex-1 bg-border" />}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                                      {rev.revision_id.slice(0, 8)}
-                                    </span>
-                                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                                      {rev.commit_message}
-                                    </span>
-                                    <div className="flex shrink-0 items-center gap-1">
-                                      {!isCurrent && (
-                                        <>
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="xs"
-                                            className={`h-5 px-1.5 text-[0.65rem] ${isDiffExpanded ? 'text-primary' : ''}`}
-                                            onClick={() =>
-                                              setExpandedDiffRevisionId(
-                                                isDiffExpanded ? null : rev.revision_id,
-                                              )
-                                            }
-                                          >
-                                            {t('editor.revisionDiff')}
-                                          </Button>
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="xs"
-                                            className="h-5 px-1.5 text-[0.65rem]"
-                                            asChild
-                                          >
-                                            <Link
-                                              to="/admin/editor/$slug"
-                                              params={{ slug: slug ?? '' }}
-                                              search={{ revision: rev.revision_id }}
-                                            >
-                                              {t('editor.revisionView')}
-                                            </Link>
-                                          </Button>
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="xs"
-                                            className="h-5 px-1.5 text-[0.65rem] text-amber-600 hover:text-amber-700"
-                                            onClick={() => {
-                                              setRestorePending(rev.revision_id);
-                                              restoreMutation.mutate(rev.revision_id);
-                                            }}
-                                            disabled={restorePending === rev.revision_id}
-                                          >
-                                            {restorePending === rev.revision_id ? (
-                                              <Loader2 className="size-3 animate-spin" />
-                                            ) : (
-                                              <RotateCcw className="size-3" />
-                                            )}
-                                            {t('editor.revisionRestore')}
-                                          </Button>
-                                        </>
+                    <RevisionGraph
+                      revisions={revisionsQuery.data.items}
+                      currentRevisionId={page.current_revision_id}
+                    >
+                      {(rev, { isCurrent, isLast }) => {
+                        const isDiffExpanded = expandedDiffRevisionId === rev.revision_id;
+                        return (
+                          <div className="w-full">
+                            <div className="flex items-center gap-2">
+                              <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                                {rev.revision_id.slice(0, 8)}
+                              </span>
+                              <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                                {rev.commit_message}
+                              </span>
+                              <div className="flex shrink-0 items-center gap-1">
+                                {!isCurrent && (
+                                  <>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="xs"
+                                      className={`h-5 px-1.5 text-[0.65rem] ${isDiffExpanded ? 'text-primary' : ''}`}
+                                      onClick={() =>
+                                        setExpandedDiffRevisionId(
+                                          isDiffExpanded ? null : rev.revision_id,
+                                        )
+                                      }
+                                    >
+                                      {t('editor.revisionDiff')}
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="xs"
+                                      className="h-5 px-1.5 text-[0.65rem]"
+                                      asChild
+                                    >
+                                      <Link
+                                        to="/admin/editor/$slug"
+                                        params={{ slug: slug ?? '' }}
+                                        search={{ revision: rev.revision_id }}
+                                      >
+                                        {t('editor.revisionView')}
+                                      </Link>
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="xs"
+                                      className="h-5 px-1.5 text-[0.65rem] text-amber-600 hover:text-amber-700"
+                                      onClick={() => {
+                                        setRestorePending(rev.revision_id);
+                                        restoreMutation.mutate(rev.revision_id);
+                                      }}
+                                      disabled={restorePending === rev.revision_id}
+                                    >
+                                      {restorePending === rev.revision_id ? (
+                                        <Loader2 className="size-3 animate-spin" />
+                                      ) : (
+                                        <RotateCcw className="size-3" />
                                       )}
-                                      {isCurrent && (
-                                        <span className="text-xs font-medium text-primary">
-                                          {t('editor.revisionsCurrent')}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <p className="mt-0.5 text-xs text-muted-foreground">
-                                    {new Date(rev.committed_at).toLocaleString()}
+                                      {t('editor.revisionRestore')}
+                                    </Button>
+                                  </>
+                                )}
+                                {isCurrent && (
+                                  <span className="text-xs font-medium text-primary">
+                                    {t('editor.revisionsCurrent')}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {new Date(rev.committed_at).toLocaleString()}
+                            </p>
+                            {isDiffExpanded && diffQuery.data && (
+                              <div className="mt-3 space-y-3 rounded-lg border border-border/40 bg-background/60 p-3">
+                                <div>
+                                  <p className="mb-1 text-xs font-medium text-muted-foreground">
+                                    {t('editor.revisionDiffTitle')}
                                   </p>
-                                  {isDiffExpanded && diffQuery.data && (
-                                    <div className="mt-3 space-y-3 rounded-lg border border-border/40 bg-background/60 p-3">
-                                      <div>
-                                        <p className="mb-1 text-xs font-medium text-muted-foreground">
-                                          {t('editor.revisionDiffTitle')}
-                                        </p>
-                                        {diffQuery.data.title.some(l => l.type !== 'same') ? (
-                                          <div className="rounded-lg border border-border/40 bg-background/60 p-2 font-mono text-xs leading-relaxed">
-                                            <DiffLines lines={diffQuery.data.title} />
-                                          </div>
-                                        ) : (
-                                          <p className="text-xs text-muted-foreground italic">
-                                            {t('editor.revisionDiffNoDiff')}
-                                          </p>
-                                        )}
-                                      </div>
-                                      <div>
-                                        <p className="mb-1 text-xs font-medium text-muted-foreground">
-                                          {t('editor.revisionDiffContent')}
-                                        </p>
-                                        {diffQuery.data.content_md.some(l => l.type !== 'same') ? (
-                                          <div className="max-h-80 overflow-y-auto rounded-lg border border-border/40 bg-background/60 p-2 font-mono text-xs leading-relaxed">
-                                            <DiffLines lines={diffQuery.data.content_md} />
-                                          </div>
-                                        ) : (
-                                          <p className="text-xs text-muted-foreground italic">
-                                            {t('editor.revisionDiffNoDiff')}
-                                          </p>
-                                        )}
-                                      </div>
+                                  {diffQuery.data.title.some(l => l.type !== 'same') ? (
+                                    <div className="rounded-lg border border-border/40 bg-background/60 p-2 font-mono text-xs leading-relaxed">
+                                      <DiffLines lines={diffQuery.data.title} />
                                     </div>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground italic">
+                                      {t('editor.revisionDiffNoDiff')}
+                                    </p>
+                                  )}
+                                </div>
+                                <div>
+                                  <p className="mb-1 text-xs font-medium text-muted-foreground">
+                                    {t('editor.revisionDiffContent')}
+                                  </p>
+                                  {diffQuery.data.content_md.some(l => l.type !== 'same') ? (
+                                    <div className="max-h-80 overflow-y-auto rounded-lg border border-border/40 bg-background/60 p-2 font-mono text-xs leading-relaxed">
+                                      <DiffLines lines={diffQuery.data.content_md} />
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground italic">
+                                      {t('editor.revisionDiffNoDiff')}
+                                    </p>
                                   )}
                                 </div>
                               </div>
-                            );
-                          },
-                        )}
-                    </div>
+                            )}
+                          </div>
+                        );
+                      }}
+                    </RevisionGraph>
                   )}
                 </div>
               )}
