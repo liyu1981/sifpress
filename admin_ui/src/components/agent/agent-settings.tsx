@@ -1,5 +1,5 @@
 import { Bot, Check, KeyRound, Loader2, RefreshCw, X } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -29,9 +29,16 @@ import {
 
 export function AgentSettingsCard() {
   const { t } = useTranslation();
-  const providers = getModels()
-    .getProviders()
-    .map(p => ({ id: p.id, name: p.name }));
+  // getProviders() returns a fresh array on every call, so memoize the derived
+  // list — otherwise the effect below re-runs each render, setState feeds back
+  // into render, and the card loops forever (100% CPU, unbounded memory).
+  const providers = useMemo(
+    () =>
+      getModels()
+        .getProviders()
+        .map(p => ({ id: p.id, name: p.name })),
+    [],
+  );
 
   const [keys, setKeys] = useState<Record<string, string>>({});
   const [configured, setConfigured] = useState<Record<string, boolean>>({});
