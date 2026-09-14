@@ -1,10 +1,11 @@
-import { useMemo } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Revision } from 'ui-sdk';
 
-const GRID_Y = 84;
+const ROW_H = 84;
 const OFFSET_X = 20;
-const OFFSET_Y = 22;
+const ROW_PAD = 12;
 const CIRCLE_R = 5;
+const NODE_Y = ROW_PAD + 10;
 const LANE_W = 32;
 
 const COLORS = [
@@ -43,14 +44,7 @@ interface GraphNode {
   isLast: boolean;
 }
 
-function buildGraph(revisions: Revision[], currentRevisionId: string | null) {
-  if (revisions.length === 0) return { nodes: [] as GraphNode[], width: 0, height: 0 };
-
-  // Build lookup maps
-  const revById = new Map<string, Revision>();
-  for (const r of revisions) revById.set(r.revision_id, r);
-
-  // Build tree: root nodes → children
+function buildTree(revisions: Revision[]) {
   const treeNodes = new Map<string, TreeNode>();
   const roots: TreeNode[] = [];
 
@@ -70,20 +64,20 @@ function buildGraph(revisions: Revision[], currentRevisionId: string | null) {
     }
   }
 
-  // Assign lanes: DFS from each root, each root→leaf path = new lane
+  return { roots, treeNodes };
+}
+
+function assignLanes(roots: TreeNode[]) {
   const nodeLane = new Map<string, number>();
   let nextLane = 0;
 
-  function assignLanes(node: TreeNode, lane: number) {
+  function walk(node: TreeNode, lane: number) {
     if (node.children.length === 0) {
-      // Leaf: assign this path's lane
       nodeLane.set(node.revision.revision_id, lane);
     } else {
       for (let i = 0; i < node.children.length; i++) {
-        const childLane = i === 0 ? lane : nextLane++;
-        assignLanes(node.children[i], childLane);
+        walk(node.children[i], i === 0 ? lane : nextLane++);
       }
-      // Parent gets the minimum lane of all its descendants (leftmost)
       let minLane = lane;
       function findMin(n: TreeNode) {
         const l = nodeLane.get(n.revision.revision_id);
@@ -95,81 +89,93 @@ function buildGraph(revisions: Revision[], currentRevisionId: string | null) {
     }
   }
 
-  for (const root of roots) {
-    assignLanes(root, nextLane++);
-  }
+  for (const root of roots) walk(root, nextLane++);
+  return nodeLane;
+}
 
-  // Sort by committed_at descending (newest = top)
-  const sorted = [...revisions].sort((a, b) => b.committed_at.localeCompare(a.committed_at));
+/**
+ * RevisionGraph renders a git-graph-style SVG alongside revision rows.
+ *
+ * Layout strategy (following reference gitgraph):
+ * - SVG nodes use a coordinate system derived from actual measured row heights
+ * - Content rows and SVG share the same Y origin and cumulative spacing
+ * - When a diff expands a row, measurements update and both SVG and content
+ *   stay aligned because they're computed from the same data
+ */
+export function RevisionGraph({ revisions, currentRevisionId, children }: RevisionGraphProps) {
+  const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [rowHeights, setRowHeights] = useState<number[]>([]);
 
-  let maxLane = 0;
-  for (const l of nodeLane.values()) if (l > maxLane) maxLane = l;
-
-  const nodes: GraphNode[] = sorted.map((rev, i) => {
-    const lane = nodeLane.get(rev.revision_id) ?? 0;
-    return {
-      revision: rev,
-      x: lane * LANE_W + OFFSET_X,
-      y: i * GRID_Y + OFFSET_Y,
-      lane,
-      isCurrent: rev.revision_id === currentRevisionId,
-      isLast: i === sorted.length - 1,
-    };
+  useLayoutEffect(() => {
+    const next = rowRefs.current.map(el => el?.offsetHeight ?? ROW_H);
+    setRowHeights(prev =>
+      prev.length === next.length && prev.every((h, i) => h === next[i]) ? prev : next,
+    );
   });
 
-  const width = (maxLane + 1) * LANE_W + OFFSET_X * 2;
-  const height = sorted.length * GRID_Y + OFFSET_Y;
-
-  return { nodes, width, height };
-}
-
-function buildEdges(revisions: Revision[], nodes: GraphNode[]) {
-  const nodeById = new Map<string, GraphNode>();
-  for (const n of nodes) nodeById.set(n.revision.revision_id, n);
-
-  const edges: { path: string; lane: number }[] = [];
-
-  for (const node of nodes) {
-    for (const pid of node.revision.parent_ids) {
-      const parentNode = nodeById.get(pid);
-      if (!parentNode) continue;
-
-      const x1 = node.x;
-      const y1 = node.y;
-      const x2 = parentNode.x;
-      const y2 = parentNode.y;
-
-      let d: string;
-      if (x1 === x2) {
-        d = `M ${x1} ${y1} L ${x2} ${y2}`;
-      } else {
-        const midY = (y1 + y2) / 2;
-        d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
-      }
-      edges.push({ path: d, lane: node.lane });
-    }
-  }
-
-  return edges;
-}
-
-export function RevisionGraph({ revisions, currentRevisionId, children }: RevisionGraphProps) {
-  const { nodes, width, height } = useMemo(
-    () => buildGraph(revisions, currentRevisionId),
-    [revisions, currentRevisionId],
+  const sorted = useMemo(
+    () => [...revisions].sort((a, b) => b.committed_at.localeCompare(a.committed_at)),
+    [revisions],
   );
 
-  const edges = useMemo(() => buildEdges(revisions, nodes), [revisions, nodes]);
+  const { laneOf, maxLane } = useMemo(() => {
+    const { roots } = buildTree(revisions);
+    const lanes = assignLanes(roots);
+    let mx = 0;
+    for (const l of lanes.values()) if (l > mx) mx = l;
+    return { laneOf: lanes, maxLane: mx };
+  }, [revisions]);
+
+  const { nodes, edges, width, totalHeight } = useMemo(() => {
+    const gw = (maxLane + 1) * LANE_W + OFFSET_X * 2;
+
+    // Build y-positions from measured row heights.
+    // Circle aligns with the top of each row (circle center = row top + CIRCLE_R).
+    let cy = 0;
+    const ySlots: number[] = [];
+    for (let i = 0; i < sorted.length; i++) {
+      ySlots.push(cy + NODE_Y);
+      cy += rowHeights[i] ?? ROW_H;
+    }
+
+    const ns: GraphNode[] = sorted.map((rev, i) => ({
+      revision: rev,
+      x: (laneOf.get(rev.revision_id) ?? 0) * LANE_W + OFFSET_X,
+      y: ySlots[i],
+      lane: laneOf.get(rev.revision_id) ?? 0,
+      isCurrent: rev.revision_id === currentRevisionId,
+      isLast: i === sorted.length - 1,
+    }));
+
+    const byId = new Map<string, GraphNode>();
+    for (const n of ns) byId.set(n.revision.revision_id, n);
+
+    const es: { path: string; lane: number }[] = [];
+    for (const node of ns) {
+      for (const pid of node.revision.parent_ids) {
+        const par = byId.get(pid);
+        if (!par) continue;
+        const { x: x1, y: y1 } = node;
+        const { x: x2, y: y2 } = par;
+        const d =
+          x1 === x2
+            ? `M ${x1} ${y1} L ${x2} ${y2}`
+            : `M ${x1} ${y1} C ${x1} ${(y1 + y2) / 2}, ${x2} ${(y1 + y2) / 2}, ${x2} ${y2}`;
+        es.push({ path: d, lane: node.lane });
+      }
+    }
+
+    return { nodes: ns, edges: es, width: gw, totalHeight: cy };
+  }, [sorted, currentRevisionId, rowHeights, laneOf, maxLane]);
 
   if (nodes.length === 0) return null;
 
   return (
     <div className="relative">
-      {/* SVG graph layer */}
       <svg
         className="pointer-events-none absolute left-0 top-0"
         width={width}
-        height={height}
+        height={totalHeight}
         style={{ zIndex: 0 }}
       >
         {edges.map((edge, i) => (
@@ -215,21 +221,25 @@ export function RevisionGraph({ revisions, currentRevisionId, children }: Revisi
         ))}
       </svg>
 
-      {/* Content layer — offset to the right of the graph */}
       <div className="relative" style={{ marginLeft: width + 10 }}>
-        {nodes.map((node, i) => (
-          <div
-            key={node.revision.revision_id}
-            style={{ height: GRID_Y }}
-            className="flex items-start"
-          >
-            {children(node.revision, {
-              isCurrent: node.isCurrent,
-              isLast: node.isLast,
-              lane: node.lane,
-            })}
-          </div>
-        ))}
+        {sorted.map((rev, i) => {
+          const isLast = i === sorted.length - 1;
+          return (
+            <div
+              key={rev.revision_id}
+              ref={el => {
+                rowRefs.current[i] = el;
+              }}
+              className={`py-3 ${isLast ? '' : 'border-b border-border/40'}`}
+            >
+              {children(rev, {
+                isCurrent: rev.revision_id === currentRevisionId,
+                isLast,
+                lane: nodes[i].lane,
+              })}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
