@@ -231,6 +231,40 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
     },
   });
 
+  const getCommitNote = tool({
+    name: 'get_commit_note',
+    label: 'Get commit note',
+    description:
+      'Return the current value of the editor\'s "Commit Note" field. This text is used as the commit message when the user saves the page. Requires the editor page to be open.',
+    parameters: Type.Object({}),
+    execute: async () => {
+      const ed = requireEditor(editor);
+      const note = ed.getCommitNote();
+      return textBlocks(note || '(empty)');
+    },
+  });
+
+  const setCommitNote = tool({
+    name: 'set_commit_note',
+    label: 'Set commit note',
+    description:
+      'Set the editor\'s "Commit Note" field. This becomes the commit message recorded when the user saves the page. Keep it short and descriptive (e.g. "Fix typo in intro"). Mutates the editor UI only — the value is persisted when the user clicks Save. Use get_commit_note first to see the current value.',
+    parameters: Type.Object({
+      commit_note: Type.String({
+        description: 'Short commit message used for the next save',
+      }),
+    }),
+    execute: async (_id, args) => {
+      const ed = requireEditor(editor);
+      const note = args.commit_note.trim();
+      if (note === '') {
+        throw new Error('commit_note cannot be empty.');
+      }
+      ed.setCommitNote(note);
+      return textBlocks(`Set the commit note to: ${note}`);
+    },
+  });
+
   return [
     searchContent,
     listTags,
@@ -239,5 +273,7 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
     updateFrontmatter,
     getContent,
     updateContent,
+    getCommitNote,
+    setCommitNote,
   ] as unknown as AgentTool<any>[];
 }

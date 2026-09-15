@@ -30,4 +30,6 @@ export interface EditorMutationBridge {
   setFrontMatter: (patch: FrontMatterPatch) => void;
   getContent: () => string;
   setContent: (markdown: string) => void;
+  getCommitNote: () => string;
+  setCommitNote: (note: string) => void;
 }

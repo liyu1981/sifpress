@@ -67,6 +67,7 @@ interface SavePayload {
   content_md: string;
   created_at: string;
   updated_at: string;
+  commit_message: string;
 }
 
 interface ExtraField {
@@ -297,6 +298,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
   const [published, setPublished] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [saveError, setSaveError] = useState<ApiError | null>(null);
+  const [commitNote, setCommitNote] = useState(editing ? 'Update article' : 'Initial version');
   const editorRef = useRef<MilkdownEditorHandle>(null);
   const extraFieldIdRef = useRef(0);
   const editorSnapshotRef = useRef({
@@ -314,6 +316,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
       noindex: false,
     },
     body: '',
+    commitNote: editing ? 'Update article' : 'Initial version',
   });
 
   const [body, setBody] = useState('');
@@ -444,7 +447,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
         status: meta.status,
         content_md: meta.content_md,
         created_at: meta.created_at,
-        commit_message: editing ? 'Update article' : 'Initial version',
+        commit_message: meta.commit_message,
       };
 
       const existing = pageQuery.data;
@@ -610,6 +613,12 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
       content_md: frontBlock + bodyMd,
       created_at: cleanDate !== '' ? `${cleanDate} 00:00:00` : '',
       updated_at: cleanUpdatedDate !== '' ? `${cleanUpdatedDate} 00:00:00` : '',
+      commit_message:
+        commitNote.trim() !== ''
+          ? commitNote.trim()
+          : editing
+            ? 'Update article'
+            : 'Initial version',
     });
   }
 
@@ -784,6 +793,11 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
         setBody(markdown);
         setSourceBody(markdown);
       },
+      getCommitNote: () => editorSnapshotRef.current.commitNote,
+      setCommitNote: note => {
+        setCommitNote(note);
+        editorSnapshotRef.current = { ...editorSnapshotRef.current, commitNote: note };
+      },
     }),
     [],
   );
@@ -804,9 +818,11 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
         noindex: seoNoindex,
       },
       body,
+      commitNote,
     };
   }, [
     body,
+    commitNote,
     date,
     extraFields,
     seoCanonical,
@@ -976,6 +992,18 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
             <div className="flex-1">
               {/* ── Editor Tab ── */}
               <TabsContent value="editor" className="mt-0 space-y-4">
+                {!isRevisionPreview && (
+                  <label className="glass-control flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3">
+                    <span className="shrink-0 text-sm font-medium">{t('editor.commitNote')}</span>
+                    <Input
+                      value={commitNote}
+                      onChange={event => setCommitNote(event.target.value)}
+                      placeholder={t('editor.commitNotePlaceholder')}
+                      className="min-w-0 flex-1"
+                    />
+                  </label>
+                )}
+
                 <div className="glass-control overflow-hidden rounded-2xl shadow-[0_10px_24px_-8px_rgba(0,0,0,0.28)] dark:shadow-[0_10px_24px_-8px_rgba(0,0,0,0.6)]">
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
                     <span className="text-sm font-medium">{t('editor.frontmatterTitle')}</span>

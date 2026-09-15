@@ -167,7 +167,7 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
     if (draftNow === null) {
       return base;
     }
-    return `${base}\n\n## Current draft the user is editing\n- slug: ${draftNow.slug}\n- title: ${draftNow.title}\n\n\`\`\`markdown\n${draftNow.content}\n\`\`\`\n\nWhen the user asks something about their draft, answer using this draft. Edits to the draft are applied to the open editor via update_frontmatter and set_content (they appear in the editor but are only saved when the user clicks Save).`;
+    return `${base}\n\n## Current draft the user is editing\n- slug: ${draftNow.slug}\n- title: ${draftNow.title}\n\n\`\`\`markdown\n${draftNow.content}\n\`\`\`\n\nWhen the user asks something about their draft, answer using this draft. Edits to the draft are applied to the open editor via update_frontmatter and set_content, and the save/commit message via set_commit_note (they appear in the editor but are only saved when the user clicks Save).`;
   }, []);
 
   const defaultModel = useCallback((): { providerId: string; modelId: string } | undefined => {

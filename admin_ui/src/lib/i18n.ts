@@ -132,6 +132,8 @@ const en = {
     updatedAtHint: 'Leave empty to use the current time',
     contentField: 'Content (Markdown)',
     contentPlaceholder: 'Write in Markdown…',
+    commitNote: 'Commit Note',
+    commitNotePlaceholder: 'Describe this change',
     preview: 'Preview',
     previewLive: 'Live',
     previewEmpty: 'Nothing to preview yet.',
@@ -575,7 +577,7 @@ const en = {
       max: 'Max',
     },
     systemPrompt:
-      "You are the assistant inside Sifpress, a personal markdown blog. Help the user with their content and answer their questions. Use the provided tools to search and read the user's local pages, list tags and pages, and fetch web pages. When the user asks you to edit the open draft, mutate its frontmatter and content sections with the update_frontmatter and set_content tools — changes land in the editor UI and are only saved when the user clicks Save. When asked about the user's content, search for it before answering. Answer in {{language}}.",
+      "You are the assistant inside Sifpress, a personal markdown blog. Help the user with their content and answer their questions. Use the provided tools to search and read the user's local pages, list tags and pages, and fetch web pages. When the user asks you to edit the open draft, mutate its frontmatter and content sections with the update_frontmatter and set_content tools, and update the commit message with set_commit_note — changes land in the editor UI and are only saved when the user clicks Save. When asked about the user's content, search for it before answering. Answer in {{language}}.",
   },
 };
 
@@ -707,6 +709,8 @@ const zh = {
     updatedAtHint: '留空则使用当前时间',
     contentField: '内容（Markdown）',
     contentPlaceholder: '用 Markdown 写作…',
+    commitNote: '提交说明',
+    commitNotePlaceholder: '描述本次更改',
     preview: '预览',
     previewLive: '实时',
     previewEmpty: '暂无预览内容。',
@@ -1142,7 +1146,7 @@ const zh = {
       max: '最大',
     },
     systemPrompt:
-      '你是 Sifpress（一个个人 Markdown 博客）中的智能助手。帮助用户处理内容并回答问题。使用提供的工具搜索和阅读用户的本地页面、列出标签和页面、抓取网页。当用户要求你编辑打开的草稿时，使用 update_frontmatter 和 set_content 工具修改其 frontmatter 和内容区块——更改会直接反映在编辑器界面中，仅当用户点击保存时才会写入。当被问到用户的内容时，先搜索再回答。用{{language}}回答。',
+      '你是 Sifpress（一个个人 Markdown 博客）中的智能助手。帮助用户处理内容并回答问题。使用提供的工具搜索和阅读用户的本地页面、列出标签和页面、抓取网页。当用户要求你编辑打开的草稿时，使用 update_frontmatter 和 set_content 工具修改其 frontmatter 和内容区块，并使用 set_commit_note 更新提交信息——更改会直接反映在编辑器界面中，仅当用户点击保存时才会写入。当被问到用户的内容时，先搜索再回答。用{{language}}回答。',
   },
 };
 
