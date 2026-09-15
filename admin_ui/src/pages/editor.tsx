@@ -134,13 +134,11 @@ function SegmentedControl<T extends string>({
  */
 function GrantRow({
   grant,
-  index,
   onSave,
   onRevoke,
   saving,
 }: {
   grant: Grant;
-  index: number;
   onSave: (permission: 'edit' | 'view') => void;
   onRevoke: () => void;
   saving: boolean;
@@ -166,11 +164,7 @@ function GrantRow({
     (grant.granted_by_name ? t('editor.grantBy', { name: grant.granted_by_name }) : '');
 
   return (
-    <tr
-      className={`border-b border-black/25 last:border-b-0 dark:border-border ${
-        index % 2 === 1 ? 'bg-muted/40' : ''
-      }`}
-    >
+    <tr>
       <td className="px-3 py-2">
         <span className="truncate font-medium">{label}</span>
       </td>
@@ -1414,10 +1408,10 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
                       {t('editor.grantsDescription')}
                     </p>
 
-                    <div className="overflow-x-auto rounded-xl border-2 border-black/25 dark:border-border">
+                    <div className="overflow-x-auto rounded-xl">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="border-b-2 border-black/25 text-left text-xs text-muted-foreground dark:border-border">
+                          <tr className="text-left text-xs text-muted-foreground">
                             <th className="px-3 py-2 font-medium">{t('editor.grantUsername')}</th>
                             <th className="px-3 py-2 font-medium">
                               {t('editor.grantPermissionField')}
@@ -1427,7 +1421,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
                           </tr>
                         </thead>
                         <tbody>
-                          <tr className="border-b border-black/25 dark:border-border">
+                          <tr>
                             <td className="px-3 py-2">
                               <Input
                                 value={grantUsername}
@@ -1478,11 +1472,10 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
                             </td>
                           </tr>
 
-                          {grantsQuery.data?.map((g, index) => (
+                          {grantsQuery.data?.map(g => (
                             <GrantRow
                               key={g.username}
                               grant={g}
-                              index={index}
                               onSave={permission =>
                                 grant.mutate({
                                   username: g.username,
