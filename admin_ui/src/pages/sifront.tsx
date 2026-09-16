@@ -20,7 +20,7 @@ import {
 import { usePageTitle } from '@/hooks/use-page-title';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useAuth } from 'ui-sdk';
-import { kvsApi, sifrontsApi, type SifrontListItem } from 'ui-sdk';
+import { appBaseUrl, kvsApi, sifrontsApi, type SifrontListItem } from 'ui-sdk';
 import { formatTimestamp } from '@/lib/format';
 
 function ValueCell({ value }: { value: unknown }) {
@@ -130,7 +130,7 @@ function SifrontCard({
         <CardAction className="flex items-center gap-2">
           {sf.is_active && (
             <Button asChild variant="outline" size="sm">
-              <a href={window.location.pathname} target="_blank" rel="noopener noreferrer">
+              <a href={appBaseUrl()} target="_blank" rel="noopener noreferrer">
                 <Eye className="size-4" />
                 {t('sifront.preview')}
               </a>

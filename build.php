@@ -276,12 +276,14 @@ foreach ($parts as $part) {
          * types and $/backslashes) is safe.
          */
         $uiSdkJsPhp = var_export($uiSdkJs, true);
+        $uiSdkVersion = substr(md5($uiSdkJs), 0, 12);
         $count = 0;
         $content = preg_replace_callback(
             '#// ___BEGIN_UI_SDK___\n.*?// ___END_UI_SDK___#s',
-            function () use ($uiSdkJsPhp): string {
+            function () use ($uiSdkJsPhp, $uiSdkVersion): string {
                 return "// ___BEGIN_UI_SDK___\nconst UI_SDK_JS = " .
-                    $uiSdkJsPhp . ";\n// ___END_UI_SDK___";
+                    $uiSdkJsPhp . ";\nconst UI_SDK_VERSION = " .
+                    var_export($uiSdkVersion, true) . ";\n// ___END_UI_SDK___";
             },
             $content,
             1,

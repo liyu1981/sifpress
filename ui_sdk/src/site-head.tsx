@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { settingsApi, type SeoSettings } from './pages';
 import { assetUrl } from './api';
+import { appBasePath } from './base-url';
 
 /**
  * Fetch site-wide SEO/favicon/tracking settings. Wraps `settingsApi.get`
@@ -22,8 +23,7 @@ export function useSiteSettings() {
 export function faviconUrl(settings: SeoSettings | undefined): string {
   const id = settings?.favicon_asset_id ?? '';
   if (id === '' || id === '0') {
-    const base = window.location.pathname;
-    return `${base}?p=sifpress/favicon`;
+    return `${appBasePath()}?p=sifpress/favicon`;
   }
   const v = settings?.favicon_version ?? '0';
   return assetUrl(Number(id)) + '&v=' + v;

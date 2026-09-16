@@ -59,6 +59,60 @@ const SIFRONT_FALLBACK_HTML = '<!DOCTYPE html>'
     . '</html>';
 
 /**
+ * `<meta>` + inline script exposing the resolved base URL to the client,
+ * so ui-sdk can build API/asset links and router hrefs from it instead of
+ * assuming the document path.
+ */
+function base_url_meta(): string
+{
+    $base = base_url();
+
+    return '<meta name="sifpress-base-url" content="' . seo_esc($base) . '">'
+        . '<script>window.SIFPRESS_BASE_URL=' . json_encode($base) . ';</script>';
+}
+
+/**
+ * Insert a markup block into the real document <head>, i.e. the LAST
+ * </head> in the page. The inlined JS bundles contain literal "</head>"
+ * inside their own string literals (DOM parsers, React host config), so
+ * replacing every occurrence would corrupt them.
+ */
+function inject_into_head(string $html, string $block): string
+{
+    $pos = strrpos($html, '</head>');
+
+    if ($pos === false) {
+        return $html;
+    }
+
+    return substr_replace($html, $block . '</head>', $pos, strlen('</head>'));
+}
+
+/**
+ * Append the embedded ui-sdk content hash to its <script> URL. The bundle
+ * is served `immutable` for a year, so the URL must change whenever its
+ * content does — otherwise a stale module stays cached across rebuilds.
+ */
+function apply_ui_sdk_version(string $html): string
+{
+    if (!defined('UI_SDK_VERSION') || UI_SDK_VERSION === '') {
+        return $html;
+    }
+
+    $needle = 'src="?p=sifpress/asset/js/ui-sdk.mjs"';
+
+    if (!str_contains($html, $needle)) {
+        return $html;
+    }
+
+    return str_replace(
+        $needle,
+        'src="?p=sifpress/asset/js/ui-sdk.mjs&v=' . UI_SDK_VERSION . '"',
+        $html
+    );
+}
+
+/**
  * Serve the active sifront page. Falls back to the static HTML when the
  * DB is not migrated, no active sifront is configured, or the row is
  * missing.
@@ -68,6 +122,8 @@ function serve_sifront_page(): never
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: no-cache');
     header('X-Content-Type-Options: nosniff');
+
+    $html = '';
 
     if (!db_needs_migration()) {
         $activeId = (string) setting_get('active_sifront_id', '');
@@ -83,23 +139,27 @@ function serve_sifront_page(): never
                 $bundle = file_get_contents(__DIR__ . '/sifpress1.sifront');
 
                 if ($bundle !== false) {
-                    echo $bundle;
-                    exit;
+                    $html = $bundle;
                 }
             }
 
-            $stmt = db()->prepare('SELECT content FROM sifronts WHERE id = ?');
-            $stmt->execute([(int) $activeId]);
-            $content = $stmt->fetchColumn();
+            if ($html === '') {
+                $stmt = db()->prepare('SELECT content FROM sifronts WHERE id = ?');
+                $stmt->execute([(int) $activeId]);
+                $content = $stmt->fetchColumn();
 
-            if ($content !== false && $content !== '') {
-                echo $content;
-                exit;
+                if ($content !== false && $content !== '') {
+                    $html = $content;
+                }
             }
         }
     }
 
-    echo SIFRONT_FALLBACK_HTML;
+    if ($html === '') {
+        $html = SIFRONT_FALLBACK_HTML;
+    }
+
+    echo apply_ui_sdk_version(inject_into_head($html, base_url_meta()));
     exit;
 }
 
@@ -126,6 +186,7 @@ function serve_spa(string $route): never
         htmlspecialchars(APP_VERSION, ENT_QUOTES | ENT_HTML5, 'UTF-8') .
         '">';
     $meta .= '<script>window.APP_VERSION=' . json_encode(APP_VERSION) . ';</script>';
+    $meta .= base_url_meta();
 
     /*
      * Rich SEO meta (title, description, OG/Twitter, canonical, JSON-LD)
@@ -190,11 +251,6 @@ function serve_spa(string $route): never
         }
     }
 
-    $pos = strrpos($html, '</head>');
-    if ($pos !== false) {
-        $html = substr_replace($html, $meta . '</head>', $pos, strlen('</head>'));
-    }
-
-    echo $html;
+    echo apply_ui_sdk_version(inject_into_head($html, $meta));
     exit;
 }

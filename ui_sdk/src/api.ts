@@ -1,3 +1,5 @@
+import { appBaseUrl } from './base-url';
+
 export type ApiMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
 export interface ApiErrorData {
@@ -24,7 +26,7 @@ export function apiUrl(
   params: Record<string, string> = {},
 ): string {
   const query = new URLSearchParams({ p: module, action, ...params });
-  return `${window.location.pathname}?${query.toString()}`;
+  return `${appBaseUrl()}?${query.toString()}`;
 }
 
 interface RequestInitOptions {
@@ -97,7 +99,7 @@ export function assetUrl(id: number, thumb = false): string {
   if (thumb) {
     params.set('thumb', '1');
   }
-  return `${window.location.pathname}?${params.toString()}`;
+  return `${appBaseUrl()}?${params.toString()}`;
 }
 
 /**
@@ -106,7 +108,7 @@ export function assetUrl(id: number, thumb = false): string {
  */
 export function avatarUrl(userId: number): string {
   const params = new URLSearchParams({ p: 'sifpress/asset', user: String(userId) });
-  return `${window.location.pathname}?${params.toString()}`;
+  return `${appBaseUrl()}?${params.toString()}`;
 }
 
 function escapeMarkdownText(name: string): string {

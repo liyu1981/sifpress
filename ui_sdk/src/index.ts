@@ -1,4 +1,5 @@
 export * from "./api";
+export * from "./base-url";
 export * from "./pages";
 export * from "./assets";
 export * from "./update";

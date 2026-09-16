@@ -45,6 +45,7 @@ import { ApiError } from 'ui-sdk';
 import { makeAvatarThumb } from 'ui-sdk';
 import { useAuth } from 'ui-sdk';
 import {
+  appBaseUrl,
   assetsApi,
   authApi,
   type RoleListItem,
@@ -761,7 +762,7 @@ function SeoSettingsCard() {
   }
 
   const seoUrl = (action: 'sitemap' | 'robots'): string =>
-    `${window.location.pathname}?p=sifpress/seo&action=${action}`;
+    `${appBaseUrl()}?p=sifpress/seo&action=${action}`;
 
   return (
     <Card size="sm">
@@ -1073,7 +1074,7 @@ function FaviconCard() {
       return '';
     }
     const params = new URLSearchParams({ p: 'sifpress/asset', id, t: faviconVersion });
-    return `${window.location.pathname}?${params.toString()}`;
+    return `${appBaseUrl()}?${params.toString()}`;
   }
 
   async function handleUpload(type: 'favicon' | 'apple', file: File) {

@@ -6,7 +6,8 @@ export const router = createRouter({
   routeTree,
   // Root-mounted sifront: no `sifpress/` prefix, so links stay on the
   // catch-all sifront route instead of colliding with backend modules.
-  rewrite: createQueryRewrite('/', ''),
+  // The base path comes from the injected SIFPRESS_BASE_URL.
+  rewrite: createQueryRewrite(undefined, ''),
 });
 
 declare module '@tanstack/react-router' {

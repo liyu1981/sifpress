@@ -64,10 +64,11 @@ php buildfront.php release
   `sifpress_config.php` in the same directory as the running PHP file.
   If absent, a default config is auto-generated. Config uses `define()`
   constants (WordPress-style) so direct HTTP access never leaks values.
-  See `SIFPRESS_DB_DIR`, `SIFPRESS_ADMIN_PASSWORD`, `SIFPRESS_MANIFEST_URL`.
+  See `SIFPRESS_DB_DIR`, `SIFPRESS_ADMIN_PASSWORD`, `SIFPRESS_MANIFEST_URL`,
+  `SIFPRESS_BASE_URL`.
   Env vars (`SIFPRESS_DB_DIR`, `SIFPRESS_ADMIN_PASSWORD`,
-  `SIFPRESS_UPDATE_MANIFEST_URL`) are still supported as fallbacks for
-  backward compatibility.
+  `SIFPRESS_UPDATE_MANIFEST_URL`, `SIFPRESS_BASE_URL`) are still supported as
+  fallbacks for backward compatibility.
 
 ## Development server
 

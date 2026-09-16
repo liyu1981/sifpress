@@ -60,6 +60,18 @@ define('SIFPRESS_ADMIN_PASSWORD', '');
  * Leave as empty string to use the built-in default.
  */
 define('SIFPRESS_MANIFEST_URL', '');
+
+/**
+ * Base URL used to build every generated link (admin UI, sifront, API,
+ * assets). Normally the URL of this artifact, e.g.
+ *
+ *   https://example.com/index.php
+ *   https://example.com/myapp/index.php
+ *
+ * Leave as empty string to derive it from the request (falling back to
+ * the site_url SEO setting when one is configured).
+ */
+define('SIFPRESS_BASE_URL', '');
 PHP;
     $config_content = sprintf($config_content, $default_db_dir);
     file_put_contents($sifpress_config_path, $config_content);

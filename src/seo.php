@@ -146,13 +146,28 @@ function excerpt_from_markdown(string $markdown, int $max = 155): string
 }
 
 /**
- * The canonical base: the configured site_url, else derived from the
- * request (scheme + host + script name), so the rewrite-free artifact
- * works at any mount depth.
+ * The canonical base used to build every generated URL. Precedence:
+ *
+ *   1. SIFPRESS_BASE_URL constant (sifpress_config.php)
+ *   2. SIFPRESS_BASE_URL environment variable (legacy configs)
+ *   3. site_url SEO setting
+ *   4. scheme + host + script name, derived from the request
+ *
+ * The request fallback keeps the rewrite-free artifact working at any
+ * mount depth without configuration.
  */
 function base_url(): string
 {
-    $configured = setting_get('site_url', '');
+    $configured = defined('SIFPRESS_BASE_URL') ? trim((string) SIFPRESS_BASE_URL) : '';
+
+    if ($configured === '') {
+        $env = getenv('SIFPRESS_BASE_URL');
+        $configured = is_string($env) ? trim($env) : '';
+    }
+
+    if ($configured === '') {
+        $configured = trim((string) setting_get('site_url', ''));
+    }
 
     if ($configured !== '') {
         return rtrim($configured, '/');

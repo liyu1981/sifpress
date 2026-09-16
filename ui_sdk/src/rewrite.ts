@@ -1,4 +1,5 @@
 import type { LocationRewrite } from '@tanstack/react-router';
+import { appBasePath } from './base-url';
 
 function normalizeInternalPath(path: string): string {
   path = path.startsWith('/') ? path : '/' + path;
@@ -15,9 +16,12 @@ function normalizeInternalPath(path: string): string {
  * - `output` (router -> browser URL): turns the internal path back into a
  *   `?p=...` query on the current document, so `<Link>` hrefs stay
  *   real and shareable at any mount depth.
+ *
+ * `basePath` overrides the document path used for generated hrefs; when
+ * omitted it comes from the injected `SIFPRESS_BASE_URL` (see base-url.ts).
  */
 export function createQueryRewrite(
-  basePath: string = '/',
+  basePath?: string,
   prefix: string = 'sifpress/',
 ): LocationRewrite {
   return {
@@ -37,7 +41,7 @@ export function createQueryRewrite(
     output: ({ url }) => {
       const internalPath = url.pathname;
 
-      url.pathname = basePath;
+      url.pathname = basePath ?? appBasePath();
 
       if (internalPath === '/') {
         url.searchParams.delete('p');

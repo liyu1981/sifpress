@@ -144,6 +144,25 @@ That's it. No `.htaccess`, no Nginx config, no directory structure.
 The same file works at `/`, `/myapp/`, or any deeper path. The browser makes
 exactly **one HTTP request** per page load, because the JS and CSS are inlined.
 
+### Base URL
+
+All generated links (admin UI, sifront, API, assets, canonical/sitemap URLs)
+are built from a single base URL. Set `SIFPRESS_BASE_URL` in
+`sifpress_config.php` when the artifact sits behind a reverse proxy or CDN, or
+when links must use a canonical host that differs from the incoming request:
+
+```php
+define('SIFPRESS_BASE_URL', 'https://example.com/myapp/index.php');
+```
+
+Leave it empty to derive the base from the request. The value is resolved by
+`base_url()` in `src/seo.php` in this order:
+
+1. `SIFPRESS_BASE_URL` in `sifpress_config.php`
+2. the `SIFPRESS_BASE_URL` environment variable
+3. the `site_url` SEO setting
+4. the request (`scheme://host` + script name)
+
 ## How it works
 
 ### Server side (`dist/index.php`)
@@ -196,14 +215,20 @@ buttons work out of the box.
 ### API URLs
 
 Because the API lives behind the same `index.php`, the fetch wrappers in
-`ui_sdk/src/api.ts` (consumed as `ui-sdk`) address it relative to the current
-document — no base-path configuration is needed:
+`ui_sdk/src/api.ts` (consumed as `ui-sdk`) address it through a single base
+URL. The PHP artifact injects the resolved base into every served page
+(`<meta name="sifpress-base-url">` plus `window.SIFPRESS_BASE_URL`), so the
+bundle builds correct links even behind a proxy/CDN:
 
 ```ts
-const url = `${window.location.pathname}?p=api&action=hello`
+import { appBaseUrl } from 'ui-sdk'
+
+const url = `${appBaseUrl()}?p=api&action=hello`
 ```
 
-This is why the identical bundle works at any mount depth.
+`appBaseUrl()` (and `appBasePath()` for router hrefs) falls back to
+`window.location.pathname` when nothing is injected, which is why the identical
+bundle still works at any mount depth with no configuration.
 
 ## API
 
@@ -235,6 +260,7 @@ reusable API/SDK layer in the `ui_sdk/` workspace package:
 ```text
 ui_sdk/src/
 ├── api.ts          fetch wrappers (?p=api&action=...)
+├── base-url.ts     appBaseUrl()/appBasePath() from the injected base
 ├── pages.ts        typed API objects + shared types
 ├── assets.ts       browser thumbnail/avatar generation
 ├── auth.tsx        AuthProvider + useAuth (React context)
