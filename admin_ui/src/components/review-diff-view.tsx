@@ -189,18 +189,24 @@ function DiffLineCell({
   );
 }
 
+const NO_REVERTS: ReadonlySet<string> = new Set();
+const NO_EDITS: ChangeEdits = new Map();
+
 export interface ReviewDiffViewProps {
   blocks: DiffBlock[];
-  reverted: ReadonlySet<string>;
-  edited: ChangeEdits;
-  onToggle: (id: string) => void;
-  onEdit: (blockId: string, lineIndex: number, text: string) => void;
+  reverted?: ReadonlySet<string>;
+  edited?: ChangeEdits;
+  /** Read-only rendering (e.g. revision history): no editing or revert buttons. */
+  readOnly?: boolean;
+  onToggle?: (id: string) => void;
+  onEdit?: (blockId: string, lineIndex: number, text: string) => void;
 }
 
 export function ReviewDiffView({
   blocks,
-  reverted,
-  edited,
+  reverted = NO_REVERTS,
+  edited = NO_EDITS,
+  readOnly = false,
   onToggle,
   onEdit,
 }: ReviewDiffViewProps) {
@@ -237,7 +243,12 @@ export function ReviewDiffView({
           row.changeType === 'removed' || row.changeType === 'changed' ? 'removed' : 'context';
         const rightTone =
           row.changeType === 'added' || row.changeType === 'changed' ? 'added' : 'context';
-        const canEdit = row.changeId !== undefined && row.changeIndex !== undefined && !isReverted;
+        const canEdit =
+          !readOnly &&
+          onEdit !== undefined &&
+          row.changeId !== undefined &&
+          row.changeIndex !== undefined &&
+          !isReverted;
 
         return (
           <div key={row.key} className="relative grid grid-cols-2">
@@ -258,28 +269,33 @@ export function ReviewDiffView({
               ariaLabel={t('editor.reviewEditLine')}
               onChange={
                 canEdit
-                  ? next => onEdit(row.changeId as string, row.changeIndex as number, next)
+                  ? next => onEdit?.(row.changeId as string, row.changeIndex as number, next)
                   : undefined
               }
             />
-            {row.showToggle && row.changeId !== undefined && (
-              <button
-                type="button"
-                onClick={() => onToggle(row.changeId as string)}
-                aria-label={
-                  isReverted ? t('editor.reviewRestoreChange') : t('editor.reviewUndoChange')
-                }
-                title={isReverted ? t('editor.reviewRestoreChange') : t('editor.reviewUndoChange')}
-                className={cn(
-                  'absolute top-0.5 left-1/2 z-10 flex size-5 -translate-x-1/2 items-center justify-center rounded-full border shadow-sm transition-colors',
-                  isReverted
-                    ? 'border-border bg-background text-muted-foreground hover:bg-muted'
-                    : 'border-emerald-500/40 bg-background text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400',
-                )}
-              >
-                {isReverted ? <Redo2 className="size-3" /> : <Undo2 className="size-3" />}
-              </button>
-            )}
+            {!readOnly &&
+              onToggle !== undefined &&
+              row.showToggle &&
+              row.changeId !== undefined && (
+                <button
+                  type="button"
+                  onClick={() => onToggle?.(row.changeId as string)}
+                  aria-label={
+                    isReverted ? t('editor.reviewRestoreChange') : t('editor.reviewUndoChange')
+                  }
+                  title={
+                    isReverted ? t('editor.reviewRestoreChange') : t('editor.reviewUndoChange')
+                  }
+                  className={cn(
+                    'absolute top-0.5 left-1/2 z-10 flex size-5 -translate-x-1/2 items-center justify-center rounded-full border shadow-sm transition-colors',
+                    isReverted
+                      ? 'border-border bg-background text-muted-foreground hover:bg-muted'
+                      : 'border-emerald-500/40 bg-background text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400',
+                  )}
+                >
+                  {isReverted ? <Redo2 className="size-3" /> : <Undo2 className="size-3" />}
+                </button>
+              )}
           </div>
         );
       })}

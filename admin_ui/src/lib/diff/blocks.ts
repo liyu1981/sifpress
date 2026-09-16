@@ -77,6 +77,48 @@ export function buildDiff(before: string, after: string): DiffResult {
   return { blocks, changeCount: changeIndex, addedLines, removedLines };
 }
 
+export interface DiffLineInput {
+  type: 'add' | 'remove' | 'same';
+  content: string;
+}
+
+/**
+ * Convert the server's flat revision diff (`pagesApi.revisionDiff`, produced by
+ * `line_diff()` in api.php) into the block model, so the same read-only
+ * `ReviewDiffView` can render revision history.
+ */
+export function blocksFromDiffLines(lines: readonly DiffLineInput[]): DiffBlock[] {
+  const blocks: DiffBlock[] = [];
+  let changeIndex = 0;
+
+  for (let i = 0; i < lines.length; ) {
+    if (lines[i].type === 'same') {
+      const context: string[] = [];
+      while (i < lines.length && lines[i].type === 'same') {
+        context.push(lines[i].content);
+        i += 1;
+      }
+      blocks.push({ kind: 'context', lines: context });
+      continue;
+    }
+
+    const removed: string[] = [];
+    const added: string[] = [];
+    while (i < lines.length && lines[i].type !== 'same') {
+      if (lines[i].type === 'remove') {
+        removed.push(lines[i].content);
+      } else {
+        added.push(lines[i].content);
+      }
+      i += 1;
+    }
+
+    blocks.push({ kind: 'change', id: `c${changeIndex++}`, removed, added });
+  }
+
+  return blocks;
+}
+
 /** The added lines for a block, honouring any inline edits. */
 export function addedFor(block: DiffChangeBlock, edits?: ChangeEdits): readonly string[] {
   return edits?.get(block.id) ?? block.added;

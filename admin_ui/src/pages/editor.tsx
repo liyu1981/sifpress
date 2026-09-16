@@ -25,6 +25,7 @@ import { ReviewChangesDialog } from '@/components/review-changes-dialog';
 import type { EditorMutationBridge } from '@/lib/agent/editor-mutations';
 import { TagsInput } from '@/components/tags-input';
 import { RevisionGraph } from '@/components/revision-graph';
+import { ReviewDiffView } from '@/components/review-diff-view';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,6 +47,7 @@ import {
   parseFrontMatter,
   RESERVED_FRONT_MATTER_KEYS,
 } from '@/lib/front-matter';
+import { blocksFromDiffLines } from '@/lib/diff/blocks';
 import { MilkdownEditor, type MilkdownEditorHandle } from '@/lib/md-editor';
 import { escapeTableCodePipes, assetsApi, type Grant, type DiffLine, pagesApi } from 'ui-sdk';
 
@@ -230,39 +232,44 @@ function EditorSkeleton() {
   );
 }
 
-function DiffLines({ lines }: { lines: DiffLine[] }) {
+function RevisionDiff({
+  lines,
+  currentId,
+  revisionId,
+}: {
+  lines: DiffLine[];
+  currentId: string | null;
+  revisionId: string;
+}) {
   const { t } = useTranslation();
-  const visible = lines.length > 200 ? lines.slice(0, 200) : lines;
-  let lineNum = 0;
+  const blocks = useMemo(() => blocksFromDiffLines(lines), [lines]);
+  const short = (id: string | null) => (id === null || id === '' ? '—' : id.slice(0, 8));
+
+  if (lines.length === 0) {
+    return (
+      <div className="py-1 text-xs text-muted-foreground">{t('editor.revisionDiffEmpty')}</div>
+    );
+  }
+
   return (
-    <div>
-      {visible.map((line, i) => {
-        const cls =
-          line.type === 'add'
-            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-            : line.type === 'remove'
-              ? 'bg-red-500/10 text-red-700 dark:text-red-400'
-              : 'text-muted-foreground';
-        const prefix = line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' ';
-        if (line.type !== 'add') lineNum++;
-        return (
-          <div key={i} className={`flex whitespace-pre ${cls}`}>
-            <span className="w-8 shrink-0 select-none text-right pr-2 opacity-40">
-              {line.type !== 'add' ? lineNum : ''}
-            </span>
-            <span className="shrink-0 pr-1 opacity-50">{prefix}</span>
-            <span>{line.content}</span>
-          </div>
-        );
-      })}
-      {lines.length > 200 && (
-        <div className="mt-1 text-xs text-muted-foreground">
-          {t('editor.revisionDiffTruncated', { count: lines.length })}
-        </div>
-      )}
-      {lines.length === 0 && (
-        <div className="py-1 text-xs text-muted-foreground">{t('editor.revisionDiffEmpty')}</div>
-      )}
+    <div className="overflow-hidden rounded-lg border border-border/40 bg-background/70">
+      <div className="grid grid-cols-2 border-b border-border/40 text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
+        <span className="px-2 py-1">
+          {t('editor.revisionDiffCurrent')}{' '}
+          <span className="font-mono normal-case text-muted-foreground/70">
+            ({short(currentId)})
+          </span>
+        </span>
+        <span className="border-l border-border/40 px-2 py-1">
+          {t('editor.revisionDiffRevision')}{' '}
+          <span className="font-mono normal-case text-muted-foreground/70">
+            ({short(revisionId)})
+          </span>
+        </span>
+      </div>
+      <div className="max-h-80 overflow-auto">
+        <ReviewDiffView blocks={blocks} readOnly />
+      </div>
     </div>
   );
 }
@@ -1435,9 +1442,11 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
                                       {t('editor.revisionDiffTitle')}
                                     </p>
                                     {diffQuery.data.title.some(l => l.type !== 'same') ? (
-                                      <div className="rounded-lg border border-border/40 bg-background/60 p-2 font-mono text-xs leading-relaxed">
-                                        <DiffLines lines={diffQuery.data.title} />
-                                      </div>
+                                      <RevisionDiff
+                                        lines={diffQuery.data.title}
+                                        currentId={page.current_revision_id}
+                                        revisionId={rev.revision_id}
+                                      />
                                     ) : (
                                       <p className="text-xs text-muted-foreground italic">
                                         {t('editor.revisionDiffNoDiff')}
@@ -1449,9 +1458,11 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
                                       {t('editor.revisionDiffContent')}
                                     </p>
                                     {diffQuery.data.content_md.some(l => l.type !== 'same') ? (
-                                      <div className="max-h-80 overflow-y-auto rounded-lg border border-border/40 bg-background/60 p-2 font-mono text-xs leading-relaxed">
-                                        <DiffLines lines={diffQuery.data.content_md} />
-                                      </div>
+                                      <RevisionDiff
+                                        lines={diffQuery.data.content_md}
+                                        currentId={page.current_revision_id}
+                                        revisionId={rev.revision_id}
+                                      />
                                     ) : (
                                       <p className="text-xs text-muted-foreground italic">
                                         {t('editor.revisionDiffNoDiff')}
