@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Toaster } from '@/components/ui/sonner';
 import { useAuth } from 'ui-sdk';
-import { DEMO_PAGE_SLUG, settingsApi, systemApi } from 'ui-sdk';
+import { DEMO_PAGE_SLUG, systemApi } from 'ui-sdk';
 import { ChangePasswordPage } from '@/pages/change-password';
 import { LoginPage } from '@/pages/login';
 
@@ -142,12 +142,6 @@ function RootLayout() {
   const { status, user } = useAuth();
   const pathname = useRouterState({
     select: state => state.location.pathname,
-  });
-
-  const settings = useQuery({
-    queryKey: ['seo-settings'],
-    queryFn: settingsApi.get,
-    staleTime: 60_000,
   });
 
   useEffect(() => {

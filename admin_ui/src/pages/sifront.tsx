@@ -200,7 +200,7 @@ function SifrontCard({
 }
 
 export function SifrontsPage() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const canManage = user?.permissions?.includes('settings.manage') ?? false;

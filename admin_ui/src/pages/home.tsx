@@ -1,13 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { DEMO_PAGE_SLUG, pagesApi, settingsApi } from 'ui-sdk';
 import { ArticleDetailPage } from '@/pages/article-detail';
 import { log } from '@/lib/logger';
 
 export function HomePage() {
-  const { t } = useTranslation();
-
   const settings = useQuery({
     queryKey: ['seo-settings'],
     queryFn: settingsApi.get,

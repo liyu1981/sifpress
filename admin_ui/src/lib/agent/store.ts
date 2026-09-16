@@ -12,8 +12,6 @@ export interface AgentSession {
   messages: AgentMessage[];
 }
 
-export type AgentSessionSummary = Omit<AgentSession, 'messages'>;
-
 const DB_NAME = 'sifpress-agent';
 const DB_VERSION = 1;
 const STORE = 'sessions';
@@ -47,18 +45,6 @@ function txDone(tx: IDBTransaction): Promise<void> {
   });
 }
 
-export async function listSessions(): Promise<AgentSessionSummary[]> {
-  const db = await openDb();
-  const tx = db.transaction(STORE, 'readonly');
-  const request = tx.objectStore(STORE).getAll() as IDBRequest<AgentSession[]>;
-  const sessions = await txResult(request);
-  await txDone(tx);
-  db.close();
-  return sessions
-    .map(({ messages: _messages, ...summary }) => summary)
-    .sort((a, b) => b.updatedAt - a.updatedAt);
-}
-
 export async function listSessionsFull(): Promise<AgentSession[]> {
   const db = await openDb();
   const tx = db.transaction(STORE, 'readonly');
@@ -67,16 +53,6 @@ export async function listSessionsFull(): Promise<AgentSession[]> {
   await txDone(tx);
   db.close();
   return sessions.sort((a, b) => b.updatedAt - a.updatedAt);
-}
-
-export async function getSession(id: string): Promise<AgentSession | undefined> {
-  const db = await openDb();
-  const tx = db.transaction(STORE, 'readonly');
-  const request = tx.objectStore(STORE).get(id) as IDBRequest<AgentSession | undefined>;
-  const session = await txResult(request);
-  await txDone(tx);
-  db.close();
-  return session;
 }
 
 export async function saveSession(session: AgentSession): Promise<void> {

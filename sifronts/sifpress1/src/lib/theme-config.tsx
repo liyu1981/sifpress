@@ -22,11 +22,7 @@ export interface ThemeConfig {
 function parseSifrontMeta(raw: unknown): Record<string, unknown> {
   const map: Record<string, unknown> = {};
 
-  if (
-    raw !== null &&
-    typeof raw === 'object' &&
-    Array.isArray((raw as SifrontMeta).require_keys)
-  ) {
+  if (raw !== null && typeof raw === 'object' && Array.isArray((raw as SifrontMeta).require_keys)) {
     for (const entry of (raw as SifrontMeta).require_keys) {
       if (entry !== null && typeof entry === 'object') {
         for (const [key, value] of Object.entries(entry)) {
@@ -94,7 +90,10 @@ function asLinkArray(value: unknown): LinkItem[] | null {
   return out;
 }
 
-function buildConfig(data: Record<string, unknown>, defaults: Record<string, unknown>): ThemeConfig {
+function buildConfig(
+  data: Record<string, unknown>,
+  defaults: Record<string, unknown>,
+): ThemeConfig {
   const pick = (key: string): unknown => (data[key] !== undefined ? data[key] : defaults[key]);
 
   const str = (key: string): string => {

@@ -259,17 +259,6 @@ export function getModel(providerId: string, modelId: string) {
   return getModels().getModel(providerId, modelId);
 }
 
-export function listModels(): Array<{ provider: string; providerName: string; model: Model<Api> }> {
-  const modelsAll = getModels();
-  const out: Array<{ provider: string; providerName: string; model: Model<Api> }> = [];
-  for (const provider of modelsAll.getProviders()) {
-    for (const model of modelsAll.getModels(provider.id)) {
-      out.push({ provider: provider.id, providerName: provider.name, model });
-    }
-  }
-  return out;
-}
-
 /**
  * Models from providers whose connection was verified with a successful test.
  * This is the only list the agent UI should offer, so unconfigured providers

@@ -54,10 +54,6 @@ export function disable(): void {
   localStorage.setItem(STORAGE_KEY, 'false');
 }
 
-export function isEnabled(): boolean {
-  return window._DEV === true;
-}
-
 export function log(...args: unknown[]): void {
   if (window._DEV === true) console.log(...args);
 }

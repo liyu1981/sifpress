@@ -1,18 +1,18 @@
-import { memo, useEffect, useState } from "react";
-import type { MouseEvent, Ref } from "react";
-import { copyText } from "../api";
-import { parseFrontMatter } from "../front-matter";
-import { type MermaidTheme, setMermaidTheme } from "./mermaid";
-import { postProcessHtml } from "./postprocess";
-import { markdownToHtml } from "./render";
+import { memo, useEffect, useState } from 'react';
+import type { MouseEvent, Ref } from 'react';
+import { copyText } from '../api';
+import { parseFrontMatter } from '../front-matter';
+import { type MermaidTheme, setMermaidTheme } from './mermaid';
+import { postProcessHtml } from './postprocess';
+import { markdownToHtml } from './render';
 
-export type MarkdownViewTheme = MermaidTheme | "system";
+export type MarkdownViewTheme = MermaidTheme | 'system';
 
 export interface MarkdownViewProps {
-	content: string;
-	className?: string;
-	containerRef?: Ref<HTMLDivElement>;
-	theme?: MarkdownViewTheme;
+  content: string;
+  className?: string;
+  containerRef?: Ref<HTMLDivElement>;
+  theme?: MarkdownViewTheme;
 }
 
 /**
@@ -21,68 +21,66 @@ export interface MarkdownViewProps {
  * from the user's prefers-color-scheme at render time.
  */
 export const MarkdownView = memo(function MarkdownView({
-	content,
-	className,
-	containerRef,
-	theme = "system",
+  content,
+  className,
+  containerRef,
+  theme = 'system',
 }: MarkdownViewProps) {
-	const [html, setHtml] = useState("");
+  const [html, setHtml] = useState('');
 
-	const resolved: MermaidTheme =
-		theme === "system"
-			? window.matchMedia("(prefers-color-scheme: dark)").matches
-				? "dark"
-				: "light"
-			: theme;
+  const resolved: MermaidTheme =
+    theme === 'system'
+      ? window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark'
+        : 'light'
+      : theme;
 
-	useEffect(() => {
-		setMermaidTheme(resolved);
-	}, [resolved]);
+  useEffect(() => {
+    setMermaidTheme(resolved);
+  }, [resolved]);
 
-	useEffect(() => {
-		let cancelled = false;
-		const body = parseFrontMatter(content).content;
+  useEffect(() => {
+    let cancelled = false;
+    const body = parseFrontMatter(content).content;
 
-		markdownToHtml(body)
-			.then(postProcessHtml)
-			.then((next) => {
-				if (!cancelled) {
-					setHtml(next);
-				}
-			})
-			.catch(() => {
-				if (!cancelled) {
-					setHtml("");
-				}
-			});
+    markdownToHtml(body)
+      .then(postProcessHtml)
+      .then(next => {
+        if (!cancelled) {
+          setHtml(next);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setHtml('');
+        }
+      });
 
-		return () => {
-			cancelled = true;
-		};
-	}, [content, resolved]);
+    return () => {
+      cancelled = true;
+    };
+  }, [content, resolved]);
 
-	const onCopyClick = async (
-		event: MouseEvent<HTMLDivElement>,
-	): Promise<void> => {
-		const target = event.target as HTMLElement;
+  const onCopyClick = async (event: MouseEvent<HTMLDivElement>): Promise<void> => {
+    const target = event.target as HTMLElement;
 
-		if (!target.classList.contains("md-copy")) {
-			return;
-		}
+    if (!target.classList.contains('md-copy')) {
+      return;
+    }
 
-		const shell = target.closest(".md-codeblock");
-		const code = shell?.querySelector("pre");
-		if (code != null) {
-			await copyText(code.textContent ?? "");
-		}
-	};
+    const shell = target.closest('.md-codeblock');
+    const code = shell?.querySelector('pre');
+    if (code != null) {
+      await copyText(code.textContent ?? '');
+    }
+  };
 
-	return (
-		<div
-			ref={containerRef}
-			className={className}
-			onClick={onCopyClick}
-			dangerouslySetInnerHTML={{ __html: html }}
-		/>
-	);
+  return (
+    <div
+      ref={containerRef}
+      className={className}
+      onClick={onCopyClick}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
 });

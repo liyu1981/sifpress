@@ -140,8 +140,8 @@ admin_ui/           Admin React app (pnpm workspace package "sifpress-admin-ui")
     routeTree.gen.ts  auto-generated route tree (do not edit)
     router.tsx      createRouter + ?p= rewrite config (via ui-sdk rewrite)
     pages/          page components
-    lib/            UI libs (marked/, agent/, theme, i18n, utils, logger,
-                    front-matter, format) — API layer lives in ui_sdk
+    lib/            UI libs (md-editor/, agent/, diff/, theme, i18n, utils,
+                    logger, front-matter, format) — API layer lives in ui_sdk
     components/ui/  shadcn/ui components
   components.json   shadcn config (style "radix-nova", aliases @/*)
   tsconfig.json     strict; paths @/* -> ./src/*, ui-sdk -> ../ui_sdk/src
@@ -211,17 +211,19 @@ pnpm-lock.yaml      workspace lockfile
   resources, language persisted in localStorage and synced to
   `document.documentElement.lang`. Add keys in the `resources` object; use
   `useTranslation()` in components.
-- **Markdown editor + rendering** (`src/lib/marked/`): Milkdown
-  (`@milkdown/crepe`, pinned) wrapped as `MilkdownEditor` (WYSIWYG editor on
-  `/editor`) and `MarkdownView` (article display via `getHTML()` +
-  post-processing). `createMarkdownEditor()` in `shared.ts` is the single
-  source of truth for the schema — it builds the **same** editor for both
-  modes so edit and render can't drift.
-  - Custom plugins live in `src/lib/marked/plugins/`: `mermaid` (diagram
-    node + NodeView, uses the app's Mermaid), `image-directives`
-    (`![Alt|640]`/floats/`link`, extends the commonmark image schema),
-    `slug` handled by the built-in heading-id generator (ids in `getHTML`
-    output feed the TOC).
+- **Markdown editor + rendering**: the engine is shared in
+  `ui_sdk/src/markdown/` (schema, render pipeline, plugins) and wrapped by
+  the app hosts — `MilkdownEditor` in `admin_ui/src/lib/md-editor/editor.tsx`
+  (WYSIWYG editor on `/editor`) and `MarkdownView` in
+  `ui_sdk/src/markdown/view.tsx` (article display). `createMarkdownEditor()`
+  in `ui_sdk/src/markdown/shared.ts` is the single source of truth for the
+  schema — it builds the **same** editor for both modes so edit and render
+  can't drift.
+  - Plugins: `ui_sdk/src/markdown/plugins/` (`mermaid`, `video*`,
+    `image-directives` schema) and `admin_ui/src/lib/md-editor/plugins/`
+    (editor-only tooltips for image directives + diagrams). `![Alt|640]`
+    floats/link extend the commonmark image schema; heading ids come from the
+    built-in slug generator (ids in `getHTML` output feed the TOC).
   - **Feature ordering matters**: `codeMirror` must be `addFeature`d before
     `latex` (the Latex feature throws otherwise).
   - Crepe's UI chrome (toolbar, slash menu, tables…) is written in **Vue 3**
@@ -230,9 +232,12 @@ pnpm-lock.yaml      workspace lockfile
   - Article rendering pipeline: `parseFrontMatter` → `escapeTableCodePipes`
     (tables with pipes in code spans) → `markdownToHtml` (hidden renderer
     singleton + `getHTML()`) → `postProcessHtml` (block math → KaTeX,
-    mermaid SVG, video embeds, figure/caption lift, external links).
-  - Meta fields (title/slug/date/tags) live in dedicated editor inputs and
-    are assembled on save by `buildFrontMatter()` in `src/lib/front-matter.ts`.
+    mermaid SVG, video embeds, external links).
+  - Front matter: `parseFrontMatter`/`FrontMatter` live in
+    `ui_sdk/src/front-matter.ts`; the admin serialization helpers
+    (`buildFrontMatter`, key sets) live in `admin_ui/src/lib/front-matter.ts`,
+    which re-exports the parser so call sites keep importing from
+    `@/lib/front-matter`.
 - **Glass design system** in `index.css` (`@layer components`):
   `glass-control` (frosted surfaces — applied by default to `Card`),
   `apple-panel` (chrome — used by the nav pill), `ambient-bg` (page
@@ -248,13 +253,15 @@ pnpm-lock.yaml      workspace lockfile
   libraries are unavailable and must not be installed. There is no
   browser-based verification; rely on `pnpm run typecheck`, `php build.php`,
   curl, and code inspection instead.
-- **Biome is the formatter for `admin_ui/src` and `admin_ui/vite.config.ts`**
-  (config: `admin_ui/biome.json`; linter disabled — formatter only). Run
-  `pnpm run format` after editing TS/TSX. Enforced style: semicolons at
-  statement ends, trailing commas, single quotes, 2-space indent, 100-col
-  width. Scope is limited to `src/**/*.{ts,tsx}` + `vite.config.ts` +
-  `../ui_sdk/src/**/*.{ts,tsx}`; Biome must NOT touch `index.css` (Tailwind
-  v4 syntax breaks its CSS parser) or other files.
+- **Biome is the formatter** for each TS package, configured per package
+  (`admin_ui/biome.json`, `ui_sdk/biome.json`, `sifronts/sifpress1/biome.json`;
+  linter disabled — formatter only). Run `pnpm run format` in the package you
+  edited. **Biome only sees files inside the config's directory**, so the
+  admin_ui script does NOT format `ui_sdk` — run `pnpm run format` in `ui_sdk`
+  too. Enforced style: semicolons at statement ends, trailing commas, single
+  quotes, 2-space indent, 100-col width, scope `src/**/*.{ts,tsx}` +
+  `vite.config.ts`; Biome must NOT touch `index.css` (Tailwind v4 syntax breaks
+  its CSS parser) or other files.
 - **Prose typography overrides must be unlayered.** In Tailwind v4 the
   `@tailwindcss/typography` plugin emits its default `.prose` tokens into the
   `utilities` layer, which outranks `components`-layer rules no matter their

@@ -124,7 +124,7 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
         builderRef.current = null;
         void builder.destroy();
       };
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+      // Mount once; live updates flow through the handle, not re-mounting.
     }, []);
 
     const resolved: MermaidTheme =

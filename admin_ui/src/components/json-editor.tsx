@@ -69,7 +69,6 @@ export function JsonEditor({
       editorRef.current = null;
     };
     // create once; updates flow through updateProps below
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

@@ -517,12 +517,7 @@ export const kvsApi = {
       body: input,
     }).then(r => r.kv),
 
-  update: (input: {
-    key: string;
-    new_key?: string;
-    value?: unknown;
-    schema?: unknown | null;
-  }) =>
+  update: (input: { key: string; new_key?: string; value?: unknown; schema?: unknown | null }) =>
     apiRequest<{ kv: KvPair }>('kvs.update', {
       method: 'PATCH',
       body: input,
@@ -539,9 +534,12 @@ export const kvsApi = {
       params: { key },
     }).then(r => r.grants),
 
-  grant: (
-    input: { key: string; username: string; permission: 'edit' | 'view'; note?: string | null },
-  ) =>
+  grant: (input: {
+    key: string;
+    username: string;
+    permission: 'edit' | 'view';
+    note?: string | null;
+  }) =>
     apiRequest<{ ok: true }>('kvs.grant', {
       method: 'POST',
       body: {
@@ -581,10 +579,7 @@ export interface SifrontDetail extends SifrontListItem {
 }
 
 export const sifrontsApi = {
-  list: () =>
-    apiRequest<{ sifronts: SifrontListItem[] }>('sifronts.list').then(
-      r => r.sifronts,
-    ),
+  list: () => apiRequest<{ sifronts: SifrontListItem[] }>('sifronts.list').then(r => r.sifronts),
   get: (id: number) =>
     apiRequest<{ sifront: SifrontDetail }>('sifronts.get', {
       params: { id: String(id) },

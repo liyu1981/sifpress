@@ -125,22 +125,6 @@ function http_get(string $url, int $timeout = 10): ?string
 }
 
 /**
- * Fetch a remote URL and return the decoded JSON, or null on any failure.
- */
-function http_get_json(string $url, int $timeout = 10): ?array
-{
-    $body = http_get($url, $timeout);
-
-    if ($body === null || trim($body) === '') {
-        return null;
-    }
-
-    $data = json_decode($body, true);
-
-    return is_array($data) ? $data : null;
-}
-
-/**
  * Fetch and validate the update manifest. Returns
  * `{ manifest: ?array, error: ?string }` where `error` is `'network'` when the
  * URL could not be fetched and `'bad_json'` when it fetched but failed

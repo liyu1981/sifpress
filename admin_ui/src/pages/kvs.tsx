@@ -320,7 +320,6 @@ function KvGrantRow({
   saving: boolean;
 }) {
   const { t } = useTranslation();
-  const isGuest = grant.username === '_guest_';
   const label =
     grant.username === '_guest_'
       ? grant.name || t('kvs.websiteGuest')

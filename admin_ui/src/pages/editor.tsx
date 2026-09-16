@@ -4,13 +4,11 @@ import {
   ArrowLeft,
   Bot,
   ChevronDown,
-  GitCommitHorizontal,
   Loader2,
   Lock,
   Plus,
   RotateCcw,
   Save,
-  ShieldCheck,
   Trash2,
   Undo2,
   UserPlus,
@@ -1363,7 +1361,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
                         revisions={revisionsQuery.data.items}
                         currentRevisionId={page.current_revision_id}
                       >
-                        {(rev, { isCurrent, isLast }) => {
+                        {(rev, { isCurrent }) => {
                           const isDiffExpanded = expandedDiffRevisionId === rev.revision_id;
                           return (
                             <div className="w-full">
