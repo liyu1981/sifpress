@@ -5,6 +5,10 @@
  * removed). Instead it mutates the open editor's own frontmatter and
  * content sections through this interface — changes land in the editor and
  * are only persisted when the user hits Save, so they are non-destructive.
+ *
+ * After a content mutation the agent calls `openReview()` to hand the diff
+ * back to the user in the review dialog. The user's choice is written back
+ * through `setContent`, so the agent can treat the change as submitted.
  */
 export interface EditorFrontMatter {
   title: string;
@@ -30,6 +34,8 @@ export interface EditorMutationBridge {
   setFrontMatter: (patch: FrontMatterPatch) => void;
   getContent: () => string;
   setContent: (markdown: string) => void;
+  /** Open the before/after review dialog for the pending agent edit. */
+  openReview: () => void;
   getCommitNote: () => string;
   setCommitNote: (note: string) => void;
 }

@@ -451,6 +451,7 @@
 
 @media (prefers-reduced-transparency: reduce) {
   .glass-control,
+  .glass-control-opaque,
   .apple-panel {
     background: var(--background);
     backdrop-filter: none;

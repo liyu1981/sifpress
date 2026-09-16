@@ -218,7 +218,7 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
     name: 'update_content',
     label: 'Update content',
     description:
-      "Replace the open editor's markdown content (without the frontmatter section). Mutates the editor UI only — the user still clicks Save to persist. The editor's WYSIWYG view reflects this immediately.",
+      "Stage a replacement for the open editor's markdown content (without the frontmatter section). The editor is NOT modified yet — the change is held and shown in the review dialog after you call save, where the user accepts, edits or rejects it.",
     parameters: Type.Object({
       content_md: Type.String({
         description: 'New markdown body (must NOT include frontmatter --- delimiters)',
@@ -265,6 +265,21 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
     },
   });
 
+  const save = tool({
+    name: 'save',
+    label: 'Save draft',
+    description:
+      "Submit your staged content changes for the user's review. Opens the review dialog where the user decides which changes to keep; the editor is only updated after they finish the review, and nothing is persisted to the server (the user saves afterwards). Call this once after you finish editing.",
+    parameters: Type.Object({}),
+    execute: async () => {
+      const ed = requireEditor(editor);
+      ed.openReview();
+      return textBlocks(
+        'Changes submitted for review. The user will review the diff and save. You can consider this task complete.',
+      );
+    },
+  });
+
   return [
     searchContent,
     listTags,
@@ -275,5 +290,6 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
     updateContent,
     getCommitNote,
     setCommitNote,
+    save,
   ] as unknown as AgentTool<any>[];
 }

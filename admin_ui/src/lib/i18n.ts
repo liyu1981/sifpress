@@ -235,6 +235,20 @@ const en = {
     revisionDiffLabel: 'Diff: {{from}} ↔ {{to}}',
     revisionDiffTruncated: 'Showing first 200 lines of {{count}} total',
     revisionDiffEmpty: 'No differences',
+    reviewTitle: 'Review Assistant Proposed Changes',
+    reviewBefore: 'Current',
+    reviewAfter: 'Assistant Proposed',
+    reviewNoChanges: 'No changes to review',
+    reviewStatChanges: '{{count}} change(s)',
+    reviewStatReverted: '{{count}} undone',
+    reviewUndoChange: 'Undo this change',
+    reviewRestoreChange: 'Restore this change',
+    reviewRejectAll: 'Reject all',
+    reviewClose: 'Done Review',
+    reviewDirtyHint: 'The editor is unchanged until you finish the review.',
+    reviewExpandContext: 'Show {{count}} unchanged line(s)',
+    reviewEditHint: 'click a line to edit',
+    reviewEditLine: 'Edit proposed line',
   },
   settings: {
     badge: 'System settings',
@@ -577,7 +591,7 @@ const en = {
       max: 'Max',
     },
     systemPrompt:
-      "You are the assistant inside Sifpress, a personal markdown blog. Help the user with their content and answer their questions. Use the provided tools to search and read the user's local pages, list tags and pages, and fetch web pages. When the user asks you to edit the open draft, mutate its frontmatter and content sections with the update_frontmatter and set_content tools, and update the commit message with set_commit_note — changes land in the editor UI and are only saved when the user clicks Save. When asked about the user's content, search for it before answering. Answer in {{language}}.",
+      "You are the assistant inside Sifpress, a personal markdown blog. Help the user with their content and answer their questions. Use the provided tools to search and read the user's local pages, list tags and pages, and fetch web pages. When the user asks you to edit the open draft, stage its frontmatter and content with the update_frontmatter and update_content tools, update the commit message with set_commit_note, then call save to open the review dialog — the editor is only updated after the user finishes reviewing, and nothing is persisted until the user clicks Save. When asked about the user's content, search for it before answering. Answer in {{language}}.",
   },
 };
 
@@ -811,6 +825,20 @@ const zh = {
     revisionDiffLabel: '差异：{{from}} ↔ {{to}}',
     revisionDiffTruncated: '显示前200行，共{{count}}行',
     revisionDiffEmpty: '无差异',
+    reviewTitle: '审阅助手建议的修改',
+    reviewBefore: '当前',
+    reviewAfter: '助手建议',
+    reviewNoChanges: '没有可审阅的修改',
+    reviewStatChanges: '{{count}} 处修改',
+    reviewStatReverted: '已撤销 {{count}} 处',
+    reviewUndoChange: '撤销此修改',
+    reviewRestoreChange: '恢复此修改',
+    reviewRejectAll: '全部拒绝',
+    reviewClose: '完成审阅',
+    reviewDirtyHint: '完成审阅前，编辑器内容不会改变。',
+    reviewExpandContext: '展开 {{count}} 行未修改内容',
+    reviewEditHint: '点击行可直接编辑',
+    reviewEditLine: '编辑建议内容',
   },
   settings: {
     badge: '系统设置',
@@ -1146,7 +1174,7 @@ const zh = {
       max: '最大',
     },
     systemPrompt:
-      '你是 Sifpress（一个个人 Markdown 博客）中的智能助手。帮助用户处理内容并回答问题。使用提供的工具搜索和阅读用户的本地页面、列出标签和页面、抓取网页。当用户要求你编辑打开的草稿时，使用 update_frontmatter 和 set_content 工具修改其 frontmatter 和内容区块，并使用 set_commit_note 更新提交信息——更改会直接反映在编辑器界面中，仅当用户点击保存时才会写入。当被问到用户的内容时，先搜索再回答。用{{language}}回答。',
+      '你是 Sifpress（一个个人 Markdown 博客）中的智能助手。帮助用户处理内容并回答问题。使用提供的工具搜索和阅读用户的本地页面、列出标签和页面、抓取网页。当用户要求你编辑打开的草稿时，使用 update_frontmatter 和 update_content 工具暂存 frontmatter 和内容修改，使用 set_commit_note 更新提交信息，然后调用 save 打开审阅对话框——只有在用户完成审阅后编辑器才会更新，且在用户点击保存前不会写入。当被问到用户的内容时，先搜索再回答。用{{language}}回答。',
   },
 };
 

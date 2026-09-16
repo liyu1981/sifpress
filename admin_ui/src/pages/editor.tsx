@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DeletePageMenu } from '@/components/delete-page-menu';
 import { AgentChat, type AgentDraft } from '@/components/agent/agent-chat';
+import { ReviewChangesDialog } from '@/components/review-changes-dialog';
 import type { EditorMutationBridge } from '@/lib/agent/editor-mutations';
 import { TagsInput } from '@/components/tags-input';
 import { RevisionGraph } from '@/components/revision-graph';
@@ -300,6 +301,8 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
   const [saveError, setSaveError] = useState<ApiError | null>(null);
   const [commitNote, setCommitNote] = useState(editing ? 'Update article' : 'Initial version');
   const editorRef = useRef<MilkdownEditorHandle>(null);
+  const reviewBaselineRef = useRef<string | null>(null);
+  const pendingProposalRef = useRef<string | null>(null);
   const extraFieldIdRef = useRef(0);
   const editorSnapshotRef = useRef({
     title: '',
@@ -331,6 +334,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
   const [rawError, setRawError] = useState<string | null>(null);
 
   const [agentOpen, setAgentOpen] = useState(false);
+  const [review, setReview] = useState<{ before: string; after: string } | null>(null);
   const [expandedDiffRevisionId, setExpandedDiffRevisionId] = useState<string | null>(null);
   const [restorePending, setRestorePending] = useState<string | null>(null);
   const isRevisionPreview = !!revision;
@@ -458,6 +462,9 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
     onSuccess: page => {
       queryClient.invalidateQueries({ queryKey: ['pages'] });
       queryClient.invalidateQueries({ queryKey: ['page', page.slug] });
+      reviewBaselineRef.current = null;
+      pendingProposalRef.current = null;
+      setReview(null);
       navigate({ to: '/admin/article/$slug', params: { slug: page.slug } });
     },
     onError: err => {
@@ -725,6 +732,13 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
     },
   });
 
+  const writeEditorContent = useCallback((markdown: string) => {
+    editorRef.current?.setMarkdown(markdown);
+    editorSnapshotRef.current = { ...editorSnapshotRef.current, body: markdown };
+    setBody(markdown);
+    setSourceBody(markdown);
+  }, []);
+
   const editorBridge: EditorMutationBridge = useMemo(
     () => ({
       getFrontMatter: () => {
@@ -786,12 +800,29 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
           editorSnapshotRef.current = { ...editorSnapshotRef.current, seo: patch.seo };
         }
       },
-      getContent: () => editorRef.current?.getMarkdown() ?? editorSnapshotRef.current.body,
+      getContent: () =>
+        pendingProposalRef.current ??
+        editorRef.current?.getMarkdown() ??
+        editorSnapshotRef.current.body,
       setContent: markdown => {
-        editorRef.current?.setMarkdown(markdown);
-        editorSnapshotRef.current = { ...editorSnapshotRef.current, body: markdown };
-        setBody(markdown);
-        setSourceBody(markdown);
+        if (reviewBaselineRef.current === null) {
+          reviewBaselineRef.current =
+            editorRef.current?.getMarkdown() ?? editorSnapshotRef.current.body;
+        }
+        pendingProposalRef.current = markdown;
+      },
+      openReview: () => {
+        const before = reviewBaselineRef.current;
+        const after = pendingProposalRef.current;
+        if (before === null || after === null) {
+          return;
+        }
+        if (before === after) {
+          reviewBaselineRef.current = null;
+          pendingProposalRef.current = null;
+          return;
+        }
+        setReview({ before, after });
       },
       getCommitNote: () => editorSnapshotRef.current.commitNote,
       setCommitNote: note => {
@@ -799,7 +830,17 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
         editorSnapshotRef.current = { ...editorSnapshotRef.current, commitNote: note };
       },
     }),
-    [],
+    [writeEditorContent],
+  );
+
+  const handleReviewClose = useCallback(
+    (result: string) => {
+      writeEditorContent(result);
+      reviewBaselineRef.current = null;
+      pendingProposalRef.current = null;
+      setReview(null);
+    },
+    [writeEditorContent],
   );
 
   useEffect(() => {
@@ -881,12 +922,12 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
 
   const agentDraft: AgentDraft | null =
     editing && page !== null
-      ? { slug: page.slug, title: page.title, content: body }
+      ? { slug: page.slug, title: page.title, content: pendingProposalRef.current ?? body }
       : body.trim() !== ''
         ? {
             slug: slugValue.trim() !== '' ? slugValue.trim() : 'untitled',
             title: title.trim() !== '' ? title.trim() : t('agent.untitled'),
-            content: body,
+            content: pendingProposalRef.current ?? body,
           }
         : null;
 
@@ -1548,6 +1589,15 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
           <Bot className="size-4" />
           {t('agent.title')}
         </button>
+      )}
+
+      {review !== null && (
+        <ReviewChangesDialog
+          open
+          before={review.before}
+          after={review.after}
+          onClose={handleReviewClose}
+        />
       )}
 
       {agentOpen && (
