@@ -238,6 +238,15 @@ pnpm-lock.yaml      workspace lockfile
     (`buildFrontMatter`, key sets) live in `admin_ui/src/lib/front-matter.ts`,
     which re-exports the parser so call sites keep importing from
     `@/lib/front-matter`.
+- **AI assistant (in-editor agent)**: `@earendil-works/pi-agent-core` +
+  pi-ai run **client-side** under `admin_ui/src/lib/agent/` (`agent.ts`,
+  `tools.ts`, `editor-mutations.ts`, `models.ts`, `store.ts`). Tools are Pi
+  `AgentTool`s; the editor write tools only *stage* changes and open the review
+  dialog (they never persist). **MCP** (`mcp.ts`): remote servers over
+  Streamable HTTP, adapted to `AgentTool`s. Exa (`https://mcp.exa.ai/mcp`) is
+  auto-enabled; tools are namespaced `mcp__exa__<tool>`. The Exa API key lives
+  in localStorage (Settings → Agent) with an in-chat prompt on auth failure.
+  See `plan/mcp-support-plan.md`.
 - **Glass design system** in `index.css` (`@layer components`):
   `glass-control` (frosted surfaces — applied by default to `Card`),
   `apple-panel` (chrome — used by the nav pill), `ambient-bg` (page

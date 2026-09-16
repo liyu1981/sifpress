@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { AgentSettingsCard } from '@/components/agent/agent-settings';
+import { McpSettingsCard } from '@/components/agent/mcp-settings';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -1497,6 +1498,7 @@ export function AccountManagementPage() {
 
         <TabsContent value="agent" className="space-y-6">
           <AgentSettingsCard />
+          <McpSettingsCard />
         </TabsContent>
       </Tabs>
     </div>

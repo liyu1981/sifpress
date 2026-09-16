@@ -1,5 +1,5 @@
 import { Agent } from '@earendil-works/pi-agent-core';
-import type { AgentMessage, ThinkingLevel } from '@earendil-works/pi-agent-core';
+import type { AgentMessage, AgentTool, ThinkingLevel } from '@earendil-works/pi-agent-core';
 import {
   Bot,
   Check,
@@ -19,6 +19,15 @@ import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -27,6 +36,12 @@ import {
 } from '@/components/ui/select';
 import { buildAgent } from '@/lib/agent/agent';
 import type { EditorMutationBridge } from '@/lib/agent/editor-mutations';
+import {
+  EXA_SERVER_ID,
+  mcpManager,
+  setExaApiKey,
+  syncMcpServersWithTimeout,
+} from '@/lib/agent/mcp';
 import {
   getModel,
   listAvailableModels,
@@ -123,6 +138,9 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
   const [expandedToolCalls, setExpandedToolCalls] = useState<Set<string>>(new Set());
   const [input, setInput] = useState('');
   const [runError, setRunError] = useState<string | null>(null);
+  const [mcpTools, setMcpTools] = useState<AgentTool<any>[]>([]);
+  const [exaKeyPrompt, setExaKeyPrompt] = useState(false);
+  const [exaKeyInput, setExaKeyInput] = useState('');
 
   const agentRef = useRef<Agent | null>(null);
   const unsubRef = useRef<(() => void) | null>(null);
@@ -140,15 +158,37 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
     editorRef.current = editor;
   }, [editor]);
 
+  useEffect(() => {
+    setMcpTools(mcpManager.getTools());
+    return mcpManager.subscribe(() => {
+      const tools = mcpManager.getTools();
+      setMcpTools(tools);
+      const agent = agentRef.current;
+      if (agent !== null && !agent.state.isStreaming) {
+        agent.state.tools = [...buildAgentTools(editorRef.current ?? undefined), ...tools];
+      }
+    });
+  }, []);
+
+  useEffect(
+    () =>
+      mcpManager.onAuthRequired(serverId => {
+        if (serverId === EXA_SERVER_ID) {
+          setExaKeyPrompt(true);
+        }
+      }),
+    [],
+  );
+
   const latest = sessions[sessions.length - 1];
 
   const toolLabels = useMemo(() => {
     const map = new Map<string, string>();
-    for (const tool of buildAgentTools()) {
+    for (const tool of [...buildAgentTools(), ...mcpTools]) {
       map.set(tool.name, tool.label);
     }
     return map;
-  }, []);
+  }, [mcpTools]);
 
   const patchLatest = useCallback((messages: AgentMessage[]) => {
     setSessions(prev => prev.map((s, i) => (i === prev.length - 1 ? { ...s, messages } : s)));
@@ -284,6 +324,8 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
   const buildForSession = useCallback(
     async (sessionNow: AgentSession): Promise<Agent> => {
       agentRef.current?.abort();
+      await syncMcpServersWithTimeout();
+
       const instance = buildAgent({
         providerId: sessionNow.providerId,
         modelId: sessionNow.modelId,
@@ -292,6 +334,7 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
         messages: sessionNow.messages,
         sessionId: sessionNow.id,
         editor: editor ?? undefined,
+        extraTools: mcpManager.getTools(),
       });
       agentRef.current = instance;
       latestRef.current = sessionNow;
@@ -300,6 +343,15 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
     },
     [editor, subscribeAgent],
   );
+
+  const handleSaveExaKey = useCallback(async () => {
+    setExaApiKey(exaKeyInput);
+    setExaKeyInput('');
+    setExaKeyPrompt(false);
+    await mcpManager.reset();
+    await syncMcpServersWithTimeout();
+    setMcpTools(mcpManager.getTools());
+  }, [exaKeyInput]);
 
   const createNewSession = useCallback(async (): Promise<AgentSession | null> => {
     const model = defaultModel();
@@ -830,6 +882,34 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
           )}
         </form>
       </footer>
+
+      <Dialog open={exaKeyPrompt} onOpenChange={setExaKeyPrompt}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('agent.exaKeyTitle')}</DialogTitle>
+            <DialogDescription>{t('agent.exaKeyDescription')}</DialogDescription>
+          </DialogHeader>
+          <Input
+            type="password"
+            value={exaKeyInput}
+            onChange={event => setExaKeyInput(event.target.value)}
+            placeholder={t('agent.exaKeyPlaceholder')}
+            autoComplete="off"
+          />
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setExaKeyPrompt(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleSaveExaKey()}
+              disabled={exaKeyInput.trim() === ''}
+            >
+              {t('agent.saveKey')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
