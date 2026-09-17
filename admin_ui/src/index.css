@@ -290,6 +290,43 @@
   color: var(--tw-prose-body);
 }
 
+/*
+ * Airier article rhythm: 2rem between paragraphs and roomy headings.
+ * Unlayered so these win over @tailwindcss/typography's utilities layer;
+ * scoped to direct children so lists/quotes keep their own spacing.
+ */
+.prose > :where(p) {
+  margin-block: 2rem;
+}
+
+.prose > :where(h1) {
+  margin-block: 0 1.5rem;
+}
+
+.prose > :where(h2) {
+  margin-block: 3rem 1.5rem;
+}
+
+.prose > :where(h3) {
+  margin-block: 2.5rem 1.25rem;
+}
+
+.prose > :where(h4) {
+  margin-block: 2rem 1rem;
+}
+
+.prose > :where(h5, h6) {
+  margin-block: 1.5rem 0.75rem;
+}
+
+.prose > :where(:first-child) {
+  margin-top: 0;
+}
+
+.prose > :where(:last-child) {
+  margin-bottom: 0;
+}
+
 @layer components {
   .prose :where(a) {
     text-decoration: none;
@@ -501,6 +538,41 @@
 .milkdown-editor .milkdown .ProseMirror {
   padding: 40px 90px;
   outline: none;
+}
+
+/*
+ * Editor rhythm mirrored from the article: 2rem between paragraphs and roomy
+ * headings. Higher specificity + unlayered so it wins over crepe's reset
+ * (`.milkdown .ProseMirror p` has no margin, only 4px padding).
+ */
+.milkdown-editor .milkdown .ProseMirror > p {
+  padding: 0;
+  margin-block: 2rem;
+}
+
+.milkdown-editor .milkdown .ProseMirror > h1 {
+  margin-block: 2.5rem 1.5rem;
+}
+
+.milkdown-editor .milkdown .ProseMirror > h2 {
+  margin-block: 2.5rem 1.5rem;
+}
+
+.milkdown-editor .milkdown .ProseMirror > h3 {
+  margin-block: 2rem 1.25rem;
+}
+
+.milkdown-editor .milkdown .ProseMirror > h4 {
+  margin-block: 1.75rem 1rem;
+}
+
+.milkdown-editor .milkdown .ProseMirror > h5,
+.milkdown-editor .milkdown .ProseMirror > h6 {
+  margin-block: 1.5rem 0.75rem;
+}
+
+.milkdown-editor .milkdown .ProseMirror > :where(:first-child) {
+  margin-top: 0;
 }
 
 .milkdown-editor .milkdown .ProseMirror-selectednode {

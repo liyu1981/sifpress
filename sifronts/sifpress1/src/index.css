@@ -251,6 +251,43 @@
   color: var(--tw-prose-body);
 }
 
+/*
+ * Airier article rhythm: 2rem between paragraphs and roomy headings.
+ * Unlayered so these win over @tailwindcss/typography's utilities layer;
+ * scoped to direct children so lists/quotes keep their own spacing.
+ */
+.prose > :where(p) {
+  margin-block: 2rem;
+}
+
+.prose > :where(h1) {
+  margin-block: 0 1.5rem;
+}
+
+.prose > :where(h2) {
+  margin-block: 3rem 1.5rem;
+}
+
+.prose > :where(h3) {
+  margin-block: 2.5rem 1.25rem;
+}
+
+.prose > :where(h4) {
+  margin-block: 2rem 1rem;
+}
+
+.prose > :where(h5, h6) {
+  margin-block: 1.5rem 0.75rem;
+}
+
+.prose > :where(:first-child) {
+  margin-top: 0;
+}
+
+.prose > :where(:last-child) {
+  margin-bottom: 0;
+}
+
 @layer components {
   .prose :where(a) {
     text-decoration: none;
