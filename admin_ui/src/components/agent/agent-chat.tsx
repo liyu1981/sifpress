@@ -421,7 +421,16 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
       cancelled = true;
       unsubRef.current?.();
       unsubRef.current = null;
-      agentRef.current?.abort();
+      const agent = agentRef.current;
+      const session = latestRef.current;
+      if (agent !== null && session !== null) {
+        void saveSession({
+          ...session,
+          messages: [...agent.state.messages],
+          updatedAt: Date.now(),
+        });
+      }
+      agent?.abort();
       agentRef.current = null;
     };
   }, []);

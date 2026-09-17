@@ -827,6 +827,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
           pendingProposalRef.current = null;
           return;
         }
+        setAgentOpen(false);
         setReview({ before, after });
       },
       getCommitNote: () => editorSnapshotRef.current.commitNote,
