@@ -1,13 +1,14 @@
 import { Agent } from '@earendil-works/pi-agent-core';
 import type { AgentMessage, AgentTool, ThinkingLevel } from '@earendil-works/pi-agent-core';
 import {
+  ArrowUp,
   Bot,
   Check,
   ChevronDown,
+  Lightbulb,
   Loader2,
   MessageSquare,
   Plus,
-  Send,
   Sparkles,
   Square,
   Trash2,
@@ -28,12 +29,14 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { buildAgent } from '@/lib/agent/agent';
 import type { EditorMutationBridge } from '@/lib/agent/editor-mutations';
 import {
@@ -50,8 +53,14 @@ import {
 } from '@/lib/agent/models';
 import { deleteSession, listSessionsFull, saveSession, type AgentSession } from '@/lib/agent/store';
 import { buildAgentTools } from '@/lib/agent/tools';
-import { MarkdownView } from 'ui-sdk';
 import { cn } from '@/lib/utils';
+import {
+  assetMarkdownLink,
+  assetSourceUrl,
+  assetsApi,
+  makeVisionImage,
+  MarkdownView,
+} from 'ui-sdk';
 
 const LAST_MODEL_KEY = 'agent.lastModel';
 const THINKING_LEVELS: ThinkingLevel[] = ['off', 'low', 'medium', 'high'];
@@ -79,6 +88,37 @@ interface ToolChip {
   status: 'running' | 'done' | 'error';
   args?: Record<string, unknown>;
   result?: unknown;
+}
+
+interface Attachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  data: string;
+}
+
+const SELECTION_PREVIEW_MAX = 400;
+
+function selectionPreview(selection: string): string {
+  const flat = selection.replace(/\s+/g, ' ').trim();
+  if (flat.length <= 42) {
+    return flat;
+  }
+  const cut = flat.slice(0, 42);
+  const word = cut.slice(0, cut.lastIndexOf(' '));
+  return `${word.length > 16 ? word : cut}…`;
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      resolve(result.slice(result.indexOf(',') + 1));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('read failed'));
+    reader.readAsDataURL(blob);
+  });
 }
 
 function readLastModel(): { providerId: string; modelId: string } | undefined {
@@ -151,6 +191,9 @@ export function AgentChat({
   const [mcpTools, setMcpTools] = useState<AgentTool<any>[]>([]);
   const [exaKeyPrompt, setExaKeyPrompt] = useState(false);
   const [exaKeyInput, setExaKeyInput] = useState('');
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [selectionExpanded, setSelectionExpanded] = useState(false);
 
   const agentRef = useRef<Agent | null>(null);
   const unsubRef = useRef<(() => void) | null>(null);
@@ -159,6 +202,8 @@ export function AgentChat({
   const editorRef = useRef(editor);
   const contentEditedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     draftRef.current = draft ?? null;
@@ -452,9 +497,24 @@ export function AgentChat({
     }
   }, [sessions, streamingText, toolChips]);
 
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (el === null) {
+      return;
+    }
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [input]);
+
+  useEffect(() => {
+    if (selection === null || selection === undefined || selection.trim() === '') {
+      setSelectionExpanded(false);
+    }
+  }, [selection]);
+
   const handleSend = useCallback(async () => {
     const text = input.trim();
-    if (text === '' || streaming) {
+    if ((text === '' && attachments.length === 0) || streaming) {
       return;
     }
     let sessionNow = latestRef.current;
@@ -475,23 +535,112 @@ export function AgentChat({
       selection !== null && selection !== undefined && selection.trim() !== ''
         ? `Revise the following selection.\n\n\`\`\`markdown\n${selection}\n\`\`\`\n\nInstruction: ${text}`
         : text;
+    const sentAttachments = attachments;
+    const images = sentAttachments.map(a => ({
+      type: 'image' as const,
+      data: a.data,
+      mimeType: a.mimeType,
+    }));
     setInput('');
+    setAttachments([]);
     setStreaming(true);
     setRunError(null);
     try {
-      await instance.prompt(prompt);
+      if (images.length > 0) {
+        await instance.prompt(prompt, images);
+      } else {
+        await instance.prompt(prompt);
+      }
       if (sessionNow.title === t('agent.untitled')) {
-        const title = text.slice(0, 40) + (text.length > 40 ? '…' : '');
+        const titleText = text === '' ? (sentAttachments[0]?.name ?? '') : text;
+        const title = titleText.slice(0, 40) + (titleText.length > 40 ? '…' : '');
         await persistSession({ ...sessionNow, title }, instance.state.messages);
       }
     } catch (err) {
       setStreaming(false);
+      setAttachments(sentAttachments);
       setRunError(err instanceof Error ? err.message : String(err));
     }
-  }, [buildSystemPrompt, createNewSession, input, persistSession, selection, streaming, t]);
+  }, [
+    attachments,
+    buildSystemPrompt,
+    createNewSession,
+    input,
+    persistSession,
+    selection,
+    streaming,
+    t,
+  ]);
+
+  const allModels = listAvailableModels();
+  const activeModel =
+    latest !== undefined ? getModel(latest.providerId, latest.modelId) : undefined;
+  const visionEnabled = activeModel?.input.includes('image') ?? false;
 
   const handleStop = useCallback(() => {
     agentRef.current?.abort();
+  }, []);
+
+  const insertReference = useCallback((markdown: string) => {
+    setInput(prev =>
+      prev.trim() === '' ? `${markdown}\n` : `${prev.replace(/\s*$/, '')}\n\n${markdown}\n`,
+    );
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (el === null) {
+        return;
+      }
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    });
+  }, []);
+
+  const handleFiles = useCallback(
+    async (files: FileList) => {
+      const list = Array.from(files);
+      if (list.length === 0) {
+        return;
+      }
+      setUploading(true);
+      setRunError(null);
+      try {
+        for (const file of list) {
+          const isImage = file.type.startsWith('image/');
+          if (isImage && visionEnabled) {
+            const blob = await makeVisionImage(file);
+            const mimeType = blob.type === '' ? file.type || 'image/png' : blob.type;
+            const data = await blobToBase64(blob);
+            setAttachments(prev => [...prev, { id: newId(), name: file.name, mimeType, data }]);
+            continue;
+          }
+          const formData = new FormData();
+          formData.append('file', file);
+          const result = await assetsApi.create(formData);
+          const { asset } = result;
+          const reference =
+            asset.kind === 'image' || asset.kind === 'video'
+              ? assetMarkdownLink(asset.name, asset.id, asset.kind)
+              : `[${asset.name}](${assetSourceUrl(asset.id, asset.name, asset.kind)})`;
+          insertReference(reference);
+          if (isImage && !visionEnabled) {
+            setRunError(t('agent.uploadImageUnsupported'));
+          }
+        }
+      } catch (err) {
+        setRunError(
+          t('agent.uploadFailed', {
+            detail: err instanceof Error ? err.message : String(err),
+          }),
+        );
+      } finally {
+        setUploading(false);
+      }
+    },
+    [insertReference, t, visionEnabled],
+  );
+
+  const removeAttachment = useCallback((id: string) => {
+    setAttachments(prev => prev.filter(a => a.id !== id));
   }, []);
 
   const handleDeleteSession = useCallback(
@@ -555,10 +704,6 @@ export function AgentChat({
     [persistSession],
   );
 
-  const allModels = listAvailableModels();
-  const latestModelValue =
-    latest !== undefined ? `${latest.providerId}::${latest.modelId}` : undefined;
-
   const toggleToolCall = useCallback((id: string) => {
     setExpandedToolCalls(prev => {
       const next = new Set(prev);
@@ -570,10 +715,29 @@ export function AgentChat({
 
   const renderMessage = (message: AgentMessage, index: number, allMessages?: AgentMessage[]) => {
     if (message.role === 'user') {
+      const text = messageText(message);
+      const images =
+        typeof message.content === 'string'
+          ? []
+          : message.content.filter(
+              (b): b is { type: 'image'; data: string; mimeType: string } => b.type === 'image',
+            );
       return (
         <div key={`user-${message.timestamp}-${index}`} className="flex justify-end">
-          <div className="max-w-[88%] rounded-2xl bg-accent px-3 py-2 text-sm text-accent-foreground">
-            <p className="whitespace-pre-wrap">{messageText(message)}</p>
+          <div className="max-w-[88%] space-y-1.5 rounded-2xl bg-accent px-3 py-2 text-sm text-accent-foreground">
+            {images.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {images.map((img, imgIndex) => (
+                  <img
+                    key={`${message.timestamp}-img-${imgIndex}`}
+                    src={`data:${img.mimeType};base64,${img.data}`}
+                    alt=""
+                    className="max-h-48 rounded-lg"
+                  />
+                ))}
+              </div>
+            )}
+            {text !== '' && <p className="whitespace-pre-wrap">{text}</p>}
           </div>
         </div>
       );
@@ -701,7 +865,10 @@ export function AgentChat({
           const isLatest = index === sessions.length - 1;
           const isCollapsed = collapsed.has(s.id);
           return (
-            <div key={s.id} className="glass-control-opaque overflow-hidden rounded-xl">
+            <div
+              key={s.id}
+              className="overflow-hidden rounded-xl border border-border/50 bg-card dark:bg-muted"
+            >
               <div className="flex items-center gap-1 border-b border-border/40 p-1.5 pr-2">
                 <button
                   type="button"
@@ -817,109 +984,242 @@ export function AgentChat({
         })}
       </div>
 
-      <footer className="space-y-1.5 border-t border-border/60 p-2">
-        <div className="flex items-center gap-1.5">
-          <Select
-            value={latestModelValue}
-            onValueChange={value => {
-              const [providerId, modelId] = value.split('::', 2);
-              if (providerId !== undefined && modelId !== undefined) {
-                changeModel(providerId, modelId);
-              }
-            }}
-          >
-            <SelectTrigger
-              size="sm"
-              className="min-w-0 flex-1"
-              aria-label={t('agent.selectModelPlaceholder')}
-            >
-              <SelectValue placeholder={t('agent.selectModelPlaceholder')} />
-            </SelectTrigger>
-            <SelectContent>
-              {allModels.map(m => (
-                <SelectItem
-                  key={`${m.provider}::${m.model.id}`}
-                  value={`${m.provider}::${m.model.id}`}
-                >
-                  {m.model.name}
-                  <span className="ml-1 text-xs text-muted-foreground">· {m.providerName}</span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={latest?.thinkingLevel}
-            onValueChange={value => changeThinking(value as ThinkingLevel)}
-          >
-            <SelectTrigger size="sm" className="w-20" aria-label={t('agent.thinkingLevelField')}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {THINKING_LEVELS.map(level => (
-                <SelectItem key={level} value={level}>
-                  {t(`agent.level.${level}`)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      <footer className="p-2">
         <form
           onSubmit={event => {
             event.preventDefault();
             void handleSend();
           }}
-          className="flex flex-col gap-1.5"
+          className="rounded-2xl border border-input/60 bg-card p-2 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30 dark:bg-muted"
         >
-          {selection !== null && selection !== undefined && (
-            <div className="flex items-center gap-1.5 rounded-lg border border-border/50 bg-muted/40 px-2 py-1 text-xs">
-              <Sparkles className="size-3 shrink-0 text-muted-foreground" />
-              <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                {t('agent.selectionChip', { count: selection.length })}
-              </span>
-              <button
-                type="button"
-                onClick={onClearSelection}
-                aria-label={t('agent.clearSelection')}
-                className="rounded p-0.5 text-muted-foreground hover:bg-muted"
-              >
-                <X className="size-3" />
-              </button>
+          {selection !== null && selection !== undefined && selection.trim() !== '' && (
+            <div className="mb-1.5">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setSelectionExpanded(expanded => !expanded)}
+                  aria-expanded={selectionExpanded}
+                  aria-label={
+                    selectionExpanded ? t('agent.selectionCollapse') : t('agent.selectionExpand')
+                  }
+                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-border/50 bg-muted/40 px-2 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-muted"
+                >
+                  <Sparkles className="size-3 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">
+                    {t('agent.selectionClamped', {
+                      preview: selectionPreview(selection),
+                      count: selection.length,
+                    })}
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      'size-3 shrink-0 transition-transform',
+                      selectionExpanded && 'rotate-180',
+                    )}
+                  />
+                </button>
+                <button
+                  type="button"
+                  onClick={onClearSelection}
+                  aria-label={t('agent.clearSelection')}
+                  className="rounded p-1 text-muted-foreground hover:bg-muted"
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+              {selectionExpanded && (
+                <div className="mt-1 rounded-lg border border-border/50 bg-muted/30 p-2">
+                  <p className="whitespace-pre-wrap break-words text-xs text-muted-foreground">
+                    {selection.slice(0, SELECTION_PREVIEW_MAX)}
+                    {selection.length > SELECTION_PREVIEW_MAX && (
+                      <span className="opacity-70">
+                        {' '}
+                        {t('agent.selectionMore', {
+                          count: selection.length - SELECTION_PREVIEW_MAX,
+                        })}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
             </div>
           )}
-          <div className="flex items-stretch gap-1.5">
-            <textarea
-              value={input}
-              onChange={event => setInput(event.target.value)}
-              onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault();
-                  void handleSend();
-                }
-              }}
-              placeholder={t('agent.chatPlaceholder')}
-              rows={2}
-              className="min-h-10 flex-1 resize-none rounded-xl border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
-            />
-            {streaming ? (
+
+          {attachments.length > 0 && (
+            <div className="mb-1.5 flex flex-wrap gap-1.5">
+              {attachments.map(attachment => (
+                <div key={attachment.id} className="relative">
+                  <img
+                    src={`data:${attachment.mimeType};base64,${attachment.data}`}
+                    alt={attachment.name}
+                    className="size-14 rounded-lg border border-border/50 object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(attachment.id)}
+                    aria-label={t('agent.removeAttachment')}
+                    className="absolute -top-1 -right-1 rounded-full border border-border/60 bg-background p-0.5 text-muted-foreground shadow-sm hover:text-foreground"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={event => setInput(event.target.value)}
+            onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                void handleSend();
+              }
+            }}
+            placeholder={t('agent.chatPlaceholder')}
+            rows={1}
+            className="max-h-40 min-h-9 w-full resize-none border-0 bg-transparent px-1 py-1.5 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50"
+          />
+
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <div className="flex items-center gap-1">
+              <input
+                ref={fileInputRef}
+                type="file"
+                hidden
+                multiple
+                accept="image/*,application/pdf,.md,.txt,.doc,.docx"
+                onChange={event => {
+                  const files = event.target.files;
+                  if (files !== null) {
+                    void handleFiles(files);
+                  }
+                  event.target.value = '';
+                }}
+              />
               <Button
                 type="button"
                 variant="outline"
-                size="icon"
-                onClick={handleStop}
-                aria-label={t('agent.stop')}
+                size="icon-sm"
+                className="rounded-full"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                aria-label={t('agent.upload')}
               >
-                <Square />
+                {uploading ? <Loader2 className="animate-spin" /> : <Plus />}
               </Button>
-            ) : (
-              <Button
-                type="submit"
-                size="icon"
-                disabled={input.trim() === '' || allModels.length === 0}
-              >
-                <Send />
-                <span className="sr-only">{t('agent.send')}</span>
-              </Button>
-            )}
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              {streaming && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    className="rounded-full"
+                    aria-label={t('agent.thinkingLevelField')}
+                  >
+                    <Lightbulb
+                      className={cn(
+                        'size-3.5',
+                        (latest?.thinkingLevel ?? 'off') === 'off' && 'text-muted-foreground/50',
+                      )}
+                    />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" side="top">
+                  <DropdownMenuLabel>{t('agent.thinkingLevelField')}</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    value={latest?.thinkingLevel}
+                    onValueChange={value => changeThinking(value as ThinkingLevel)}
+                  >
+                    {THINKING_LEVELS.map(level => (
+                      <DropdownMenuRadioItem key={level} value={level}>
+                        {t(`agent.level.${level}`)}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 max-w-[14rem] gap-1.5 rounded-full px-2"
+                    disabled={allModels.length === 0}
+                    aria-label={t('agent.selectModelPlaceholder')}
+                  >
+                    <Bot className="size-3.5 shrink-0 text-muted-foreground" />
+                    <span className="truncate">
+                      {activeModel?.name ?? t('agent.selectModelPlaceholder')}
+                    </span>
+                    {visionEnabled && (
+                      <Badge variant="secondary" className="px-1 py-0 text-[0.6rem]">
+                        {t('agent.tagVision')}
+                      </Badge>
+                    )}
+                    {activeModel?.reasoning === true && (
+                      <Badge variant="secondary" className="px-1 py-0 text-[0.6rem]">
+                        {t('agent.tagReasoning')}
+                      </Badge>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" side="top" className="w-64 p-1">
+                  <div className="max-h-56 overflow-y-auto">
+                    {allModels.map(m => {
+                      const selected =
+                        m.provider === latest?.providerId && m.model.id === latest.modelId;
+                      return (
+                        <button
+                          key={`${m.provider}::${m.model.id}`}
+                          type="button"
+                          onClick={() => changeModel(m.provider, m.model.id)}
+                          className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
+                        >
+                          <Check className={cn('size-3.5 shrink-0', !selected && 'opacity-0')} />
+                          <span className="min-w-0 flex-1 truncate">{m.model.name}</span>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {m.providerName}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              {streaming ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  className="rounded-full"
+                  onClick={handleStop}
+                  aria-label={t('agent.stop')}
+                >
+                  <Square />
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  size="icon-sm"
+                  className="rounded-full"
+                  disabled={
+                    (input.trim() === '' && attachments.length === 0) ||
+                    allModels.length === 0 ||
+                    uploading
+                  }
+                >
+                  <ArrowUp />
+                  <span className="sr-only">{t('agent.send')}</span>
+                </Button>
+              )}
+            </div>
           </div>
         </form>
       </footer>

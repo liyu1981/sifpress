@@ -1,5 +1,7 @@
 const THUMB_MAX_EDGE = 400;
 const THUMB_QUALITY = 0.8;
+const VISION_MAX_EDGE = 1024;
+const VISION_QUALITY = 0.85;
 
 function loadImage(blob: Blob): Promise<HTMLImageElement> {
   const url = URL.createObjectURL(blob);
@@ -28,12 +30,14 @@ function drawToThumb(
   source: CanvasImageSource,
   width: number,
   height: number,
+  maxEdge = THUMB_MAX_EDGE,
+  quality = THUMB_QUALITY,
 ): Promise<Blob | null> {
   if (width <= 0 || height <= 0) {
     return Promise.resolve(null);
   }
 
-  const scale = Math.min(1, THUMB_MAX_EDGE / Math.max(width, height));
+  const scale = Math.min(1, maxEdge / Math.max(width, height));
   const w = Math.max(1, Math.round(width * scale));
   const h = Math.max(1, Math.round(height * scale));
 
@@ -50,7 +54,7 @@ function drawToThumb(
   ctx.drawImage(source, 0, 0, w, h);
 
   return new Promise(resolve => {
-    canvas.toBlob(blob => resolve(blob), 'image/webp', THUMB_QUALITY);
+    canvas.toBlob(blob => resolve(blob), 'image/webp', quality);
   });
 }
 
@@ -66,6 +70,28 @@ export async function makeImageThumb(file: File): Promise<ImageThumbResult> {
   const height = img.naturalHeight || img.height;
   const thumb = await drawToThumb(img, width, height);
   return { thumb, width, height };
+}
+
+/**
+ * Downscale a picked image to a vision-friendly payload (WebP, max edge
+ * 1024px) so it can be attached to a model message without exhausting the
+ * localStorage quota. Falls back to the original file when the image cannot
+ * be decoded or re-encoded.
+ */
+export async function makeVisionImage(file: File): Promise<Blob> {
+  try {
+    const img = await loadImage(file);
+    const blob = await drawToThumb(
+      img,
+      img.naturalWidth || img.width,
+      img.naturalHeight || img.height,
+      VISION_MAX_EDGE,
+      VISION_QUALITY,
+    );
+    return blob ?? file;
+  } catch {
+    return file;
+  }
 }
 
 /**
