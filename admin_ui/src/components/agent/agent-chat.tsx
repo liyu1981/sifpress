@@ -340,7 +340,9 @@ export function AgentChat({
           case 'tool_execution_end':
             if (
               !event.isError &&
-              (event.toolName === 'update_content' || event.toolName === 'update_frontmatter')
+              (event.toolName === 'update_content' ||
+                event.toolName === 'update_frontmatter' ||
+                event.toolName === 'update_selection')
             ) {
               contentEditedRef.current = true;
             }
