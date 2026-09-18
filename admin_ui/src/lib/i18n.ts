@@ -248,6 +248,9 @@ const en = {
     reviewClose: 'Done Review',
     reviewDirtyHint: 'The editor is unchanged until you finish the review.',
     reviewExpandContext: 'Show {{count}} unchanged line(s)',
+    reviewSelectionRegion: 'Selection · {{count}} change(s)',
+    reviewContextAbove: 'Show {{count}} unchanged line(s) above',
+    reviewContextBelow: 'Show {{count}} unchanged line(s) below',
     reviewEditHint: 'click a line to edit',
     reviewEditLine: 'Edit proposed line',
     reviseSelectionWithAgent: 'Revise selection with agent',
@@ -623,7 +626,7 @@ const en = {
       max: 'Max',
     },
     systemPrompt:
-      "You are the assistant inside Sifpress, a personal markdown blog. Help the user with their content and answer their questions. Use the provided tools to search and read the user's local pages, list tags and pages, and fetch web pages. When the user asks you to edit the open draft, stage its frontmatter and content with the update_frontmatter and update_content tools, update the commit message with set_commit_note, then call save to open the review dialog — the editor is only updated after the user finishes reviewing, and nothing is persisted until the user clicks Save. When the user is revising a selected chunk of the draft, read it with get_selection and return the replacement with update_selection (only that selection changes). When asked about the user's content, search for it before answering. Answer in {{language}}.",
+      "You are the assistant inside Sifpress, a personal markdown blog. Help the user with their content and answer their questions. Use the provided tools to search and read the user's local pages, list tags and pages, and fetch web pages. When the user asks you to edit the open draft, stage its frontmatter and content with the update_frontmatter and update_content tools, update the commit message with set_commit_note, then call save to open the review dialog — the editor is only updated after the user finishes reviewing, and nothing is persisted until the user clicks Save. When the user is revising a selected chunk of the draft, read it with get_selection and return the replacement with update_selection (only that selection changes). NEVER call update_content for a selection revision; update_content must always contain the FULL document body. When asked about the user's content, search for it before answering. Answer in {{language}}.",
   },
 };
 
@@ -870,6 +873,9 @@ const zh = {
     reviewClose: '完成审阅',
     reviewDirtyHint: '完成审阅前，编辑器内容不会改变。',
     reviewExpandContext: '展开 {{count}} 行未修改内容',
+    reviewSelectionRegion: '选区 · {{count}} 处修改',
+    reviewContextAbove: '展开上方 {{count}} 行未修改内容',
+    reviewContextBelow: '展开下方 {{count}} 行未修改内容',
     reviewEditHint: '点击行可直接编辑',
     reviewEditLine: '编辑建议内容',
     reviseSelectionWithAgent: '用智能体改写选区',
@@ -1236,7 +1242,7 @@ const zh = {
       max: '最大',
     },
     systemPrompt:
-      '你是 Sifpress（一个个人 Markdown 博客）中的智能助手。帮助用户处理内容并回答问题。使用提供的工具搜索和阅读用户的本地页面、列出标签和页面、抓取网页。当用户要求你编辑打开的草稿时，使用 update_frontmatter 和 update_content 工具暂存 frontmatter 和内容修改，使用 set_commit_note 更新提交信息，然后调用 save 打开审阅对话框——只有在用户完成审阅后编辑器才会更新，且在用户点击保存前不会写入。当用户要求修订草稿中的某段选区时，先用 get_selection 读取，再用 update_selection 返回替换内容（仅该选区发生变化）。当被问到用户的内容时，先搜索再回答。用{{language}}回答。',
+      '你是 Sifpress（一个个人 Markdown 博客）中的智能助手。帮助用户处理内容并回答问题。使用提供的工具搜索和阅读用户的本地页面、列出标签和页面、抓取网页。当用户要求你编辑打开的草稿时，使用 update_frontmatter 和 update_content 工具暂存 frontmatter 和内容修改，使用 set_commit_note 更新提交信息，然后调用 save 打开审阅对话框——只有在用户完成审阅后编辑器才会更新，且在用户点击保存前不会写入。当用户要求修订草稿中的某段选区时，先用 get_selection 读取，再用 update_selection 返回替换内容（仅该选区发生变化）。选区修订时绝不要调用 update_content；update_content 必须始终包含完整的文档正文。当被问到用户的内容时，先搜索再回答。用{{language}}回答。',
   },
 };
 

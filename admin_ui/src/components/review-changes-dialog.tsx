@@ -11,15 +11,32 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { buildDiff, changeStats, recompose } from '@/lib/diff/blocks';
+import type { EditorSelectionContext } from '@/lib/md-editor';
 
 export interface ReviewChangesDialogProps {
   open: boolean;
   before: string;
   after: string;
+  /** Surrounding document lines, present for selection-only revisions. */
+  context?: EditorSelectionContext;
   onClose: (result: string) => void;
 }
 
-export function ReviewChangesDialog({ open, before, after, onClose }: ReviewChangesDialogProps) {
+function countLines(value: string): number {
+  const lines = value.split('\n');
+  if (lines.length > 0 && lines[lines.length - 1] === '') {
+    lines.pop();
+  }
+  return Math.max(lines.length, 1);
+}
+
+export function ReviewChangesDialog({
+  open,
+  before,
+  after,
+  context,
+  onClose,
+}: ReviewChangesDialogProps) {
   const { t } = useTranslation();
   const diff = useMemo(() => buildDiff(before, after), [before, after]);
   const [reverted, setReverted] = useState<ReadonlySet<string>>(() => new Set());
@@ -119,6 +136,12 @@ export function ReviewChangesDialog({ open, before, after, onClose }: ReviewChan
               edited={edits}
               onToggle={toggle}
               onEdit={handleEdit}
+              contextBefore={context?.before}
+              contextAfter={context?.after}
+              firstLineNo={context?.startLine}
+              afterContextStartLine={
+                context === undefined ? undefined : context.startLine + countLines(before)
+              }
             />
           ) : (
             <div className="flex h-full items-center justify-center p-10 text-sm text-muted-foreground">

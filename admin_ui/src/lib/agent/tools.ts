@@ -218,10 +218,11 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
     name: 'update_content',
     label: 'Update content',
     description:
-      "Stage a replacement for the open editor's markdown content (without the frontmatter section). The editor is NOT modified yet — the change is held and shown in the review dialog after you call save, where the user accepts, edits or rejects it.",
+      'Stage a replacement for the FULL markdown body of the open editor (without the frontmatter section). Only use this when changing the whole document. If the user is revising a selected chunk, use update_selection instead — never update_content. The editor is NOT modified yet — the change is held and shown in the review dialog after you call save, where the user accepts, edits or rejects it.',
     parameters: Type.Object({
       content_md: Type.String({
-        description: 'New markdown body (must NOT include frontmatter --- delimiters)',
+        description:
+          'New FULL markdown body (must NOT include frontmatter --- delimiters). Not a fragment.',
       }),
     }),
     execute: async (_id, args) => {
@@ -251,7 +252,7 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
     name: 'update_selection',
     label: 'Update selection',
     description:
-      "Stage a replacement for only the user's current editor selection (whole blocks) — the rest of the document is untouched. Use get_selection first to read it. The editor is NOT modified until the user finishes the review dialog opened by save.",
+      "Stage a replacement for only the user's current editor selection (whole blocks) — the rest of the document is untouched. Always use this (never update_content) when the user's message starts with 'Revise the following selection' or otherwise targets a selected chunk. Pass ONLY the revised markdown for the selection. The editor is NOT modified until the user finishes the review dialog opened by save.",
     parameters: Type.Object({
       content_md: Type.String({
         description:

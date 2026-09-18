@@ -32,6 +32,15 @@ export interface EditorSelection {
   markdown: string;
 }
 
+export interface EditorSelectionContext {
+  /** Serialized lines of the top-level blocks immediately before the selection. */
+  before: string[];
+  /** Serialized lines of the top-level blocks immediately after the selection. */
+  after: string[];
+  /** 1-based document line number of the selection's first line. */
+  startLine: number;
+}
+
 export interface MilkdownEditorHandle {
   getMarkdown: () => string;
   setMarkdown: (markdown: string) => void;
@@ -40,6 +49,16 @@ export interface MilkdownEditorHandle {
    * blocks (no partial blocks). `null` when nothing is selected.
    */
   getSelection: () => EditorSelection | null;
+  /**
+   * Surrounding document lines around a selection range, for the review
+   * dialog. Defaults to the current selection; pass a captured range so the
+   * context stays correct after the editor selection moves.
+   * Display-only: never fed back into document recomposition.
+   */
+  getSelectionContext: (
+    range?: { from: number; to: number },
+    maxLines?: number,
+  ) => EditorSelectionContext | null;
   /** Replace a captured block range with markdown. */
   applyToSelection: (markdown: string, range: { from: number; to: number }) => boolean;
   /** Whether the editor currently has a non-empty block selection (for the agent button). */
@@ -127,6 +146,64 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
             const slice = view.state.doc.slice(start, end);
             const topNode = view.state.schema.topNodeType.create(null, slice.content);
             return { from: start, to: end, markdown: serializer(topNode) };
+          });
+        },
+        getSelectionContext: (range, maxLines = 8) => {
+          const builder = builderRef.current;
+          if (builder === null) {
+            return null;
+          }
+          return builder.editor.action(ctx => {
+            const view = ctx.get(editorViewCtx);
+            const serializer = ctx.get(serializerCtx);
+            const doc = view.state.doc;
+            const { from, to } = range ?? view.state.selection;
+            if (from >= to) {
+              return null;
+            }
+            const topNodeType = view.state.schema.topNodeType;
+
+            const childPos = (index: number): number => {
+              let pos = 0;
+              for (let i = 0; i < index; i += 1) {
+                pos += doc.child(i).nodeSize;
+              }
+              return pos;
+            };
+
+            // Boundary positions (0, or between top-level blocks) resolve to
+            // depth 0, so map them to child indices directly instead.
+            const indexAt = (pos: number): number => {
+              let index = 0;
+              while (index < doc.childCount && childPos(index + 1) <= pos) {
+                index += 1;
+              }
+              return index;
+            };
+
+            const fromIndex = indexAt(from);
+            const toIndex = Math.max(fromIndex, indexAt(to) - 1);
+
+            const serializeRange = (startIndex: number, endIndex: number): string[] => {
+              if (startIndex >= endIndex) {
+                return [];
+              }
+              const slice = doc.slice(childPos(startIndex), childPos(endIndex));
+              const topNode = topNodeType.create(null, slice.content);
+              const lines = serializer(topNode).split('\n');
+              if (lines.length > 0 && lines[lines.length - 1] === '') {
+                lines.pop();
+              }
+              return lines;
+            };
+
+            const prefix = serializeRange(0, fromIndex);
+            const suffix = serializeRange(toIndex + 1, doc.childCount);
+            return {
+              before: prefix.slice(-maxLines),
+              after: suffix.slice(0, maxLines),
+              startLine: prefix.length + 1,
+            };
           });
         },
         applyToSelection: (markdown, range) => {

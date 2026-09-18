@@ -41,10 +41,15 @@ function contextRow(leftNo: number, rightNo: number, text: string): LineRow {
   };
 }
 
-function buildRows(blocks: DiffBlock[], expanded: ReadonlySet<string>, edited: ChangeEdits): Row[] {
+function buildRows(
+  blocks: DiffBlock[],
+  expanded: ReadonlySet<string>,
+  edited: ChangeEdits,
+  firstLineNo = 1,
+): Row[] {
   const rows: Row[] = [];
-  let leftNo = 1;
-  let rightNo = 1;
+  let leftNo = firstLineNo;
+  let rightNo = firstLineNo;
   let contextIndex = 0;
 
   for (const block of blocks) {
@@ -191,6 +196,78 @@ function DiffLineCell({
 
 const NO_REVERTS: ReadonlySet<string> = new Set();
 const NO_EDITS: ChangeEdits = new Map();
+const CONTEXT_BAND_LINES = 4;
+
+function ContextBand({
+  lines,
+  startLine,
+  direction,
+  expanded,
+  onExpand,
+}: {
+  lines: readonly string[];
+  startLine: number;
+  direction: 'above' | 'below';
+  expanded: boolean;
+  onExpand: () => void;
+}) {
+  const { t } = useTranslation();
+  if (lines.length === 0) {
+    return null;
+  }
+  const hidden = Math.max(0, lines.length - CONTEXT_BAND_LINES);
+  const clamped = hidden > 0 && !expanded;
+  const shown = clamped
+    ? direction === 'above'
+      ? lines.slice(lines.length - CONTEXT_BAND_LINES)
+      : lines.slice(0, CONTEXT_BAND_LINES)
+    : lines;
+  const firstIndex = clamped && direction === 'above' ? lines.length - CONTEXT_BAND_LINES : 0;
+
+  return (
+    <div className="text-muted-foreground/60">
+      {clamped && direction === 'above' && (
+        <div className="grid grid-cols-2">
+          <button
+            type="button"
+            onClick={onExpand}
+            className="flex w-full items-center justify-center gap-1 bg-muted/40 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-muted"
+          >
+            <ChevronsUpDown className="size-3" />
+            {t('editor.reviewContextAbove', { count: hidden })}
+          </button>
+          <div className="border-l border-border/50 bg-muted/20" />
+        </div>
+      )}
+      {shown.map((line, index) => (
+        <div key={`${direction}-${firstIndex + index}`} className="grid grid-cols-2">
+          <div className="flex min-w-0 items-start gap-2 bg-muted/20 px-2">
+            <span className="w-9 shrink-0 select-none text-right font-mono text-[10px] leading-5 text-muted-foreground/40 tabular-nums">
+              {startLine + firstIndex + index}
+            </span>
+            <span className="min-w-0 flex-1 font-mono text-xs leading-5 break-words whitespace-pre-wrap">
+              {line === '' ? '\u00a0' : line}
+            </span>
+          </div>
+          <div className="border-l border-border/50" />
+        </div>
+      ))}
+      {clamped && direction === 'below' && (
+        <div className="grid grid-cols-2">
+          <button
+            type="button"
+            onClick={onExpand}
+            className="flex w-full items-center justify-center gap-1 bg-muted/40 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-muted"
+          >
+            <ChevronsUpDown className="size-3" />
+            {t('editor.reviewContextBelow', { count: hidden })}
+          </button>
+          <div className="border-l border-border/50 bg-muted/20" />
+        </div>
+      )}
+    </div>
+  );
+}
 
 export interface ReviewDiffViewProps {
   blocks: DiffBlock[];
@@ -200,6 +277,13 @@ export interface ReviewDiffViewProps {
   readOnly?: boolean;
   onToggle?: (id: string) => void;
   onEdit?: (blockId: string, lineIndex: number, text: string) => void;
+  /** Unchanged document lines before/after a selection revision (display only). */
+  contextBefore?: readonly string[];
+  contextAfter?: readonly string[];
+  /** 1-based document line number of the diff's first line. */
+  firstLineNo?: number;
+  /** 1-based document line number of the first trailing context line. */
+  afterContextStartLine?: number;
 }
 
 export function ReviewDiffView({
@@ -209,10 +293,24 @@ export function ReviewDiffView({
   readOnly = false,
   onToggle,
   onEdit,
+  contextBefore,
+  contextAfter,
+  firstLineNo,
+  afterContextStartLine,
 }: ReviewDiffViewProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const rows = useMemo(() => buildRows(blocks, expanded, edited), [blocks, expanded, edited]);
+  const rows = useMemo(
+    () => buildRows(blocks, expanded, edited, firstLineNo),
+    [blocks, expanded, edited, firstLineNo],
+  );
+  const hasSelectionContext = contextBefore !== undefined || contextAfter !== undefined;
+  const changeCount = useMemo(
+    () => blocks.filter(block => block.kind === 'change').length,
+    [blocks],
+  );
+  const aboveStart = (firstLineNo ?? 1) - (contextBefore?.length ?? 0);
+  const belowStart = afterContextStartLine ?? firstLineNo ?? 1;
 
   const expand = (contextId: string) =>
     setExpanded(prev => {
@@ -223,6 +321,20 @@ export function ReviewDiffView({
 
   return (
     <div className="font-mono text-xs">
+      {contextBefore !== undefined && (
+        <ContextBand
+          lines={contextBefore}
+          startLine={aboveStart}
+          direction="above"
+          expanded={expanded.has('selection-above')}
+          onExpand={() => expand('selection-above')}
+        />
+      )}
+      {hasSelectionContext && (
+        <div className="border-y border-border/50 bg-primary/5 px-2 py-0.5 text-center text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
+          {t('editor.reviewSelectionRegion', { count: changeCount })}
+        </div>
+      )}
       {rows.map(row => {
         if (row.kind === 'collapsed') {
           return (
@@ -299,6 +411,15 @@ export function ReviewDiffView({
           </div>
         );
       })}
+      {contextAfter !== undefined && (
+        <ContextBand
+          lines={contextAfter}
+          startLine={belowStart}
+          direction="below"
+          expanded={expanded.has('selection-below')}
+          onExpand={() => expand('selection-below')}
+        />
+      )}
     </div>
   );
 }
