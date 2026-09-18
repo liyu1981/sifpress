@@ -9,6 +9,7 @@ import {
   Plus,
   RotateCcw,
   Save,
+  Sparkles,
   Trash2,
   Undo2,
   UserPlus,
@@ -46,7 +47,7 @@ import {
   RESERVED_FRONT_MATTER_KEYS,
 } from '@/lib/front-matter';
 import { blocksFromDiffLines } from '@/lib/diff/blocks';
-import { MilkdownEditor, type MilkdownEditorHandle } from '@/lib/md-editor';
+import { MilkdownEditor, type EditorSelection, type MilkdownEditorHandle } from '@/lib/md-editor';
 import { escapeTableCodePipes, assetsApi, type Grant, type DiffLine, pagesApi } from 'ui-sdk';
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -308,6 +309,9 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
   const editorRef = useRef<MilkdownEditorHandle>(null);
   const reviewBaselineRef = useRef<string | null>(null);
   const pendingProposalRef = useRef<string | null>(null);
+  const selectionRangeRef = useRef<EditorSelection | null>(null);
+  const pendingSelectionRef = useRef<string | null>(null);
+  const reviewModeRef = useRef<'document' | 'selection'>('document');
   const extraFieldIdRef = useRef(0);
   const editorSnapshotRef = useRef({
     title: '',
@@ -340,6 +344,8 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
 
   const [agentOpen, setAgentOpen] = useState(false);
   const [review, setReview] = useState<{ before: string; after: string } | null>(null);
+  const [agentSelection, setAgentSelection] = useState<string | null>(null);
+  const [hasSelection, setHasSelection] = useState(false);
   const [expandedDiffRevisionId, setExpandedDiffRevisionId] = useState<string | null>(null);
   const [restorePending, setRestorePending] = useState<string | null>(null);
   const isRevisionPreview = !!revision;
@@ -816,7 +822,32 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
         }
         pendingProposalRef.current = markdown;
       },
+      getSelection: () => editorRef.current?.getSelection() ?? null,
+      updateSelection: markdown => {
+        if (selectionRangeRef.current === null) {
+          const selection = editorRef.current?.getSelection();
+          if (selection === null || selection === undefined) {
+            return;
+          }
+          selectionRangeRef.current = selection;
+        }
+        pendingSelectionRef.current = markdown;
+      },
       openReview: () => {
+        const pendingSelection = pendingSelectionRef.current;
+        const range = selectionRangeRef.current;
+        if (pendingSelection !== null && range !== null) {
+          if (range.markdown === pendingSelection) {
+            selectionRangeRef.current = null;
+            pendingSelectionRef.current = null;
+            return;
+          }
+          setAgentOpen(false);
+          reviewModeRef.current = 'selection';
+          setReview({ before: range.markdown, after: pendingSelection });
+          return;
+        }
+
         const before = reviewBaselineRef.current;
         const after = pendingProposalRef.current;
         if (before === null || after === null) {
@@ -828,6 +859,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
           return;
         }
         setAgentOpen(false);
+        reviewModeRef.current = 'document';
         setReview({ before, after });
       },
       getCommitNote: () => editorSnapshotRef.current.commitNote,
@@ -841,6 +873,23 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
 
   const handleReviewClose = useCallback(
     (result: string) => {
+      if (reviewModeRef.current === 'selection') {
+        const range = selectionRangeRef.current;
+        if (range !== null && result !== range.markdown) {
+          editorRef.current?.applyToSelection(result, { from: range.from, to: range.to });
+          const next = editorRef.current?.getMarkdown() ?? '';
+          editorSnapshotRef.current = { ...editorSnapshotRef.current, body: next };
+          setBody(next);
+          setSourceBody(next);
+        }
+        selectionRangeRef.current = null;
+        pendingSelectionRef.current = null;
+        reviewModeRef.current = 'document';
+        setAgentSelection(null);
+        setReview(null);
+        return;
+      }
+
       writeEditorContent(result);
       reviewBaselineRef.current = null;
       pendingProposalRef.current = null;
@@ -848,6 +897,75 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
     },
     [writeEditorContent],
   );
+
+  const handleReviseSelection = useCallback(() => {
+    const selection = editorRef.current?.getSelection();
+    if (selection === null || selection === undefined || selection.markdown.trim() === '') {
+      return;
+    }
+    reviewBaselineRef.current = null;
+    pendingProposalRef.current = null;
+    selectionRangeRef.current = selection;
+    pendingSelectionRef.current = null;
+    setAgentSelection(selection.markdown);
+    setAgentOpen(true);
+    setHasSelection(false);
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    selectionRangeRef.current = null;
+    pendingSelectionRef.current = null;
+    setAgentSelection(null);
+  }, []);
+
+  const handleCloseAgent = useCallback(() => {
+    setAgentOpen(false);
+    handleClearSelection();
+  }, [handleClearSelection]);
+
+  useEffect(() => {
+    if (bodyTab !== 'editor' || isRevisionPreview) {
+      setHasSelection(false);
+      return;
+    }
+
+    let frame = 0;
+    const update = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        if (agentOpen || review !== null) {
+          setHasSelection(false);
+          return;
+        }
+        setHasSelection(editorRef.current?.hasSelection() ?? false);
+      });
+    };
+
+    document.addEventListener('selectionchange', update);
+    update();
+
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('selectionchange', update);
+    };
+  }, [bodyTab, isRevisionPreview, agentOpen, review]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'j') {
+        return;
+      }
+      const selection = editorRef.current?.getSelection();
+      if (selection === null || selection === undefined) {
+        return;
+      }
+      event.preventDefault();
+      handleReviseSelection();
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleReviseSelection]);
 
   useEffect(() => {
     editorSnapshotRef.current = {
@@ -1592,12 +1710,13 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
       {!agentOpen && (
         <button
           type="button"
-          onClick={() => setAgentOpen(true)}
+          onMouseDown={event => event.preventDefault()}
+          onClick={() => (hasSelection ? handleReviseSelection() : setAgentOpen(true))}
           className="glass-control fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35)] transition-transform hover:scale-105 active:scale-95 dark:shadow-[0_8px_32px_-4px_rgba(0,0,0,0.6)]"
           aria-expanded={agentOpen}
         >
-          <Bot className="size-4" />
-          {t('agent.title')}
+          {hasSelection ? <Sparkles className="size-4" /> : <Bot className="size-4" />}
+          {hasSelection ? t('editor.reviseSelectionWithAgent') : t('agent.title')}
         </button>
       )}
 
@@ -1618,8 +1737,10 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
           <AgentChat
             draft={agentDraft}
             editor={editorBridge}
+            selection={agentSelection}
+            onClearSelection={handleClearSelection}
             className="h-[70vh] rounded-b-none"
-            onClose={() => setAgentOpen(false)}
+            onClose={handleCloseAgent}
           />
         </aside>
       )}

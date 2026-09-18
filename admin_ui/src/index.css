@@ -540,6 +540,11 @@
   outline: none;
 }
 
+/* Selection highlight: subtle black on light, subtle white on dark. */
+.milkdown-editor .milkdown ::selection {
+  background-color: color-mix(in oklch, var(--foreground) 20%, transparent);
+}
+
 /*
  * Editor rhythm mirrored from the article: 2rem between paragraphs and roomy
  * headings. Higher specificity + unlayered so it wins over crepe's reset

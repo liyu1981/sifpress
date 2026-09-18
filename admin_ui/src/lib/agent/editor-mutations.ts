@@ -10,6 +10,8 @@
  * back to the user in the review dialog. The user's choice is written back
  * through `setContent`, so the agent can treat the change as submitted.
  */
+import type { EditorSelection } from '@/lib/md-editor';
+
 export interface EditorFrontMatter {
   title: string;
   slug: string;
@@ -34,6 +36,10 @@ export interface EditorMutationBridge {
   setFrontMatter: (patch: FrontMatterPatch) => void;
   getContent: () => string;
   setContent: (markdown: string) => void;
+  /** The live editor selection (whole blocks), or null when empty. */
+  getSelection: () => EditorSelection | null;
+  /** Stage a replacement for the current selection; `save` reviews it. */
+  updateSelection: (markdown: string) => void;
   /** Open the before/after review dialog for the pending agent edit. */
   openReview: () => void;
   getCommitNote: () => string;

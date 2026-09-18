@@ -6,7 +6,7 @@ import { listItem } from '@milkdown/crepe/feature/list-item';
 import { placeholder } from '@milkdown/crepe/feature/placeholder';
 import { table } from '@milkdown/crepe/feature/table';
 import { toolbar } from '@milkdown/crepe/feature/toolbar';
-import { editorViewCtx } from '@milkdown/kit/core';
+import { editorViewCtx, parserCtx, serializerCtx } from '@milkdown/kit/core';
 import { TextSelection } from '@milkdown/kit/prose/state';
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import {
@@ -25,9 +25,25 @@ import {
 } from './plugins/image-directives-tooltip';
 import { imageDirectivesView } from './plugins/image-directives-view';
 
+export interface EditorSelection {
+  /** ProseMirror document positions (expanded to whole top-level blocks). */
+  from: number;
+  to: number;
+  markdown: string;
+}
+
 export interface MilkdownEditorHandle {
   getMarkdown: () => string;
   setMarkdown: (markdown: string) => void;
+  /**
+   * The current selection as markdown, expanded outwards to whole top-level
+   * blocks (no partial blocks). `null` when nothing is selected.
+   */
+  getSelection: () => EditorSelection | null;
+  /** Replace a captured block range with markdown. */
+  applyToSelection: (markdown: string, range: { from: number; to: number }) => boolean;
+  /** Whether the editor currently has a non-empty block selection (for the agent button). */
+  hasSelection: () => boolean;
   /**
    * Close every open editor popup (image/video directive panel, diagram
    * editor, latex edit, toolbar, link tooltip, slash menu). Needed before
@@ -85,6 +101,66 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
           for (const el of document.querySelectorAll<HTMLElement>('[data-show="true"]')) {
             el.dataset.show = 'false';
           }
+        },
+        getSelection: () => {
+          const builder = builderRef.current;
+          if (builder === null) {
+            return null;
+          }
+          return builder.editor.action(ctx => {
+            const view = ctx.get(editorViewCtx);
+            const serializer = ctx.get(serializerCtx);
+            const { from, to } = view.state.selection;
+            if (from === to) {
+              return null;
+            }
+            const $from = view.state.doc.resolve(from);
+            const $to = view.state.doc.resolve(to);
+            if ($from.depth < 1 || $to.depth < 1) {
+              return null;
+            }
+            const start = $from.before(1);
+            const end = $to.after(1);
+            if (start >= end) {
+              return null;
+            }
+            const slice = view.state.doc.slice(start, end);
+            const topNode = view.state.schema.topNodeType.create(null, slice.content);
+            return { from: start, to: end, markdown: serializer(topNode) };
+          });
+        },
+        applyToSelection: (markdown, range) => {
+          const builder = builderRef.current;
+          if (builder === null) {
+            return false;
+          }
+          return builder.editor.action(ctx => {
+            const view = ctx.get(editorViewCtx);
+            const parser = ctx.get(parserCtx);
+            const size = view.state.doc.content.size;
+            if (range.from < 0 || range.to > size || range.from >= range.to) {
+              return false;
+            }
+            try {
+              const doc = parser(escapeTableCodePipes(markdown));
+              view.dispatch(
+                view.state.tr.replaceWith(range.from, range.to, doc.content).scrollIntoView(),
+              );
+              return true;
+            } catch {
+              return false;
+            }
+          });
+        },
+        hasSelection: () => {
+          const builder = builderRef.current;
+          if (builder === null) {
+            return false;
+          }
+          return builder.editor.action(ctx => {
+            const view = ctx.get(editorViewCtx);
+            return view.hasFocus() && !view.state.selection.empty;
+          });
         },
       }),
       [],

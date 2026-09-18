@@ -1,6 +1,6 @@
 # selection-revision-plan.md — revise an editor selection with the AI assistant
 
-> Status: **plan only** (research done, no code). Companion to
+> Status: **implemented** (Phases 1–2 + core Phase 3). Companion to
 > `plan/pi-web-agent-plan.md` and `plan/mcp-support-plan.md`.
 
 Scope: let the user select a chunk of text in the editor and ask the AI
@@ -214,21 +214,26 @@ and inline editing. The editor decides how to apply the result.
 
 ## 6. Phased plan
 
-**Phase 1 — capture + replace plumbing**
-- [ ] `getSelection` (with **block-boundary snapping**) / `applyToSelection` on
-      `MilkdownEditorHandle`.
-- [ ] Bridge `getSelection` + `updateSelection`; selection-scoped review state
-      and `handleReviewClose` branch.
-- [ ] `get_selection` + `update_selection` agent tools; prompt updates.
+**Phase 1 — capture + replace plumbing** (done)
+- [x] `getSelection` (with **block-boundary snapping**) / `applyToSelection` /
+      `getSelectionPoint` on `MilkdownEditorHandle`.
+- [x] Bridge `getSelection` + `updateSelection`; selection-scoped review state
+      and `handleReviewClose` branch (no-op on reject).
+- [x] `get_selection` + `update_selection` agent tools; prompt updates.
 
-**Phase 2 — UX**
-- [ ] Floating “Revise with AI” button + `⌘J`.
-- [ ] Composer selection chip (read-only selection + instruction input);
+**Phase 2 — UX** (done)
+- [x] Floating “Revise with AI” button + `⌘J`.
+- [x] Composer selection chip (read-only selection + instruction input);
       auto-open the panel on trigger.
-- [ ] i18n (en/zh).
+- [x] i18n (en/zh).
 
 **Phase 3 — polish**
-- [ ] Source-tab disable, multi-block/table edges, stale-position fallback.
+- [x] Source-tab / revision-preview disable (button + tracking gated on
+      `bodyTab === 'editor' && !isRevisionPreview`).
+- [x] Bounds guard + try/catch around the range replacement; focus-gated
+      floating button (doesn’t steal focus).
+- [ ] Stale-position re-anchoring across concurrent edits (modal review makes
+      this rare).
 - [ ] Optional: “revise and replace without review” for trusted prompts.
 
 ---

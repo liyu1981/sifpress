@@ -65,6 +65,9 @@ export interface AgentDraft {
 interface AgentChatProps {
   draft?: AgentDraft | null;
   editor?: EditorMutationBridge | null;
+  /** Markdown of the editor selection the user wants revised (read-only). */
+  selection?: string | null;
+  onClearSelection?: () => void;
   onClose?: () => void;
   className?: string;
 }
@@ -126,7 +129,14 @@ function formatTime(timestamp: number): string {
   });
 }
 
-export function AgentChat({ draft, editor, onClose, className }: AgentChatProps) {
+export function AgentChat({
+  draft,
+  editor,
+  selection,
+  onClearSelection,
+  onClose,
+  className,
+}: AgentChatProps) {
   const { t, i18n } = useTranslation();
 
   const [sessions, setSessions] = useState<AgentSession[]>([]);
@@ -213,7 +223,7 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
     if (draftNow === null) {
       return base;
     }
-    return `${base}\n\n## Current draft the user is editing\n- slug: ${draftNow.slug}\n- title: ${draftNow.title}\n\n\`\`\`markdown\n${draftNow.content}\n\`\`\`\n\nWhen the user asks something about their draft, answer using this draft. Edits to the draft are staged with update_frontmatter and update_content, and the commit message with set_commit_note; call save when you are done to open the review dialog — the editor is only updated after the user finishes reviewing.`;
+    return `${base}\n\n## Current draft the user is editing\n- slug: ${draftNow.slug}\n- title: ${draftNow.title}\n\n\`\`\`markdown\n${draftNow.content}\n\`\`\`\n\nWhen the user asks something about their draft, answer using this draft. Edits to the draft are staged with update_frontmatter and update_content, and the commit message with set_commit_note; call save when you are done to open the review dialog — the editor is only updated after the user finishes reviewing. When the user is revising a selected chunk, read it with get_selection and return the replacement with update_selection instead of update_content.`;
   }, []);
 
   const defaultModel = useCallback((): { providerId: string; modelId: string } | undefined => {
@@ -461,11 +471,15 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
     }
     latestRef.current = sessionNow;
     instance.state.systemPrompt = buildSystemPrompt(sessionNow.systemPrompt);
+    const prompt =
+      selection !== null && selection !== undefined && selection.trim() !== ''
+        ? `Revise the following selection.\n\n\`\`\`markdown\n${selection}\n\`\`\`\n\nInstruction: ${text}`
+        : text;
     setInput('');
     setStreaming(true);
     setRunError(null);
     try {
-      await instance.prompt(text);
+      await instance.prompt(prompt);
       if (sessionNow.title === t('agent.untitled')) {
         const title = text.slice(0, 40) + (text.length > 40 ? '…' : '');
         await persistSession({ ...sessionNow, title }, instance.state.messages);
@@ -474,7 +488,7 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
       setStreaming(false);
       setRunError(err instanceof Error ? err.message : String(err));
     }
-  }, [buildSystemPrompt, createNewSession, input, persistSession, streaming, t]);
+  }, [buildSystemPrompt, createNewSession, input, persistSession, selection, streaming, t]);
 
   const handleStop = useCallback(() => {
     agentRef.current?.abort();
@@ -854,41 +868,59 @@ export function AgentChat({ draft, editor, onClose, className }: AgentChatProps)
             event.preventDefault();
             void handleSend();
           }}
-          className="flex items-stretch gap-1.5"
+          className="flex flex-col gap-1.5"
         >
-          <textarea
-            value={input}
-            onChange={event => setInput(event.target.value)}
-            onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                void handleSend();
-              }
-            }}
-            placeholder={t('agent.chatPlaceholder')}
-            rows={2}
-            className="min-h-10 flex-1 resize-none rounded-xl border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
-          />
-          {streaming ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={handleStop}
-              aria-label={t('agent.stop')}
-            >
-              <Square />
-            </Button>
-          ) : (
-            <Button
-              type="submit"
-              size="icon"
-              disabled={input.trim() === '' || allModels.length === 0}
-            >
-              <Send />
-              <span className="sr-only">{t('agent.send')}</span>
-            </Button>
+          {selection !== null && selection !== undefined && (
+            <div className="flex items-center gap-1.5 rounded-lg border border-border/50 bg-muted/40 px-2 py-1 text-xs">
+              <Sparkles className="size-3 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                {t('agent.selectionChip', { count: selection.length })}
+              </span>
+              <button
+                type="button"
+                onClick={onClearSelection}
+                aria-label={t('agent.clearSelection')}
+                className="rounded p-0.5 text-muted-foreground hover:bg-muted"
+              >
+                <X className="size-3" />
+              </button>
+            </div>
           )}
+          <div className="flex items-stretch gap-1.5">
+            <textarea
+              value={input}
+              onChange={event => setInput(event.target.value)}
+              onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  void handleSend();
+                }
+              }}
+              placeholder={t('agent.chatPlaceholder')}
+              rows={2}
+              className="min-h-10 flex-1 resize-none rounded-xl border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+            />
+            {streaming ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={handleStop}
+                aria-label={t('agent.stop')}
+              >
+                <Square />
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                size="icon"
+                disabled={input.trim() === '' || allModels.length === 0}
+              >
+                <Send />
+                <span className="sr-only">{t('agent.send')}</span>
+              </Button>
+            )}
+          </div>
         </form>
       </footer>
 

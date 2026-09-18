@@ -231,6 +231,40 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
     },
   });
 
+  const getSelection = tool({
+    name: 'get_selection',
+    label: 'Get selection',
+    description:
+      "Return the user's current editor selection as markdown, expanded to whole blocks. Returns 'No selection.' when nothing is selected. Requires the editor page to be open.",
+    parameters: Type.Object({}),
+    execute: async () => {
+      const ed = requireEditor(editor);
+      const selection = ed.getSelection();
+      if (selection === null) {
+        return textBlocks('No selection.');
+      }
+      return textBlocks(selection.markdown || '(empty selection)');
+    },
+  });
+
+  const updateSelection = tool({
+    name: 'update_selection',
+    label: 'Update selection',
+    description:
+      "Stage a replacement for only the user's current editor selection (whole blocks) — the rest of the document is untouched. Use get_selection first to read it. The editor is NOT modified until the user finishes the review dialog opened by save.",
+    parameters: Type.Object({
+      content_md: Type.String({
+        description:
+          'Full revised markdown for the selection (must NOT include frontmatter --- delimiters)',
+      }),
+    }),
+    execute: async (_id, args) => {
+      const ed = requireEditor(editor);
+      ed.updateSelection(args.content_md);
+      return textBlocks('Replaced the selection in the editor (not yet saved).');
+    },
+  });
+
   const getCommitNote = tool({
     name: 'get_commit_note',
     label: 'Get commit note',
@@ -288,6 +322,8 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
     updateFrontmatter,
     getContent,
     updateContent,
+    getSelection,
+    updateSelection,
     getCommitNote,
     setCommitNote,
     save,

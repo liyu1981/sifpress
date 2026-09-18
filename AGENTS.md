@@ -242,7 +242,9 @@ pnpm-lock.yaml      workspace lockfile
   pi-ai run **client-side** under `admin_ui/src/lib/agent/` (`agent.ts`,
   `tools.ts`, `editor-mutations.ts`, `models.ts`, `store.ts`). Tools are Pi
   `AgentTool`s; the editor write tools only *stage* changes and open the review
-  dialog (they never persist). **MCP** (`mcp.ts`): remote servers over
+  dialog (they never persist). **Selection revision**: a whole-block selection
+  can be rewritten via `get_selection`/`update_selection` and only that range is
+  replaced (`plan/selection-revision-plan.md`). **MCP** (`mcp.ts`): remote servers over
   Streamable HTTP, adapted to `AgentTool`s. Exa (`https://mcp.exa.ai/mcp`) is
   auto-enabled; tools are namespaced `mcp__exa__<tool>`. The Exa API key lives
   in localStorage (Settings → Agent) with an in-chat prompt on auth failure.
