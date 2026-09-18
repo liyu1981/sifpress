@@ -183,7 +183,7 @@ export interface PageInput {
   commit_message: string;
 }
 
-export interface PageUpdateInput extends Partial<Omit<PageInput, 'commit_message'>> {
+export interface PageUpdateInput extends Partial<Omit<PageInput, 'commit_message' | 'status'>> {
   id: number;
   commit_message: string;
 }
@@ -291,6 +291,12 @@ export const pagesApi = {
       method: 'PATCH',
       body: input,
     }).then(r => r.page),
+
+  setRevisionStatus: (revision_id: string, status: PageStatus) =>
+    apiRequest<{ revision: Revision; page: Page }>('pages.revision.setStatus', {
+      method: 'PATCH',
+      body: { revision_id, status },
+    }),
 
   revisions: (page_id: number) =>
     apiRequest<RevisionListResult>('pages.revisions', {

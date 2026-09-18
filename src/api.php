@@ -1094,7 +1094,12 @@ function api_pages_update(string $method): never
     $slug = array_key_exists('slug', $body) ? trim((string) $body['slug']) : $page['slug'];
     $title = array_key_exists('title', $body) ? trim((string) $body['title']) : $page['title'];
     $content = array_key_exists('content_md', $body) ? (string) $body['content_md'] : $page['content_md'];
-    $status = array_key_exists('status', $body) ? (string) $body['status'] : $page['status'];
+    /*
+     * Publish status is owned by the current revision and mutated only via
+     * pages.revision.setStatus; a content save always inherits the page's
+     * existing status so editing never republishes or unpublishes an article.
+     */
+    $status = $page['status'];
     $createdAt = array_key_exists('created_at', $body)
         ? normalize_datetime($body['created_at'])
         : $page['created_at'];
@@ -1121,10 +1126,6 @@ function api_pages_update(string $method): never
 
     if (strlen($content) > 1024 * 1024) {
         $errors['content_md'] = ['too large (max 1 MB)'];
-    }
-
-    if (!in_array($status, ['draft', 'published'], true)) {
-        $errors['status'] = ['must be draft or published'];
     }
 
     if (array_key_exists('created_at', $body)
@@ -1170,6 +1171,63 @@ function api_pages_update(string $method): never
     )->execute([$slug, $title, $content, $status, $createdAt, $now, current_user()['id'], $revisionId, $id]);
 
     json_response(['page' => page_payload(fetch_page($id))]);
+}
+
+function api_pages_revision_set_status(string $method): never
+{
+    if ($method !== 'PATCH') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_permission('pages.write');
+    $body = read_json_body();
+
+    $revisionId = (string) ($body['revision_id'] ?? '');
+    $status = (string) ($body['status'] ?? '');
+
+    if ($revisionId === '') {
+        json_response(['error' => 'revision_id required'], 422);
+    }
+
+    if (!in_array($status, ['draft', 'published'], true)) {
+        json_response(['error' => 'validation failed', 'errors' => ['status' => ['must be draft or published']]], 422);
+    }
+
+    $revision = fetch_revision($revisionId);
+
+    if ($revision === null) {
+        json_response(['error' => 'revision not found'], 404);
+    }
+
+    $page = fetch_page((int) $revision['page_id']);
+
+    if ($page === null) {
+        json_response(['error' => 'page not found'], 404);
+    }
+
+    require_page_edit($page);
+
+    /*
+     * Publish state belongs to the active revision. A historical revision is
+     * not directly editable; restore it first (pages.revision.restore), then
+     * toggle its status.
+     */
+    if ($revisionId !== ($page['current_revision_id'] ?? '')) {
+        json_response(['error' => 'revision is not active'], 409);
+    }
+
+    if ($status !== $revision['status'] || $status !== $page['status']) {
+        db()->prepare('UPDATE page_revisions SET status = ? WHERE revision_id = ?')
+            ->execute([$status, $revisionId]);
+        /* Toggling publish is not a content update: leave updated_at/updated_by. */
+        db()->prepare('UPDATE pages SET status = ? WHERE id = ?')
+            ->execute([$status, $page['id']]);
+    }
+
+    json_response([
+        'revision' => revision_payload(fetch_revision($revisionId)),
+        'page' => page_payload(fetch_page((int) $page['id'])),
+    ]);
 }
 
 function api_pages_delete(string $method): never
@@ -3444,6 +3502,9 @@ function handle_api(string $action, string $method): never
 
         case 'pages.update':
             api_pages_update($method);
+
+        case 'pages.revision.setStatus':
+            api_pages_revision_set_status($method);
 
         case 'pages.delete':
             api_pages_delete($method);

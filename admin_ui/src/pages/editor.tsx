@@ -53,7 +53,14 @@ import {
   type EditorSelectionContext,
   type MilkdownEditorHandle,
 } from '@/lib/md-editor';
-import { escapeTableCodePipes, assetsApi, type Grant, type DiffLine, pagesApi } from 'ui-sdk';
+import {
+  escapeTableCodePipes,
+  assetsApi,
+  type Grant,
+  type DiffLine,
+  type PageStatus,
+  pagesApi,
+} from 'ui-sdk';
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -466,19 +473,27 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
 
   const save = useMutation({
     mutationFn: async (meta: SavePayload) => {
-      const base = {
+      const existing = pageQuery.data;
+
+      if (editing && existing != null) {
+        return pagesApi.update({
+          id: existing.id,
+          slug: meta.slug,
+          title: meta.title,
+          content_md: meta.content_md,
+          created_at: meta.created_at,
+          commit_message: meta.commit_message,
+        });
+      }
+
+      return pagesApi.create({
         slug: meta.slug,
         title: meta.title,
         status: meta.status,
         content_md: meta.content_md,
         created_at: meta.created_at,
         commit_message: meta.commit_message,
-      };
-
-      const existing = pageQuery.data;
-      return editing && existing != null
-        ? pagesApi.update({ id: existing.id, ...base })
-        : pagesApi.create(base);
+      });
     },
     onSuccess: page => {
       queryClient.invalidateQueries({ queryKey: ['pages'] });
@@ -492,6 +507,41 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
       setSaveError(err instanceof ApiError ? err : null);
     },
   });
+
+  const setRevisionStatus = useMutation({
+    mutationFn: (next: PageStatus) => {
+      const existing = pageQuery.data;
+      const revisionId = existing?.current_revision_id;
+
+      if (existing == null || revisionId == null) {
+        throw new Error('No current revision');
+      }
+
+      return pagesApi.setRevisionStatus(revisionId, next);
+    },
+    onSuccess: ({ page: updatedPage }) => {
+      queryClient.setQueryData(['page', updatedPage.slug], updatedPage);
+      queryClient.invalidateQueries({ queryKey: ['pages'] });
+      queryClient.invalidateQueries({ queryKey: ['page-revisions', updatedPage.id] });
+      setPublished(updatedPage.status === 'published');
+    },
+    onError: err => {
+      if (pageQuery.data != null) {
+        setPublished(pageQuery.data.status === 'published');
+      }
+      setSaveError(err instanceof ApiError ? err : null);
+    },
+  });
+
+  const handlePublishedChange = (next: boolean): void => {
+    setPublished(next);
+
+    if (!editing || isRevisionPreview || pageQuery.data?.current_revision_id == null) {
+      return;
+    }
+
+    setRevisionStatus.mutate(next ? 'published' : 'draft');
+  };
 
   const buildFrontMatterFromFields = (): string =>
     buildFrontMatter({
@@ -1142,16 +1192,18 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
               {editing ? t('editor.editTitle') : t('editor.newTitle')}
             </h1>
             <div className="flex flex-wrap items-center gap-2">
-              <label className="flex cursor-pointer items-center gap-2">
+              <div className="flex items-center gap-2">
                 <Switch
+                  id="editor-published"
                   checked={published}
-                  onCheckedChange={setPublished}
+                  onCheckedChange={handlePublishedChange}
+                  disabled={setRevisionStatus.isPending || isRevisionPreview}
                   aria-label={t('editor.statusField')}
                 />
-                <span className="text-sm font-medium">
+                <label htmlFor="editor-published" className="cursor-pointer text-sm font-medium">
                   {published ? t('editor.statusPublished') : t('editor.statusDraft')}
-                </span>
-              </label>
+                </label>
+              </div>
               {editing &&
                 page !== null &&
                 user !== null &&
@@ -1320,16 +1372,20 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
                           {t('editor.seoTitle')}
                         </button>
                         {seoOpen && (
-                          <label className="flex cursor-pointer items-center gap-2">
+                          <div className="flex items-center gap-2">
                             <Switch
+                              id="editor-seo-noindex"
                               checked={seoNoindex}
                               onCheckedChange={setSeoNoindex}
                               aria-label={t('editor.seoNoindex')}
                             />
-                            <span className="text-xs text-muted-foreground">
+                            <label
+                              htmlFor="editor-seo-noindex"
+                              className="cursor-pointer text-xs text-muted-foreground"
+                            >
                               {t('editor.seoNoindex')}
-                            </span>
-                          </label>
+                            </label>
+                          </div>
                         )}
                       </div>
 
@@ -1550,6 +1606,14 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
                                 <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                                   {rev.commit_message}
                                 </span>
+                                <Badge
+                                  variant={rev.status === 'published' ? 'secondary' : 'outline'}
+                                  className="shrink-0"
+                                >
+                                  {rev.status === 'published'
+                                    ? t('editor.statusPublished')
+                                    : t('editor.statusDraft')}
+                                </Badge>
                                 <div className="flex shrink-0 items-center gap-1">
                                   {!isCurrent && (
                                     <>
