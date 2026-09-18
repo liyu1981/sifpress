@@ -3380,6 +3380,149 @@ function api_sifronts_activate(string $method): never
 }
 
 /* ------------------------------------------------------------------ */
+/* Web fetch (AI assistant)                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Build a human-readable error from a markdown.new failure response,
+ * preferring the service's own `error` field over the raw HTTP status.
+ */
+function web_fetch_error(string $body, int $status, string $transportError = ''): string
+{
+    if ($transportError !== '') {
+        return 'network: ' . $transportError;
+    }
+
+    $decoded = json_decode($body, true);
+
+    if (is_array($decoded) && isset($decoded['error']) && is_string($decoded['error'])) {
+        return 'markdown.new: ' . $decoded['error'];
+    }
+
+    return 'markdown.new returned HTTP ' . $status;
+}
+
+/**
+ * Relay a page through markdown.new, which fetches it and converts it to
+ * markdown. The browser cannot call markdown.new directly (CORS), so the
+ * admin API proxies it. The caller's User-Agent is forwarded because
+ * markdown.new varies its response by agent.
+ *
+ * Returns ['content' => ?string, 'error' => ?string].
+ */
+function web_fetch_markdown(string $url, string $userAgent): array
+{
+    $endpoint = WEB_FETCH_ENDPOINT . '/' . $url;
+    $body = null;
+    $error = null;
+
+    if (function_exists('curl_init')) {
+        $ch = curl_init($endpoint);
+
+        if ($ch !== false) {
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS => 3,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_TIMEOUT => WEB_FETCH_TIMEOUT,
+                CURLOPT_USERAGENT => $userAgent,
+                CURLOPT_HTTPHEADER => ['Accept: text/markdown, text/plain;q=0.9, */*;q=0.8'],
+            ]);
+            $result = curl_exec($ch);
+            $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+            $curlError = (string) curl_error($ch);
+            curl_close($ch);
+
+            if ($result !== false && $status >= 200 && $status < 300) {
+                $body = $result;
+            } else {
+                $error = web_fetch_error(
+                    $result === false ? '' : (string) $result,
+                    $status,
+                    $curlError
+                );
+            }
+        }
+    }
+
+    if ($body === null && $error === null && ini_get('allow_url_fopen')) {
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'timeout' => WEB_FETCH_TIMEOUT,
+                'follow_location' => 1,
+                'max_redirects' => 3,
+                'user_agent' => $userAgent,
+                'header' => "Accept: text/markdown, text/plain;q=0.9, */*;q=0.8\r\n",
+                'ignore_errors' => true,
+            ],
+            'ssl' => [
+                'verify_peer' => true,
+                'verify_peer_name' => true,
+            ],
+        ]);
+        $result = @file_get_contents($endpoint, false, $context);
+        $status = 0;
+
+        foreach ($http_response_header ?? [] as $header) {
+            if (preg_match('#^HTTP/\S+\s+(\d{3})#', $header, $m) === 1) {
+                $status = (int) $m[1];
+            }
+        }
+
+        if ($result !== false && $status >= 200 && $status < 300) {
+            $body = $result;
+        } elseif ($result === false && $status === 0) {
+            $error = 'network: could not reach markdown.new';
+        } else {
+            $error = web_fetch_error($result === false ? '' : (string) $result, $status);
+        }
+    }
+
+    if ($body === null) {
+        return ['content' => null, 'error' => $error ?? 'network: no HTTP transport available'];
+    }
+
+    return ['content' => substr($body, 0, WEB_FETCH_MAX_BYTES), 'error' => null];
+}
+
+function api_web_fetch(string $method): never
+{
+    if ($method !== 'POST') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $body = read_json_body();
+    $url = trim((string) ($body['url'] ?? ''));
+
+    if (!preg_match('#^https?://#i', $url)) {
+        json_response(['error' => 'url must be an absolute http(s) URL'], 422);
+    }
+
+    $userAgent = trim((string) ($body['user_agent'] ?? ''));
+
+    if ($userAgent === '') {
+        $userAgent = trim((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''));
+    }
+
+    /* Never let a supplied User-Agent inject extra headers. */
+    $userAgent = trim(str_replace(["\r", "\n"], '', $userAgent));
+
+    if ($userAgent === '') {
+        $userAgent = APP_NAME . '/' . APP_VERSION;
+    }
+
+    $result = web_fetch_markdown($url, $userAgent);
+
+    if ($result['content'] === null) {
+        json_response(['error' => $result['error'], 'url' => $url], 502);
+    }
+
+    json_response(['url' => $url, 'content' => $result['content']]);
+}
+
+/* ------------------------------------------------------------------ */
 /* Router                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -3449,6 +3592,7 @@ function handle_api(string $action, string $method): never
                     'pages.grants', 'pages.grant', 'pages.revokeGrant',
                     'users.list', 'users.create', 'users.update', 'users.setRoles',
                     'roles.list', 'tags.list',
+                    'web.fetch',
                     'assets.list', 'assets.get', 'assets.create', 'assets.update',
                     'assets.delete',
                     'kvs.list', 'kvs.get', 'kvs.create', 'kvs.update', 'kvs.delete',
@@ -3550,6 +3694,9 @@ function handle_api(string $action, string $method): never
 
         case 'tags.list':
             api_tags_list($method);
+
+        case 'web.fetch':
+            api_web_fetch($method);
 
         case 'assets.list':
             api_assets_list($method);

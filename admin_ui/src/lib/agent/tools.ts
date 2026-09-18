@@ -1,35 +1,13 @@
 import { Type, type TSchema } from '@earendil-works/pi-ai';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { parseFrontMatter } from '@/lib/front-matter';
-import { pagesApi, tagsApi } from 'ui-sdk';
+import { pagesApi, tagsApi, webApi } from 'ui-sdk';
 import type { EditorMutationBridge, FrontMatterPatch } from './editor-mutations';
 
 const MAX_FETCH_CHARS = 12000;
 
 function truncate(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max)}\n…[truncated]`;
-}
-
-async function fetchPageText(url: string): Promise<string> {
-  const response = await fetch(url, { headers: { Accept: 'text/html,text/plain,*/*' } });
-  if (!response.ok) {
-    throw new Error(`fetch_url: HTTP ${response.status} for ${url}`);
-  }
-  const contentType = response.headers.get('content-type') ?? '';
-  const body = await response.text();
-  if (contentType.includes('text/plain') || !contentType.includes('html')) {
-    return truncate(body, MAX_FETCH_CHARS);
-  }
-  const doc = new DOMParser().parseFromString(body, 'text/html');
-  doc
-    .querySelectorAll('script,style,noscript,svg,iframe,header,footer,nav')
-    .forEach(el => el.remove());
-  const title = doc.querySelector('title')?.textContent?.trim() ?? '';
-  const text = (doc.body?.textContent ?? '')
-    .replace(/[ \t]+/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-  return truncate(`${title !== '' ? `# ${title}\n\n` : ''}${text}`, MAX_FETCH_CHARS);
 }
 
 function textBlocks(...texts: string[]) {
@@ -90,17 +68,17 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
     },
   });
 
-  const fetchUrl = tool({
-    name: 'fetch_url',
-    label: 'Fetch URL',
+  const webFetch = tool({
+    name: 'web_fetch',
+    label: 'Web fetch',
     description:
-      'Fetch a web page and return its text content. Works only for sites that allow browser cross-origin requests (CORS). Best-effort.',
+      'Fetch a web page and return its main content as markdown. Runs on the server through markdown.new, so it works for arbitrary sites and is not limited by browser CORS. Use this to read documentation, articles, or any external link the user references.',
     parameters: Type.Object({
       url: Type.String({ description: 'Absolute http(s) URL to fetch' }),
     }),
     execute: async (_id, args) => {
-      const text = await fetchPageText(args.url);
-      return textBlocks(text);
+      const { content } = await webApi.fetch(args.url, navigator.userAgent);
+      return textBlocks(truncate(content, MAX_FETCH_CHARS));
     },
   });
 
@@ -318,7 +296,7 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
   return [
     searchContent,
     listTags,
-    fetchUrl,
+    webFetch,
     getFrontmatter,
     updateFrontmatter,
     getContent,

@@ -192,6 +192,22 @@ export const systemApi = {
   status: () => apiRequest<SystemStatus>('system.status'),
 };
 
+/**
+ * Server-relayed web fetch for the AI assistant. Pages are fetched and
+ * converted to markdown by the backend (markdown.new), so the browser is
+ * not subject to CORS and works for arbitrary sites.
+ */
+export const webApi = {
+  fetch: (url: string, userAgent?: string) =>
+    apiRequest<{ url: string; content: string }>('web.fetch', {
+      method: 'POST',
+      body: {
+        url,
+        ...(userAgent !== undefined && userAgent !== '' ? { user_agent: userAgent } : {}),
+      },
+    }),
+};
+
 export interface SeoSettings {
   site_name: string;
   site_description: string;
