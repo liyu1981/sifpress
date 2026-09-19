@@ -66,7 +66,7 @@ function RootLayout() {
     <ThemeConfigProvider>
       <div className="ambient-bg min-h-screen w-full overflow-x-clip">
         <AmbientBackground />
-        <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10">
+        <div className="relative z-10 mx-auto flex w-full max-w-8xl flex-col gap-8 px-6 py-10">
           {content}
           <SiteFooter />
         </div>
