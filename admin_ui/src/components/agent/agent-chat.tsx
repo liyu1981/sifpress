@@ -52,6 +52,8 @@ import {
   refreshModels,
 } from '@/lib/agent/models';
 import { deleteSession, listSessionsFull, saveSession, type AgentSession } from '@/lib/agent/store';
+import { resolveSystemPrompt } from '@/lib/agent/prompt';
+import { skillsSystemPrompt } from '@/lib/agent/skills';
 import { buildAgentTools } from '@/lib/agent/tools';
 import { cn } from '@/lib/utils';
 import {
@@ -107,6 +109,14 @@ function selectionPreview(selection: string): string {
   const cut = flat.slice(0, 42);
   const word = cut.slice(0, cut.lastIndexOf(' '));
   return `${word.length > 16 ? word : cut}…`;
+}
+
+/** A non-empty clamped selection, or null. Drives the new-session trigger. */
+function clampedSelection(selection: string | null | undefined): string | null {
+  if (selection === null || selection === undefined || selection.trim() === '') {
+    return null;
+  }
+  return selection;
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -204,6 +214,9 @@ export function AgentChat({
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const sessionsReadyRef = useRef(false);
+  const lastClampedRef = useRef<string | null>(null);
+  const selectionRef = useRef(selection);
 
   useEffect(() => {
     draftRef.current = draft ?? null;
@@ -212,6 +225,10 @@ export function AgentChat({
   useEffect(() => {
     editorRef.current = editor;
   }, [editor]);
+
+  useEffect(() => {
+    selectionRef.current = selection;
+  }, [selection]);
 
   useEffect(() => {
     setMcpTools(mcpManager.getTools());
@@ -270,6 +287,18 @@ export function AgentChat({
     }
     return `${base}\n\n## Current draft the user is editing\n- slug: ${draftNow.slug}\n- title: ${draftNow.title}\n\n\`\`\`markdown\n${draftNow.content}\n\`\`\`\n\nWhen the user asks something about their draft, answer using this draft. Edits to the draft are staged with update_frontmatter and update_content, and the commit message with set_commit_note; call save when you are done to open the review dialog — the editor is only updated after the user finishes reviewing. When the user is revising a selected chunk, read it with get_selection and return the replacement with update_selection instead of update_content.`;
   }, []);
+
+  /**
+   * The current base prompt: the user's custom override (Settings → Agent) or
+   * the built-in i18n prompt, plus the enabled-skills listing. Resolved at use
+   * time so edits apply to every session, not just new ones.
+   */
+  const currentBasePrompt = useCallback((): string => {
+    const language = i18n.language?.startsWith('zh') ? 'Chinese' : 'English';
+    const base = resolveSystemPrompt(t('agent.systemPrompt', { language }), language);
+    const skills = skillsSystemPrompt();
+    return skills === '' ? base : `${base}\n\n${skills}`;
+  }, [i18n.language, t]);
 
   const defaultModel = useCallback((): { providerId: string; modelId: string } | undefined => {
     const available = listAvailableModels();
@@ -386,7 +415,7 @@ export function AgentChat({
       const instance = buildAgent({
         providerId: sessionNow.providerId,
         modelId: sessionNow.modelId,
-        systemPrompt: sessionNow.systemPrompt,
+        systemPrompt: currentBasePrompt(),
         thinkingLevel: sessionNow.thinkingLevel,
         messages: sessionNow.messages,
         sessionId: sessionNow.id,
@@ -398,7 +427,7 @@ export function AgentChat({
       subscribeAgent(instance, sessionNow);
       return instance;
     },
-    [editor, subscribeAgent],
+    [currentBasePrompt, editor, subscribeAgent],
   );
 
   const handleSaveExaKey = useCallback(async () => {
@@ -418,16 +447,13 @@ export function AgentChat({
     }
     agentRef.current?.abort();
     const now = Date.now();
-    const base = t('agent.systemPrompt', {
-      language: i18n.language?.startsWith('zh') ? 'Chinese' : 'English',
-    });
     const next: AgentSession = {
       id: newId(),
       title: t('agent.untitled'),
       providerId: model.providerId,
       modelId: model.modelId,
       thinkingLevel: 'low',
-      systemPrompt: base,
+      systemPrompt: currentBasePrompt(),
       createdAt: now,
       updatedAt: now,
       messages: [],
@@ -453,7 +479,7 @@ export function AgentChat({
     setToolChips([]);
     setRunError(null);
     return next;
-  }, [buildForSession, defaultModel, i18n.language, sessions, t]);
+  }, [buildForSession, currentBasePrompt, defaultModel, sessions, t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -466,6 +492,18 @@ export function AgentChat({
       all.sort((a, b) => a.updatedAt - b.updatedAt);
       if (all.length > 0) {
         setSessions(all);
+      }
+      const clamped = clampedSelection(selectionRef.current);
+      if (clamped !== null) {
+        // A selection is being clamped: always start a fresh conversation so
+        // the revision is isolated from whatever was open before, even on the
+        // first mount.
+        lastClampedRef.current = clamped;
+        if (all.length > 0) {
+          setCollapsed(new Set(all.map(s => s.id)));
+        }
+        await createNewSession();
+      } else if (all.length > 0) {
         const newest = all[all.length - 1];
         latestRef.current = newest;
         setCollapsed(new Set(all.slice(0, -1).map(s => s.id)));
@@ -473,6 +511,7 @@ export function AgentChat({
       } else {
         await createNewSession();
       }
+      sessionsReadyRef.current = true;
     })();
     return () => {
       cancelled = true;
@@ -491,6 +530,23 @@ export function AgentChat({
       agentRef.current = null;
     };
   }, []);
+
+  // Clamping a selection (the "Clamped selection" chip) always opens a new
+  // conversation session, so every revision gets its own thread. The mount
+  // case is handled by the initial-load effect above, which consumes the
+  // first clamp before setting `sessionsReadyRef`.
+  useEffect(() => {
+    const clamped = clampedSelection(selection);
+    if (clamped === null) {
+      lastClampedRef.current = null;
+      return;
+    }
+    if (!sessionsReadyRef.current || clamped === lastClampedRef.current) {
+      return;
+    }
+    lastClampedRef.current = clamped;
+    void createNewSession();
+  }, [selection, createNewSession]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -532,7 +588,7 @@ export function AgentChat({
       return;
     }
     latestRef.current = sessionNow;
-    instance.state.systemPrompt = buildSystemPrompt(sessionNow.systemPrompt);
+    instance.state.systemPrompt = buildSystemPrompt(currentBasePrompt());
     const prompt =
       selection !== null && selection !== undefined && selection.trim() !== ''
         ? `Revise the following selection.\n\n\`\`\`markdown\n${selection}\n\`\`\`\n\nInstruction: ${text}`
@@ -567,6 +623,7 @@ export function AgentChat({
     attachments,
     buildSystemPrompt,
     createNewSession,
+    currentBasePrompt,
     input,
     persistSession,
     selection,

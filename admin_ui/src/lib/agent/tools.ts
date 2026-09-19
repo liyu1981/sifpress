@@ -3,6 +3,7 @@ import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { parseFrontMatter } from '@/lib/front-matter';
 import { pagesApi, tagsApi, webApi } from 'ui-sdk';
 import type { EditorMutationBridge, FrontMatterPatch } from './editor-mutations';
+import { buildSkillTools } from './skills';
 
 const MAX_FETCH_CHARS = 12000;
 
@@ -306,5 +307,6 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
     getCommitNote,
     setCommitNote,
     save,
+    ...buildSkillTools(),
   ] as unknown as AgentTool<any>[];
 }
