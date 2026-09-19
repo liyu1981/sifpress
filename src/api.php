@@ -2052,6 +2052,28 @@ function api_tags_list(string $method): never
 /* Assets                                                             */
 /* ------------------------------------------------------------------ */
 
+/**
+ * SQL clause (with named params) restricting an assets query to rows the
+ * current user may see: public rows, plus rows they uploaded or hold a grant
+ * on. Admins see everything.
+ */
+function asset_view_filter_sql(): array
+{
+    $user = current_user();
+
+    if ($user !== null && is_admin($user)) {
+        return ['clause' => '', 'params' => []];
+    }
+
+    $uid = $user !== null ? (int) $user['id'] : -1;
+
+    return [
+        'clause' => '(a.is_public = 1 OR a.uploaded_by = :vf_uid OR EXISTS ('
+            . 'SELECT 1 FROM asset_grants g WHERE g.asset_id = a.id AND g.user_id = :vf_uid2))',
+        'params' => ['vf_uid' => $uid, 'vf_uid2' => $uid],
+    ];
+}
+
 function api_assets_list(string $method): never
 {
     if ($method !== 'GET') {
@@ -2072,6 +2094,13 @@ function api_assets_list(string $method): never
 
     $where = [];
     $params = [];
+
+    $view = asset_view_filter_sql();
+
+    if ($view['clause'] !== '') {
+        $where[] = $view['clause'];
+        $params = array_merge($params, $view['params']);
+    }
 
     if ($kind !== null) {
         $where[] = 'a.kind = :kind';
@@ -2120,11 +2149,11 @@ function api_assets_get(string $method): never
         json_response(['error' => 'Method not allowed'], 405);
     }
 
-    require_auth();
+    $user = require_auth();
 
     $row = fetch_asset_meta((int) request_param('id', '0'));
 
-    if ($row === null) {
+    if ($row === null || !can_view_asset($user, $row)) {
         json_response(['error' => 'asset not found'], 404);
     }
 
@@ -2313,7 +2342,7 @@ function api_assets_update(string $method): never
 
     $user = current_user();
 
-    if (!is_admin($user) && (int) $row['uploaded_by'] !== (int) $user['id']) {
+    if (!can_edit_asset($user, $row)) {
         json_response(['error' => 'forbidden'], 403);
     }
 
@@ -2368,13 +2397,184 @@ function api_assets_delete(string $method): never
 
     $user = current_user();
 
-    if (!is_admin($user)
-        && !can((int) $user['id'], 'assets.upload')
-        && (int) $row['uploaded_by'] !== (int) $user['id']) {
+    if (!can_edit_asset($user, $row)) {
         json_response(['error' => 'forbidden'], 403);
     }
 
     db()->prepare('DELETE FROM assets WHERE id = ?')->execute([(int) $row['id']]);
+
+    json_response(['ok' => true]);
+}
+
+/* ------------------------------------------------------------------ */
+/* Asset grants                                                       */
+/* ------------------------------------------------------------------ */
+
+function api_assets_grants(string $method): never
+{
+    if ($method !== 'GET') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $user = require_auth();
+    $asset = fetch_asset_meta((int) request_param('asset_id', '0'));
+
+    if ($asset === null || !can_view_asset($user, $asset)) {
+        json_response(['error' => 'asset not found'], 404);
+    }
+
+    $stmt = db()->prepare(
+        'SELECT u.username, u.name, gu.name AS granted_by_name, g.created_at
+           FROM asset_grants g
+           JOIN users u ON u.id = g.user_id
+           LEFT JOIN users gu ON gu.id = g.granted_by
+          WHERE g.asset_id = ?
+          ORDER BY u.username'
+    );
+    $stmt->execute([(int) $asset['id']]);
+    $grantRows = $stmt->fetchAll();
+
+    /*
+     * The effective editor list always includes the uploader and every admin
+     * (they can edit by policy). Explicit grants are appended after them.
+     */
+    $items = [];
+    $seen = [];
+
+    if ($asset['uploaded_by'] !== null) {
+        $stmt = db()->prepare('SELECT username, name FROM users WHERE id = ?');
+        $stmt->execute([(int) $asset['uploaded_by']]);
+        $owner = $stmt->fetch();
+
+        if ($owner !== false) {
+            $items[] = [
+                'username' => $owner['username'],
+                'name' => $owner['name'],
+                'granted_by_name' => null,
+                'created_at' => null,
+                'kind' => 'owner',
+            ];
+            $seen[$owner['username']] = true;
+        }
+    }
+
+    $admins = db()->query(
+        'SELECT DISTINCT u.username, u.name
+           FROM users u
+           JOIN user_roles ur ON ur.user_id = u.id
+           JOIN roles r ON r.id = ur.role_id
+          WHERE r.code = \'admin\' AND u.is_active = 1
+          ORDER BY u.username'
+    )->fetchAll();
+
+    foreach ($admins as $admin) {
+        if (isset($seen[$admin['username']])) {
+            continue;
+        }
+        $items[] = [
+            'username' => $admin['username'],
+            'name' => $admin['name'],
+            'granted_by_name' => null,
+            'created_at' => null,
+            'kind' => 'admin',
+        ];
+        $seen[$admin['username']] = true;
+    }
+
+    foreach ($grantRows as $grant) {
+        if (isset($seen[$grant['username']])) {
+            continue;
+        }
+        $items[] = [
+            'username' => $grant['username'],
+            'name' => $grant['name'],
+            'granted_by_name' => (string) $grant['granted_by_name'],
+            'created_at' => $grant['created_at'],
+            'kind' => 'grant',
+        ];
+    }
+
+    usort(
+        $items,
+        static fn (array $a, array $b): int => strcasecmp($a['username'], $b['username'])
+    );
+
+    json_response(['grants' => $items]);
+}
+
+function api_assets_grant(string $method): never
+{
+    if ($method !== 'POST') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $user = require_auth();
+    $body = read_json_body();
+    $asset = fetch_asset_meta((int) ($body['asset_id'] ?? 0));
+
+    if ($asset === null || !can_view_asset($user, $asset)) {
+        json_response(['error' => 'asset not found'], 404);
+    }
+
+    if (!can_edit_asset($user, $asset)) {
+        json_response(['error' => 'forbidden'], 403);
+    }
+
+    $username = trim((string) ($body['username'] ?? ''));
+
+    if ($username === '') {
+        json_response(['error' => 'username is required'], 422);
+    }
+
+    $stmt = db()->prepare('SELECT id FROM users WHERE username = ? AND is_active = 1');
+    $stmt->execute([$username]);
+    $targetId = $stmt->fetchColumn();
+
+    if ($targetId === false) {
+        json_response(['error' => 'user not found'], 404);
+    }
+
+    db()->prepare(
+        'INSERT OR IGNORE INTO asset_grants (asset_id, user_id, granted_by) VALUES (?, ?, ?)'
+    )->execute([(int) $asset['id'], (int) $targetId, (int) $user['id']]);
+
+    json_response(['ok' => true]);
+}
+
+function api_assets_revoke_grant(string $method): never
+{
+    if ($method !== 'POST') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $user = require_auth();
+    $body = read_json_body();
+    $asset = fetch_asset_meta((int) ($body['asset_id'] ?? 0));
+
+    if ($asset === null || !can_view_asset($user, $asset)) {
+        json_response(['error' => 'asset not found'], 404);
+    }
+
+    if (!can_edit_asset($user, $asset)) {
+        json_response(['error' => 'forbidden'], 403);
+    }
+
+    $username = trim((string) ($body['username'] ?? ''));
+
+    if ($username === '') {
+        json_response(['error' => 'username is required'], 422);
+    }
+
+    $stmt = db()->prepare('SELECT id FROM users WHERE username = ?');
+    $stmt->execute([$username]);
+    $targetId = $stmt->fetchColumn();
+
+    if ($targetId === false) {
+        json_response(['error' => 'user not found'], 404);
+    }
+
+    db()->prepare('DELETE FROM asset_grants WHERE asset_id = ? AND user_id = ?')
+        ->execute([(int) $asset['id'], (int) $targetId]);
 
     json_response(['ok' => true]);
 }
@@ -3677,6 +3877,7 @@ function handle_api(string $action, string $method): never
                     'web.fetch',
                     'assets.list', 'assets.get', 'assets.create', 'assets.update',
                     'assets.delete',
+                    'assets.grants', 'assets.grant', 'assets.revokeGrant',
                     'kvs.list', 'kvs.get', 'kvs.create', 'kvs.update', 'kvs.delete',
                     'kvs.grants', 'kvs.grant', 'kvs.revokeGrant',
                     'sifronts.list', 'sifronts.get', 'sifronts.create', 'sifronts.update',
@@ -3797,6 +3998,15 @@ function handle_api(string $action, string $method): never
 
         case 'assets.delete':
             api_assets_delete($method);
+
+        case 'assets.grants':
+            api_assets_grants($method);
+
+        case 'assets.grant':
+            api_assets_grant($method);
+
+        case 'assets.revokeGrant':
+            api_assets_revoke_grant($method);
 
         case 'kvs.list':
             api_kvs_list($method);

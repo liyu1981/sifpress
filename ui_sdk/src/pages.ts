@@ -439,9 +439,19 @@ export interface Asset {
   is_public: boolean;
   uploaded_by: number | null;
   uploaded_by_name: string;
+  /** Whether the current user may edit this asset (owner, admin, or grant). */
+  can_edit: boolean;
   created_at: string;
   url: string;
   thumb_url: string;
+}
+
+export interface AssetGrant {
+  username: string;
+  name: string;
+  granted_by_name: string | null;
+  created_at: string | null;
+  kind: 'owner' | 'admin' | 'grant';
 }
 
 export interface AssetListResult {
@@ -485,6 +495,23 @@ export const assetsApi = {
     apiRequest<{ ok: true }>('assets.delete', {
       method: 'DELETE',
       params: { id: String(id) },
+    }),
+
+  grants: (assetId: number) =>
+    apiRequest<{ grants: AssetGrant[] }>('assets.grants', {
+      params: { asset_id: String(assetId) },
+    }).then(r => r.grants),
+
+  grant: (assetId: number, username: string) =>
+    apiRequest<{ ok: true }>('assets.grant', {
+      method: 'POST',
+      body: { asset_id: assetId, username },
+    }),
+
+  revokeGrant: (assetId: number, username: string) =>
+    apiRequest<{ ok: true }>('assets.revokeGrant', {
+      method: 'POST',
+      body: { asset_id: assetId, username },
     }),
 };
 

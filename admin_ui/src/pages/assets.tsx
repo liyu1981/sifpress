@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Copy, Loader2, Search, Trash2, Upload, X } from 'lucide-react';
+import { Check, Copy, Link2, Loader2, Search, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,29 +20,16 @@ import { usePageTitle } from '@/hooks/use-page-title';
 import { ApiError, assetMarkdownLink, copyText } from 'ui-sdk';
 import { makeImageThumb, makeVideoThumb } from 'ui-sdk';
 import { useAuth } from 'ui-sdk';
-import { type Asset, type AssetKind, assetsApi, systemApi } from 'ui-sdk';
+import { type Asset, type AssetKind, assetSourceUrl, assetsApi, systemApi } from 'ui-sdk';
 import { cn } from '@/lib/utils';
-import { formatTimestamp } from '@/lib/format';
+import { formatBytes, formatTimestamp } from '@/lib/format';
 import { AssetThumb } from '@/components/asset-thumb';
+import { AssetDetailDialog } from '@/components/asset-detail-dialog';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 
 const PER_PAGE = 24;
 const ACCEPT =
   'image/jpeg,image/png,image/gif,image/webp,image/avif,video/mp4,video/webm,video/ogg';
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-  const units = ['KB', 'MB', 'GB'];
-  let value = bytes / 1024;
-  let i = 0;
-  while (value >= 1024 && i < units.length - 1) {
-    value /= 1024;
-    i += 1;
-  }
-  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[i]}`;
-}
 
 interface UploadItem {
   key: string;
@@ -69,6 +57,7 @@ export function AssetsPage() {
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [copyFallback, setCopyFallback] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Asset | null>(null);
+  const [detailAsset, setDetailAsset] = useState<Asset | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const copyTimerRef = useRef<number | null>(null);
 
@@ -221,6 +210,16 @@ export function AssetsPage() {
       copyTimerRef.current = null;
       setCopiedId(null);
     }, 1500);
+  }
+
+  async function copyUrl(asset: Asset) {
+    const url = assetSourceUrl(asset.id, asset.name, asset.kind);
+
+    if (await copyText(url)) {
+      toast.success(t('assets.copied'));
+    } else {
+      setCopyFallback(url);
+    }
   }
 
   function handleDelete(asset: Asset) {
@@ -407,9 +406,14 @@ export function AssetsPage() {
                 key={asset.id}
                 className="glass-control flex flex-col overflow-hidden rounded-xl"
               >
-                <div className="aspect-[4/3] bg-muted/30">
+                <button
+                  type="button"
+                  className="aspect-[4/3] w-full cursor-zoom-in bg-muted/30"
+                  onClick={() => setDetailAsset(asset)}
+                  aria-label={t('assets.details')}
+                >
                   <AssetThumb asset={asset} />
-                </div>
+                </button>
                 <div className="flex flex-1 flex-col gap-2 p-3">
                   <p className="truncate text-sm font-medium" title={asset.name}>
                     {asset.name}
@@ -434,15 +438,21 @@ export function AssetsPage() {
                       {' · '}
                       {t('assets.by', { name: asset.uploaded_by_name || '—' })}
                     </span>
-                    <Switch
-                      checked={asset.is_public}
-                      disabled={setPublic.isPending}
-                      onCheckedChange={value =>
-                        setPublic.mutate({ id: asset.id, is_public: value })
-                      }
-                      aria-label={asset.is_public ? t('assets.private') : t('assets.public')}
-                      title={asset.is_public ? t('assets.public') : t('assets.private')}
-                    />
+                    {asset.can_edit ? (
+                      <Switch
+                        checked={asset.is_public}
+                        disabled={setPublic.isPending}
+                        onCheckedChange={value =>
+                          setPublic.mutate({ id: asset.id, is_public: value })
+                        }
+                        aria-label={asset.is_public ? t('assets.private') : t('assets.public')}
+                        title={asset.is_public ? t('assets.public') : t('assets.private')}
+                      />
+                    ) : (
+                      <Badge variant="outline">
+                        {asset.is_public ? t('assets.public') : t('assets.private')}
+                      </Badge>
+                    )}
                   </div>
                   <div className="mt-auto flex items-center gap-1">
                     <Button
@@ -459,13 +469,25 @@ export function AssetsPage() {
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      className="text-destructive"
-                      aria-label={t('assets.delete')}
-                      onClick={() => handleDelete(asset)}
-                      disabled={remove.isPending}
+                      aria-label={t('assets.copyUrl')}
+                      title={t('assets.copyUrl')}
+                      onClick={() => void copyUrl(asset)}
                     >
-                      <Trash2 />
+                      <Link2 />
                     </Button>
+                    {asset.can_edit && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-destructive"
+                        aria-label={t('assets.delete')}
+                        onClick={() => handleDelete(asset)}
+                        disabled={remove.isPending}
+                      >
+                        <Trash2 />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -533,6 +555,13 @@ export function AssetsPage() {
           className="h-9 font-mono text-xs"
         />
       </ConfirmDialog>
+
+      <AssetDetailDialog
+        asset={detailAsset}
+        onOpenChange={open => {
+          if (!open) setDetailAsset(null);
+        }}
+      />
     </div>
   );
 }

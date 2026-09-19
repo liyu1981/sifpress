@@ -146,6 +146,7 @@ function asset_payload(array $row): array
         'is_public' => (bool) (int) $row['is_public'],
         'uploaded_by' => $row['uploaded_by'] !== null ? (int) $row['uploaded_by'] : null,
         'uploaded_by_name' => (string) $row['uploaded_by_name'],
+        'can_edit' => can_edit_asset(current_user(), $row),
         'created_at' => (string) $row['created_at'],
         'url' => '?p=sifpress/asset&id=' . $id,
         'thumb_url' => '?p=sifpress/asset&id=' . $id . '&thumb=1',
@@ -307,8 +308,8 @@ function handle_asset(string $method): never
         json_response(['error' => 'asset not found'], 404);
     }
 
-    if (!(bool) (int) $row['is_public']) {
-        require_auth();
+    if (!can_view_asset(current_user(), $row)) {
+        json_response(['error' => 'asset not found'], 404);
     }
 
     $thumb = request_param('thumb') === '1';

@@ -353,6 +353,43 @@ function can_edit_page(array $user, int $pageId): bool
 }
 
 /**
+ * Whether the user may edit an asset: admin, the uploader, or a user holding
+ * an explicit asset grant. `$asset` is an assets row (needs `id`, `uploaded_by`).
+ */
+function can_edit_asset(?array $user, array $asset): bool
+{
+    if ($user === null) {
+        return false;
+    }
+
+    if (is_admin($user)) {
+        return true;
+    }
+
+    if ($asset['uploaded_by'] !== null && (int) $user['id'] === (int) $asset['uploaded_by']) {
+        return true;
+    }
+
+    $stmt = db()->prepare('SELECT 1 FROM asset_grants WHERE asset_id = ? AND user_id = ?');
+    $stmt->execute([(int) $asset['id'], (int) $user['id']]);
+
+    return $stmt->fetch() !== false;
+}
+
+/**
+ * Whether the user may view an asset: public assets are open to everyone,
+ * private ones only to editors (owner / admin / grant).
+ */
+function can_view_asset(?array $user, array $asset): bool
+{
+    if ((bool) (int) $asset['is_public']) {
+        return true;
+    }
+
+    return can_edit_asset($user, $asset);
+}
+
+/**
  * 403 unless the current user may edit the given page row.
  */
 function require_page_edit(array $page): void
