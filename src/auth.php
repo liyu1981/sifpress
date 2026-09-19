@@ -8,12 +8,60 @@
  */
 
 /**
- * Whether the request is over HTTPS (drives the Secure cookie flag).
+ * Whether the request is over HTTPS (drives the generated base URL and the
+ * Secure cookie flag).
+ *
+ * TLS-terminating proxies (Cloudflare, nginx, ELB, …) make PHP see plain HTTP,
+ * so the original scheme arrives in forwarding headers. Without these the
+ * artifact builds http:// links on an https page (mixed content, blocked) and
+ * skips the Secure cookie flag.
  */
 function is_https(): bool
 {
-    return (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-        || (int) ($_SERVER['SERVER_PORT'] ?? 0) === 443;
+    $https = $_SERVER['HTTPS'] ?? '';
+
+    if (is_string($https) && $https !== '' && strtolower($https) !== 'off') {
+        return true;
+    }
+
+    if ((int) ($_SERVER['SERVER_PORT'] ?? 0) === 443) {
+        return true;
+    }
+
+    // X-Forwarded-Proto may be a comma-separated list; the first entry is the
+    // scheme the client used.
+    $proto = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '';
+
+    if (is_string($proto) && $proto !== '') {
+        $first = strtolower(trim(explode(',', $proto)[0]));
+
+        if ($first === 'https') {
+            return true;
+        }
+    }
+
+    foreach (['HTTP_X_FORWARDED_SSL', 'HTTP_FRONT_END_HTTPS'] as $key) {
+        $value = $_SERVER[$key] ?? '';
+
+        if (is_string($value) && strtolower(trim($value)) === 'on') {
+            return true;
+        }
+    }
+
+    $scheme = $_SERVER['HTTP_X_FORWARDED_SCHEME'] ?? '';
+
+    if (is_string($scheme) && strtolower(trim($scheme)) === 'https') {
+        return true;
+    }
+
+    // Cloudflare also mirrors the scheme in CF-Visitor ({"scheme":"https"}).
+    $cf = $_SERVER['HTTP_CF_VISITOR'] ?? '';
+
+    if (is_string($cf) && str_contains(strtolower($cf), '"scheme":"https"')) {
+        return true;
+    }
+
+    return false;
 }
 
 /**

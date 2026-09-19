@@ -102,7 +102,9 @@ define('SIFPRESS_MANIFEST_URL', %s);
  *   https://example.com/myapp/index.php
  *
  * Leave as empty string to derive it from the request (falling back to
- * the site_url SEO setting when one is configured).
+ * the site_url SEO setting when one is configured). Behind a TLS-terminating
+ * proxy this is detected from X-Forwarded-Proto / X-Forwarded-Ssl; set the
+ * public https URL explicitly if your proxy does not forward either.
  */
 define('SIFPRESS_BASE_URL', %s);
 PHP;
