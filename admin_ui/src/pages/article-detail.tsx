@@ -162,8 +162,8 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_14rem]">
         <article className="glass-control overflow-hidden rounded-2xl">
           {cover !== null && (
-            <div className="aspect-[21/9] overflow-hidden bg-muted">
-              <img src={cover} alt="" className="size-full object-cover" />
+            <div className="relative aspect-[21/9] w-full overflow-hidden bg-muted">
+              <img src={cover} alt="" className="absolute inset-0 size-full object-cover" />
             </div>
           )}
           <div className="px-6 py-8 sm:px-10 sm:py-10">

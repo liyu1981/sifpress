@@ -73,13 +73,13 @@ function ArticleCard({ article, locale }: { article: PageListItem; locale: strin
         <Link
           to="/admin/article/$slug"
           params={{ slug: article.slug }}
-          className="block aspect-[16/9] overflow-hidden bg-muted"
+          className="relative block aspect-[16/9] w-full overflow-hidden bg-muted"
         >
           <img
             src={cover}
             alt=""
             loading="lazy"
-            className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+            className="absolute inset-0 size-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
           />
         </Link>
       )}
