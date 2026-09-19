@@ -4,8 +4,8 @@ import {
   useQueryClient,
   type UseMutationResult,
 } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight, Eye, Loader2, Plus, Trash2 } from 'lucide-react';
-import { type ChangeEvent, useRef, useState } from 'react';
+import { ChevronDown, ChevronRight, Eye, Loader2, Plus, Save, Trash2 } from 'lucide-react';
+import { type ChangeEvent, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +18,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useAuth } from 'ui-sdk';
@@ -67,12 +68,119 @@ function sifrontNameFromFile(fileName: string, html: string): string {
   return title !== undefined && title !== '' ? title : 'Sifront';
 }
 
+/** Render a KV value for display / as the default string in an editor. */
+function stringifyValue(value: unknown): string {
+  if (value === undefined) {
+    return '';
+  }
+
+  return typeof value === 'string' ? value : JSON.stringify(value);
+}
+
+/**
+ * Parse an edited value: valid JSON becomes its parsed form (number, boolean,
+ * array, object), anything else stays the literal string the user typed.
+ */
+function parseValue(input: string): unknown {
+  const trimmed = input.trim();
+
+  if (trimmed === '') {
+    return '';
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return input;
+  }
+}
+
+/**
+ * One editable key row: edit the input, then press the Save button that appears
+ * once the value is dirty. Nothing is saved automatically (Escape reverts).
+ */
+function KeyRow({
+  keyName,
+  current,
+  fallback,
+  saving,
+  onSave,
+}: {
+  keyName: string;
+  current: unknown;
+  fallback: unknown;
+  saving: boolean;
+  onSave: (key: string, value: unknown) => void;
+}) {
+  const { t } = useTranslation();
+  const [draft, setDraft] = useState(() => stringifyValue(current));
+  const [focused, setFocused] = useState(false);
+
+  // Reflect external changes (save + refetch) unless the user is mid-edit.
+  useEffect(() => {
+    if (!focused) {
+      setDraft(stringifyValue(current));
+    }
+  }, [current, focused]);
+
+  const dirty = draft !== stringifyValue(current);
+
+  return (
+    <tr className="align-top">
+      <td className="border-b border-border/60 px-2 py-2 font-mono text-xs break-all">{keyName}</td>
+      <td className="border-b border-border/60 px-2 py-2">
+        <div className="flex items-center gap-1.5">
+          <Input
+            value={draft}
+            onChange={event => setDraft(event.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            onKeyDown={event => {
+              if (event.key === 'Escape') {
+                setDraft(stringifyValue(current));
+                event.currentTarget.blur();
+              }
+            }}
+            placeholder="—"
+            aria-label={keyName}
+            className="h-7 font-mono text-xs"
+          />
+          {(dirty || saving) && (
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="outline"
+              disabled={saving}
+              onClick={() => onSave(keyName, parseValue(draft))}
+              aria-label={t('sifront.saveValue')}
+              title={t('sifront.saveValue')}
+            >
+              {saving ? <Loader2 className="animate-spin" /> : <Save />}
+            </Button>
+          )}
+        </div>
+      </td>
+      <td className="border-b border-border/60 px-2 py-2 text-muted-foreground">
+        {fallback === undefined ? (
+          <span className="text-xs text-muted-foreground">—</span>
+        ) : (
+          <ValueCell value={fallback} />
+        )}
+      </td>
+    </tr>
+  );
+}
+
 function MetaTable({
   meta,
   values,
+  savingKey,
+  onSave,
 }: {
   meta: Record<string, unknown> | null;
   values?: Record<string, unknown>;
+  savingKey: string | null;
+  onSave: (key: string, value: unknown) => void;
 }) {
   const requireKeys: Record<string, unknown>[] =
     meta !== null && Array.isArray(meta.require_keys)
@@ -85,7 +193,12 @@ function MetaTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-sm">
+      <table className="w-full table-fixed border-collapse text-sm">
+        <colgroup>
+          <col className="w-[34%]" />
+          <col className="w-[33%]" />
+          <col className="w-[33%]" />
+        </colgroup>
         <thead>
           <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
             <th className="border-b border-border px-2 py-1.5 font-medium">Key</th>
@@ -100,21 +213,15 @@ function MetaTable({
               return null;
             }
             const [key, def] = entries[0];
-            const current = values?.[key];
             return (
-              <tr key={key} className="align-top">
-                <td className="border-b border-border/60 px-2 py-2 font-mono text-xs">{key}</td>
-                <td className="border-b border-border/60 px-2 py-2">
-                  {current === undefined ? (
-                    <span className="text-xs text-muted-foreground">—</span>
-                  ) : (
-                    <ValueCell value={current} />
-                  )}
-                </td>
-                <td className="border-b border-border/60 px-2 py-2 text-muted-foreground">
-                  <ValueCell value={def} />
-                </td>
-              </tr>
+              <KeyRow
+                key={key}
+                keyName={key}
+                current={values?.[key]}
+                fallback={def}
+                saving={savingKey === key}
+                onSave={onSave}
+              />
             );
           })}
         </tbody>
@@ -135,6 +242,7 @@ function SifrontCard({
   remove: UseMutationResult<unknown, unknown, number>;
 }) {
   const { t, i18n } = useTranslation();
+  const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(sf.is_active);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -153,6 +261,27 @@ function SifrontCard({
     queryKey: ['sifront-values', sf.id],
     queryFn: () => kvsApi.getMany(keys),
     enabled: expanded && keys.length > 0,
+  });
+
+  const existingKeys = new Set(Object.keys(values.data?.data ?? {}));
+
+  const saveValue = useMutation({
+    mutationFn: (input: { key: string; value: unknown }) =>
+      existingKeys.has(input.key)
+        ? kvsApi.update({ key: input.key, value: input.value })
+        : kvsApi.create({ key: input.key, value: input.value }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['sifront-values', sf.id] });
+      toast.success(t('sifront.valueSaved', { key: variables.key }));
+    },
+    onError: (error, variables) => {
+      toast.error(
+        t('sifront.valueFailed', {
+          key: variables.key,
+          detail: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    },
   });
 
   return (
@@ -221,7 +350,12 @@ function SifrontCard({
               <Loader2 className="size-4 animate-spin" /> Loading…
             </div>
           ) : (
-            <MetaTable meta={detail.data?.meta ?? null} values={values.data?.data} />
+            <MetaTable
+              meta={detail.data?.meta ?? null}
+              values={values.data?.data}
+              savingKey={saveValue.isPending ? (saveValue.variables?.key ?? null) : null}
+              onSave={(key, value) => saveValue.mutate({ key, value })}
+            />
           )}
         </CardContent>
       )}

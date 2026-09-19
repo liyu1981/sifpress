@@ -53,6 +53,9 @@ const en = {
     empty: 'No sifronts yet.',
     created: 'Sifront "{{name}}" created.',
     uploadFailed: 'Could not create sifront: {{detail}}',
+    valueSaved: 'Saved "{{key}}".',
+    valueFailed: 'Could not save "{{key}}": {{detail}}',
+    saveValue: 'Save',
   },
   article: {
     badge: 'Blog',
@@ -710,6 +713,9 @@ const zh = {
     empty: '暂无前台页面。',
     created: '已创建前台「{{name}}」。',
     uploadFailed: '无法创建前台：{{detail}}',
+    valueSaved: '已保存「{{key}}」。',
+    valueFailed: '无法保存「{{key}}」：{{detail}}',
+    saveValue: '保存',
   },
   article: {
     badge: '博客',
