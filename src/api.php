@@ -1103,6 +1103,13 @@ function api_pages_update(string $method): never
     $createdAt = array_key_exists('created_at', $body)
         ? normalize_datetime($body['created_at'])
         : $page['created_at'];
+    /*
+     * Optional override for the page's display timestamp. Empty (the field hint
+     * says "leave empty to use the current time") falls back to the save time.
+     */
+    $updatedAt = array_key_exists('updated_at', $body)
+        ? normalize_datetime($body['updated_at'])
+        : '';
     $commitMessage = trim((string) ($body['commit_message'] ?? ''));
 
     if (array_key_exists('slug', $body)) {
@@ -1135,6 +1142,13 @@ function api_pages_update(string $method): never
         $errors['created_at'] = ['must be YYYY-MM-DD HH:MM(:SS)'];
     }
 
+    if (array_key_exists('updated_at', $body)
+        && is_string($body['updated_at'])
+        && trim($body['updated_at']) !== ''
+        && $updatedAt === '') {
+        $errors['updated_at'] = ['must be YYYY-MM-DD HH:MM(:SS)'];
+    }
+
     if ($commitMessage === '') {
         $errors['commit_message'] = ['required'];
     }
@@ -1156,11 +1170,22 @@ function api_pages_update(string $method): never
     $currentHash = $page['current_revision_id'] ?? '';
 
     if ($newHash === $currentHash) {
+        /*
+         * Content unchanged. Still honor an explicit updated-at override, but
+         * without creating a new revision (the revision id is the content hash).
+         */
+        if ($updatedAt !== '' && $updatedAt !== $page['updated_at']) {
+            db()->prepare('UPDATE pages SET updated_at = ? WHERE id = ?')
+                ->execute([$updatedAt, $id]);
+            json_response(['page' => page_payload(fetch_page($id))]);
+        }
+
         json_response(['page' => page_payload($page)]);
     }
 
     $parentIds = $currentHash !== '' ? json_encode([$currentHash]) : '[]';
     $now = date('Y-m-d H:i:s');
+    $storedUpdatedAt = $updatedAt !== '' ? $updatedAt : $now;
 
     $revisionId = create_revision($id, $newFields, $parentIds, $commitMessage, $now);
 
@@ -1168,7 +1193,7 @@ function api_pages_update(string $method): never
         'UPDATE pages SET slug = ?, title = ?, content_md = ?, status = ?,
                created_at = ?, updated_at = ?, updated_by = ?, current_revision_id = ?
          WHERE id = ?'
-    )->execute([$slug, $title, $content, $status, $createdAt, $now, current_user()['id'], $revisionId, $id]);
+    )->execute([$slug, $title, $content, $status, $createdAt, $storedUpdatedAt, current_user()['id'], $revisionId, $id]);
 
     json_response(['page' => page_payload(fetch_page($id))]);
 }
