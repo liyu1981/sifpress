@@ -238,7 +238,7 @@ MD;
  */
 function demo_page_payload(): array
 {
-    return [
+    $payload = [
         'id' => 0,
         'slug' => DEMO_PAGE_SLUG,
         'title' => DEMO_PAGE_TITLE,
@@ -253,4 +253,9 @@ function demo_page_payload(): array
         'updated_at' => DEMO_PAGE_DATE . ' 00:00:00',
         'can_edit' => false,
     ];
+
+    /* Same shape as page_payload(): clients read page.seo directly. */
+    $payload['seo'] = page_seo($payload);
+
+    return $payload;
 }

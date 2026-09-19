@@ -99,14 +99,16 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
     },
   });
 
+  const seo = article.data?.seo;
+
   usePageMeta(
     article.data !== undefined && article.data !== null
       ? {
-          title: article.data.seo.title,
-          description: article.data.seo.description,
-          image: article.data.seo.og_image,
-          canonical: article.data.seo.canonical,
-          noindex: article.data.seo.noindex,
+          title: seo?.title ?? article.data.title,
+          description: seo?.description ?? '',
+          image: seo?.og_image,
+          canonical: seo?.canonical,
+          noindex: seo?.noindex,
           type: 'article',
         }
       : { title: t('article.loadingTitle') },
