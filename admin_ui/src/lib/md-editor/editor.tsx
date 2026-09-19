@@ -6,9 +6,16 @@ import { listItem } from '@milkdown/crepe/feature/list-item';
 import { placeholder } from '@milkdown/crepe/feature/placeholder';
 import { table } from '@milkdown/crepe/feature/table';
 import { toolbar } from '@milkdown/crepe/feature/toolbar';
-import { editorViewCtx, parserCtx, serializerCtx } from '@milkdown/kit/core';
+import type { Ctx } from '@milkdown/kit/ctx';
+import { commandsCtx, editorViewCtx, parserCtx, serializerCtx } from '@milkdown/kit/core';
+import {
+  headingSchema,
+  paragraphSchema,
+  setBlockTypeCommand,
+} from '@milkdown/kit/preset/commonmark';
 import { TextSelection } from '@milkdown/kit/prose/state';
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   createMarkdownEditor,
   type MermaidTheme,
@@ -24,6 +31,7 @@ import {
   imageDirectiveTooltip,
 } from './plugins/image-directives-tooltip';
 import { imageDirectivesView } from './plugins/image-directives-view';
+import { BlockTypeMenu } from './block-type-menu';
 
 export interface EditorSelection {
   /** ProseMirror document positions (expanded to whole top-level blocks). */
@@ -79,10 +87,36 @@ export interface MilkdownEditorProps {
   className?: string;
 }
 
+/** Toolbar icon for the block-type dropdown (rendered via crepe's `Icon`). */
+const BLOCK_TYPE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="2.2" rx="1.1"/><rect x="4" y="10.9" width="16" height="2.2" rx="1.1"/><rect x="4" y="16.8" width="10" height="2.2" rx="1.1"/></svg>`;
+
+/** Heading level of the block at the caret, or null for a paragraph. */
+function currentBlockTypeLevel(ctx: Ctx): number | null {
+  const node = ctx.get(editorViewCtx).state.selection.$from.parent;
+  if (node.type !== headingSchema.type(ctx)) {
+    return null;
+  }
+  return node.attrs.level as number;
+}
+
+/** Turn the selected block into a heading level (or back into a paragraph). */
+function setBlockType(ctx: Ctx, level: number | null): void {
+  const commands = ctx.get(commandsCtx);
+  if (level === null) {
+    commands.call(setBlockTypeCommand.key, { nodeType: paragraphSchema.type(ctx) });
+    return;
+  }
+  commands.call(setBlockTypeCommand.key, {
+    nodeType: headingSchema.type(ctx),
+    attrs: { level },
+  });
+}
+
 export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorProps>(
   function MilkdownEditor({ defaultValue = '', onUpload, className }, ref) {
     const containerRef = useRef<HTMLDivElement>(null);
     const builderRef = useRef<CrepeBuilder | null>(null);
+    const [blockMenu, setBlockMenu] = useState<{ rect: DOMRect; ctx: Ctx } | null>(null);
     const { theme } = useTheme();
 
     useImperativeHandle(
@@ -93,6 +127,7 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
           builderRef.current?.editor.action(setMarkdownContent(escapeTableCodePipes(markdown)));
         },
         closePopups: () => {
+          setBlockMenu(null);
           const builder = builderRef.current;
           if (!builder) {
             return;
@@ -260,7 +295,33 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
       builder.addFeature(cursor);
       builder.addFeature(placeholder);
       builder.addFeature(table);
-      builder.addFeature(toolbar);
+      builder.addFeature(toolbar, {
+        buildToolbar: groupBuilder => {
+          groupBuilder.addGroup('block', 'Block').addItem('block-type', {
+            icon: BLOCK_TYPE_ICON,
+            label: 'Block type',
+            active: () => false,
+            onRun: ctx => {
+              const trigger = document.querySelector<HTMLElement>(
+                '[data-toolbar-item="block-type"]',
+              );
+              if (trigger === null) {
+                return;
+              }
+              setBlockMenu(prev => (prev ? null : { rect: trigger.getBoundingClientRect(), ctx }));
+            },
+          });
+          // Move the block-type group to the front: the toolbar inserts a
+          // divider before every group after the first, so this renders as
+          // [block type] | [inline formatting...]. `build()` returns the live
+          // group array that `getGroups` then returns.
+          const groups = groupBuilder.build();
+          const block = groups.pop();
+          if (block !== undefined) {
+            groups.unshift(block);
+          }
+        },
+      });
       builder.addFeature(blockEdit);
 
       builder.editor
@@ -360,10 +421,25 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
     }, []);
 
     return (
-      <div
-        ref={containerRef}
-        className={cn('milkdown-editor', resolved === 'dark' && 'dark', className)}
-      />
+      <>
+        <div
+          ref={containerRef}
+          className={cn('milkdown-editor', resolved === 'dark' && 'dark', className)}
+        />
+        {blockMenu !== null &&
+          createPortal(
+            <BlockTypeMenu
+              rect={blockMenu.rect}
+              currentLevel={currentBlockTypeLevel(blockMenu.ctx)}
+              onSelect={level => {
+                setBlockType(blockMenu.ctx, level);
+                setBlockMenu(null);
+              }}
+              onClose={() => setBlockMenu(null)}
+            />,
+            document.body,
+          )}
+      </>
     );
   },
 );

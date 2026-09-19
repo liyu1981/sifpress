@@ -56,7 +56,10 @@ frontend/src/lib/marked/
   `FeaturesCtx` in add order — see crepe `core/slice.ts`).
 - Edit mode adds: `codeMirror`, `latex`, `table`, `toolbar`, `blockEdit`,
   `imageBlock` (`onUpload` → existing assets API, `?module=asset&id=N`),
-  `placeholder`, `listItem`, `linkTooltip`, `cursor`. No `topBar`, no `ai`.
+  `placeholder`, `listItem`, `linkTooltip`, `cursor`. The floating toolbar gets
+  a block-type dropdown (Paragraph/H1–H6) built from a `buildToolbar` icon item
+  plus a portal-rendered menu (`block-type-menu.tsx`) — crepe's `ToolbarItem`
+  only renders icon buttons, so the dropdown is ours. No `topBar`, no `ai`.
 - Render mode adds only: `codeMirror` + `latex` (latex requires it) + our
   plugins. `setReadonly(true)` on create. `getHTML()` ignores components, so
   code blocks still export as plain `<pre><code>` — good.
