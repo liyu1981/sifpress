@@ -114,14 +114,18 @@ function KeyRow({
 }) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState(() => stringifyValue(current));
-  const [focused, setFocused] = useState(false);
+  const focusedRef = useRef(false);
 
-  // Reflect external changes (save + refetch) unless the user is mid-edit.
+  /*
+   * Only sync from the stored value when it actually changes (e.g. after a save
+   * + refetch). Do NOT depend on focus: blurring must keep the unsaved draft so
+   * the Save button stays mounted and its click can fire.
+   */
   useEffect(() => {
-    if (!focused) {
+    if (!focusedRef.current) {
       setDraft(stringifyValue(current));
     }
-  }, [current, focused]);
+  }, [current]);
 
   const dirty = draft !== stringifyValue(current);
 
@@ -133,8 +137,12 @@ function KeyRow({
           <Input
             value={draft}
             onChange={event => setDraft(event.target.value)}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
+            onFocus={() => {
+              focusedRef.current = true;
+            }}
+            onBlur={() => {
+              focusedRef.current = false;
+            }}
             onKeyDown={event => {
               if (event.key === 'Escape') {
                 setDraft(stringifyValue(current));
