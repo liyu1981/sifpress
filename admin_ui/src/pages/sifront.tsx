@@ -5,8 +5,9 @@ import {
   type UseMutationResult,
 } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, Eye, Loader2, Plus, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { type ChangeEvent, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,6 +27,44 @@ import { formatTimestamp } from '@/lib/format';
 function ValueCell({ value }: { value: unknown }) {
   const text = typeof value === 'string' ? value : JSON.stringify(value);
   return <span className="whitespace-pre-wrap break-all text-xs">{text}</span>;
+}
+
+/** Read the sifront's <meta name="sifront_meta"> payload, if the bundle has one. */
+function parseSifrontMeta(html: string): Record<string, unknown> | undefined {
+  try {
+    const content = new DOMParser()
+      .parseFromString(html, 'text/html')
+      .querySelector('meta[name="sifront_meta"]')
+      ?.getAttribute('content');
+
+    if (content === null || content === undefined || content === '') {
+      return undefined;
+    }
+
+    const parsed: unknown = JSON.parse(content);
+
+    return parsed !== null && typeof parsed === 'object'
+      ? (parsed as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Derive a display name from the uploaded file name, falling back to <title>. */
+function sifrontNameFromFile(fileName: string, html: string): string {
+  const base = fileName.replace(/\.(sifront|html?)$/i, '').trim();
+
+  if (base !== '') {
+    return base;
+  }
+
+  const title = new DOMParser()
+    .parseFromString(html, 'text/html')
+    .querySelector('title')
+    ?.textContent?.trim();
+
+  return title !== undefined && title !== '' ? title : 'Sifront';
 }
 
 function MetaTable({
@@ -203,6 +242,7 @@ export function SifrontsPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const fileRef = useRef<HTMLInputElement | null>(null);
   const canManage = user?.permissions?.includes('settings.manage') ?? false;
 
   usePageTitle(t('sifront.title'));
@@ -211,6 +251,53 @@ export function SifrontsPage() {
     queryKey: ['sifronts'],
     queryFn: sifrontsApi.list,
   });
+
+  const create = useMutation({
+    mutationFn: (input: { name: string; content: string; meta?: Record<string, unknown> }) =>
+      sifrontsApi.create(input),
+    onSuccess: sf => {
+      queryClient.invalidateQueries({ queryKey: ['sifronts'] });
+      toast.success(t('sifront.created', { name: sf.name }));
+    },
+    onError: error => {
+      toast.error(
+        t('sifront.uploadFailed', {
+          detail: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    },
+  });
+
+  const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // Reset so the same file can be picked again after a failure.
+    event.target.value = '';
+
+    if (file === undefined) {
+      return;
+    }
+
+    try {
+      const content = await file.text();
+
+      if (content.trim() === '') {
+        toast.error(t('sifront.uploadFailed', { detail: 'empty file' }));
+        return;
+      }
+
+      create.mutate({
+        name: sifrontNameFromFile(file.name, content),
+        content,
+        meta: parseSifrontMeta(content),
+      });
+    } catch (error) {
+      toast.error(
+        t('sifront.uploadFailed', {
+          detail: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    }
+  };
 
   const activate = useMutation({
     mutationFn: (id: number) => sifrontsApi.activate(id),
@@ -232,11 +319,23 @@ export function SifrontsPage() {
           <p className="text-sm text-muted-foreground">{t('sifront.description')}</p>
         </div>
         {canManage && (
-          <Button size="sm">
-            <Plus className="mr-1 size-4" />
+          <Button size="sm" onClick={() => fileRef.current?.click()} disabled={create.isPending}>
+            {create.isPending ? (
+              <Loader2 className="mr-1 size-4 animate-spin" />
+            ) : (
+              <Plus className="mr-1 size-4" />
+            )}
             {t('sifront.new')}
           </Button>
         )}
+        {/* Hidden picker: a built `.sifront` (or html) bundle becomes a new sifront. */}
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".sifront,.html,text/html"
+          className="hidden"
+          onChange={event => void handleFile(event)}
+        />
       </div>
 
       {list.isLoading && (

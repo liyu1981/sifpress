@@ -51,6 +51,8 @@ const en = {
     version: 'v{{version}}',
     deleteConfirm: 'Delete "{{name}}" permanently?',
     empty: 'No sifronts yet.',
+    created: 'Sifront "{{name}}" created.',
+    uploadFailed: 'Could not create sifront: {{detail}}',
   },
   article: {
     badge: 'Blog',
@@ -706,6 +708,8 @@ const zh = {
     version: 'v{{version}}',
     deleteConfirm: '永久删除 "{{name}}"？',
     empty: '暂无前台页面。',
+    created: '已创建前台「{{name}}」。',
+    uploadFailed: '无法创建前台：{{detail}}',
   },
   article: {
     badge: '博客',
