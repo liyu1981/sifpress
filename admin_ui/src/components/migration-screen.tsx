@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Database, Loader2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Database, RefreshCw, Terminal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { AmbientBackground } from '@/components/ambient-background';
@@ -8,27 +8,19 @@ import { Button } from '@/components/ui/button';
 import { migrationApi } from 'ui-sdk';
 
 /**
- * Full-screen maintenance view shown when the database schema is behind
- * the embedded migrations. Runs ?p=sifpress/migration&action=run, then
- * reloads. Public by design — a fresh install has no users yet.
+ * Full-screen maintenance view shown when the database schema is behind the
+ * embedded migrations. Read-only by design: migrations are applied from a
+ * shell (`php sifpress.php migrate`, or the `?p=sifpress/migration&action=run`
+ * endpoint) so no credentials or privileges are exposed in the browser.
  */
 export function MigrationScreen() {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
 
   const status = useQuery({
     queryKey: ['migration', 'status'],
     queryFn: migrationApi.status,
     staleTime: 30_000,
-  });
-
-  const run = useMutation({
-    mutationFn: migrationApi.run,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['migration', 'status'] });
-      queryClient.invalidateQueries({ queryKey: ['system', 'status'] });
-      window.location.reload();
-    },
+    retry: false,
   });
 
   const pending = (status.data?.migrations ?? []).filter(m => !m.applied);
@@ -52,7 +44,7 @@ export function MigrationScreen() {
 
             {status.isLoading ? (
               <p className="text-sm text-muted-foreground">{t('migration.checking')}</p>
-            ) : (
+            ) : pending.length > 0 ? (
               <ul className="w-full space-y-1.5 text-sm">
                 {pending.map(m => (
                   <li
@@ -64,14 +56,22 @@ export function MigrationScreen() {
                   </li>
                 ))}
               </ul>
-            )}
+            ) : null}
 
-            <Button className="w-full" onClick={() => run.mutate()} disabled={run.isPending}>
-              {run.isPending && <Loader2 className="animate-spin" />}
-              {run.isPending ? t('migration.running') : t('migration.run')}
+            <div className="w-full space-y-2 rounded-xl border border-border/60 bg-muted/40 p-3 text-left">
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Terminal className="size-3.5" />
+                {t('migration.hint')}
+              </p>
+              <code className="block font-mono text-xs break-all select-all">
+                php sifpress.php migrate
+              </code>
+            </div>
+
+            <Button className="w-full" variant="outline" onClick={() => window.location.reload()}>
+              <RefreshCw />
+              {t('migration.reload')}
             </Button>
-
-            {run.isError && <p className="text-sm text-destructive">{t('migration.error')}</p>}
           </div>
         </div>
       </div>

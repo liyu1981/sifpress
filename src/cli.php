@@ -4,10 +4,11 @@
  *
  *   php sifpress.php [command] [options]
  *
- *   setup     (default) write sifpress_config.php + create the DB folder
- *   migrate   apply pending migrations
- *   status    print paths, version and migration state
- *   help      show usage
+ *   setup            (default) write sifpress_config.php + create the DB folder
+ *   migrate          apply pending migrations
+ *   change_password  set a user's password (clears must_change_password)
+ *   status           print paths, version and migration state
+ *   help             show usage
  *
  * Running `setup` from a shell creates the config as the current user, which
  * avoids the web SAPI's inability to create files in a read-only document
@@ -29,6 +30,10 @@ function sifpress_cli(array $argv): never
 
         case 'migrate':
             sifpress_cli_migrate($configPath);
+            break;
+
+        case 'change_password':
+            sifpress_cli_change_password($configPath, $argv);
             break;
 
         case 'status':
@@ -60,10 +65,11 @@ function sifpress_cli_usage(): void
         "Usage: php {$bin} [command] [options]",
         '',
         'Commands:',
-        '  setup     (default) create sifpress_config.php and the DB folder',
-        '  migrate   apply pending migrations',
-        '  status    print paths, version and migration state',
-        '  help      show this help',
+        '  setup            (default) create sifpress_config.php and the DB folder',
+        '  migrate          apply pending migrations',
+        '  change_password  set a user password: change_password <user> <password>',
+        '  status           print paths, version and migration state',
+        '  help             show this help',
         '',
         'setup options:',
         '  --db-dir=PATH           DB folder (default: <artifact dir>/var/sifpress)',
@@ -167,6 +173,58 @@ function sifpress_cli_migrate(string $configPath): void
     }
 
     sifpress_cli_adopt_db();
+}
+
+/**
+ * `change_password <user> <password>`: set a user's password and clear
+ * must_change_password. <user> is a username or email (e.g. `admin`).
+ */
+function sifpress_cli_change_password(string $configPath, array $argv): void
+{
+    if (!is_file($configPath)) {
+        fwrite(STDERR, 'No config found. Run: php ' . basename(__FILE__) . " setup\n");
+        exit(1);
+    }
+
+    require_once $configPath;
+
+    if (db_needs_migration()) {
+        fwrite(STDERR, 'Database needs migration. Run: php ' . basename(__FILE__) . " migrate\n");
+        exit(1);
+    }
+
+    $username = trim((string) ($argv[2] ?? ''));
+    $password = (string) ($argv[3] ?? '');
+
+    if ($username === '' || $password === '') {
+        fwrite(STDERR, 'Usage: php ' . basename(__FILE__) . " change_password <user> <password>\n");
+        exit(1);
+    }
+
+    $errors = validate_password($password);
+
+    if ($errors !== []) {
+        fwrite(STDERR, 'Password rejected: ' . implode('; ', $errors) . "\n");
+        exit(1);
+    }
+
+    $pdo = db();
+    $stmt = $pdo->prepare('SELECT id FROM users WHERE username = ? OR email = ?');
+    $stmt->execute([$username, $username]);
+    $id = $stmt->fetchColumn();
+
+    if ($id === false) {
+        fwrite(STDERR, "No user found for '{$username}'.\n");
+        exit(1);
+    }
+
+    $pdo->prepare(
+        "UPDATE users SET password_hash = ?, must_change_password = 0, updated_at = datetime('now') WHERE id = ?"
+    )->execute([password_hash($password, PASSWORD_DEFAULT), (int) $id]);
+
+    sifpress_cli_adopt_db();
+
+    fwrite(STDOUT, "Password updated for '{$username}'. Sign in with the new password.\n");
 }
 
 function sifpress_cli_status(string $configPath): void

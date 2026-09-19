@@ -69,12 +69,13 @@ php buildfront.php release
   Env vars (`SIFPRESS_DB_DIR`, `SIFPRESS_ADMIN_PASSWORD`,
   `SIFPRESS_UPDATE_MANIFEST_URL`, `SIFPRESS_BASE_URL`) are still supported as
   fallbacks for backward compatibility.
-- **CLI**: `php sifpress.php [setup|migrate|status|help]` (default `setup`).
-  `setup` writes `sifpress_config.php` + the DB folder as the invoking user —
-  the way to bootstrap when the docroot is not writable by the web user; when
-  run as root the created files are chowned to the artifact's owner.
-  `migrate` applies pending migrations + seeds (same as the web
-  `?p=sifpress/migration&action=run`). See `src/cli.php`.
+- **CLI**: `php sifpress.php [setup|migrate|change_password|status|help]`
+  (default `setup`). `setup` writes `sifpress_config.php` + the DB folder as the
+  invoking user — the way to bootstrap when the docroot is not writable by the
+  web user; when run as root the created files are chowned to the artifact's
+  owner. `migrate` applies pending migrations + seeds (same as the web
+  `?p=sifpress/migration&action=run`). `change_password <user> <password>` sets
+  a password and clears `must_change_password`. See `src/cli.php`.
 
 ## Development server
 

@@ -22,6 +22,11 @@ import { LoginPage } from '@/pages/login';
 
 declare const APP_VERSION: string;
 
+/** Server-rendered flag (<meta name="app-maintenance">) that migrations are pending. */
+function serverNeedsMigration(): boolean {
+  return document.querySelector('meta[name="app-maintenance"]') !== null;
+}
+
 function AppHeader() {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
@@ -160,7 +165,14 @@ function RootLayout() {
     staleTime: 60_000,
   });
 
-  if (migration.data?.migrate_required) {
+  /*
+   * Prefer the API's fresh answer; when it is unavailable, fall back to the
+   * server-rendered app-maintenance flag. This guarantees a fresh/empty
+   * database never falls through to the login UI.
+   */
+  const needsMigration = migration.data?.migrate_required ?? serverNeedsMigration();
+
+  if (needsMigration) {
     return <MigrationScreen />;
   }
 

@@ -417,12 +417,12 @@ const en = {
   migration: {
     badge: 'Maintenance',
     title: 'Database needs migration',
-    description: 'The schema is behind the embedded migrations. Apply them to continue.',
+    description:
+      'The schema is behind the embedded migrations. Apply them from a shell to continue.',
+    hint: 'On the server, run:',
     checking: 'Checking…',
     pending: 'pending',
-    run: 'Run migrations',
-    running: 'Running…',
-    error: 'Could not run migrations.',
+    reload: 'Reload',
   },
   notFound: {
     badge: '404',
@@ -1067,12 +1067,11 @@ const zh = {
   migration: {
     badge: '维护',
     title: '数据库需要迁移',
-    description: '当前数据库落后于内置迁移。应用后即可继续。',
+    description: '当前数据库落后于内置迁移。请在服务器上应用迁移后继续。',
+    hint: '请在服务器上运行：',
     checking: '检查中…',
     pending: '待应用',
-    run: '运行迁移',
-    running: '运行中…',
-    error: '无法运行迁移。',
+    reload: '重新加载',
   },
   notFound: {
     badge: '404',
