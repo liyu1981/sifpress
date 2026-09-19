@@ -126,6 +126,138 @@ export async function makeAvatarThumb(file: File): Promise<Blob | null> {
   });
 }
 
+export interface LoadedImage {
+  source: CanvasImageSource;
+  width: number;
+  height: number;
+  dispose: () => void;
+}
+
+/**
+ * Decode an image once for optimization. Prefers `createImageBitmap`, which
+ * decodes off the main thread, and falls back to an `<img>` element when the
+ * browser does not support it. The caller must call `dispose()` when done.
+ */
+export async function loadImageForOptimization(blob: Blob): Promise<LoadedImage> {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const bitmap = await createImageBitmap(blob);
+      return {
+        source: bitmap,
+        width: bitmap.width,
+        height: bitmap.height,
+        dispose: () => bitmap.close(),
+      };
+    } catch {
+      // fall through to the <img> path
+    }
+  }
+
+  const img = await loadImage(blob);
+  return {
+    source: img,
+    width: img.naturalWidth || img.width,
+    height: img.naturalHeight || img.height,
+    dispose: () => {},
+  };
+}
+
+export interface ImageOptimization {
+  id: string;
+  mode: 'desample' | 'resize';
+  mime: string;
+  quality: number;
+  /** Target long edge, or null to keep the source dimensions. */
+  maxEdge: number | null;
+  width: number;
+  height: number;
+}
+
+function fitWithin(
+  width: number,
+  height: number,
+  maxEdge: number,
+): { width: number; height: number } {
+  const scale = Math.min(1, maxEdge / Math.max(width, height));
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
+}
+
+/**
+ * Build the ordered list of local optimization candidates for an image that
+ * is over the upload limit. Ordered from least to most aggressive so the
+ * first option that fits the limit can be picked as the recommendation.
+ * Pure and synchronous — encoding/estimating happens separately.
+ */
+export function planImageOptimizations(width: number, height: number): ImageOptimization[] {
+  const long = Math.max(width, height);
+  const options: ImageOptimization[] = [];
+
+  const push = (mode: ImageOptimization['mode'], maxEdge: number | null, quality: number): void => {
+    if (maxEdge !== null && maxEdge >= long) {
+      return;
+    }
+    const dims = maxEdge === null ? { width, height } : fitWithin(width, height, maxEdge);
+    const id = `${mode}-${maxEdge ?? 'full'}-${quality}`;
+    if (options.some(option => option.id === id)) {
+      return;
+    }
+    options.push({ id, mode, mime: 'image/webp', quality, maxEdge, ...dims });
+  };
+
+  push('desample', null, 0.85);
+  push('desample', null, 0.7);
+  for (const edge of [2048, 1600, 1280, 1024, 800]) {
+    push('resize', edge, 0.8);
+  }
+
+  return options;
+}
+
+export interface ImageOptimizationResult {
+  blob: Blob | null;
+  mime: string;
+}
+
+/**
+ * Encode one optimization candidate. The canvas encode (`toBlob`) is
+ * asynchronous; combined with `loadImageForOptimization` this keeps decoding
+ * and encoding off the render path so the caller stays responsive.
+ */
+export async function renderImageOptimization(
+  image: LoadedImage,
+  option: ImageOptimization,
+): Promise<ImageOptimizationResult> {
+  if (option.width <= 0 || option.height <= 0) {
+    return { blob: null, mime: option.mime };
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = option.width;
+  canvas.height = option.height;
+
+  const ctx = canvas.getContext('2d');
+
+  if (ctx === null) {
+    return { blob: null, mime: option.mime };
+  }
+
+  if (option.mime === 'image/jpeg') {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, option.width, option.height);
+  }
+
+  ctx.drawImage(image.source, 0, 0, image.width, image.height, 0, 0, option.width, option.height);
+
+  const blob = await new Promise<Blob | null>(resolve => {
+    canvas.toBlob(result => resolve(result), option.mime, option.quality);
+  });
+
+  return { blob, mime: blob?.type || option.mime };
+}
+
 export interface VideoThumbResult {
   thumb: Blob | null;
   width: number;

@@ -26,6 +26,7 @@ import { formatBytes, formatTimestamp } from '@/lib/format';
 import { AssetThumb } from '@/components/asset-thumb';
 import { AssetDetailDialog } from '@/components/asset-detail-dialog';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { useImageOptimize } from '@/hooks/use-image-optimize';
 
 const PER_PAGE = 24;
 const ACCEPT =
@@ -47,6 +48,7 @@ export function AssetsPage() {
   usePageTitle(t('assets.title'));
 
   const canUpload = user !== null && (user.roles.includes('admin') || has('assets.upload'));
+  const { ensureWithinLimit, optimizeDialog } = useImageOptimize();
 
   const [kind, setKind] = useState<'all' | AssetKind>('all');
   const [query, setQuery] = useState('');
@@ -191,7 +193,29 @@ export function AssetsPage() {
   async function startUpload() {
     const pending = queue.filter(entry => entry.status === 'queued');
     for (const item of pending) {
-      await uploadOne(item);
+      let current = item;
+
+      if (item.file.type.startsWith('image/')) {
+        const optimized = await ensureWithinLimit(item.file);
+        if (optimized === null) {
+          setQueue(list =>
+            list.map(entry =>
+              entry.key === item.key
+                ? { ...entry, status: 'error' as const, error: t('assets.optimizeSkipped') }
+                : entry,
+            ),
+          );
+          continue;
+        }
+        if (optimized !== item.file) {
+          current = { ...item, file: optimized };
+          setQueue(list =>
+            list.map(entry => (entry.key === item.key ? { ...entry, file: optimized } : entry)),
+          );
+        }
+      }
+
+      await uploadOne(current);
     }
   }
 
@@ -555,6 +579,8 @@ export function AssetsPage() {
           className="h-9 font-mono text-xs"
         />
       </ConfirmDialog>
+
+      {optimizeDialog}
 
       <AssetDetailDialog
         asset={detailAsset}

@@ -38,6 +38,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePageTitle } from '@/hooks/use-page-title';
+import { useImageOptimize } from '@/hooks/use-image-optimize';
 import { ApiError, assetSourceUrl } from 'ui-sdk';
 import { useAuth } from 'ui-sdk';
 import {
@@ -319,6 +320,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
   const [saveError, setSaveError] = useState<ApiError | null>(null);
   const [commitNote, setCommitNote] = useState(editing ? 'Update article' : 'Initial version');
   const editorRef = useRef<MilkdownEditorHandle>(null);
+  const { ensureWithinLimit, optimizeDialog } = useImageOptimize();
   const reviewBaselineRef = useRef<string | null>(null);
   const pendingProposalRef = useRef<string | null>(null);
   const selectionRangeRef = useRef<EditorSelection | null>(null);
@@ -464,12 +466,19 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
     }
   }, [editing, loaded, pageQuery.data, isRevisionPreview, revisionQuery.data]);
 
-  const handleUpload = useCallback(async (file: File): Promise<string> => {
-    const formData = new FormData();
-    formData.append('file', file);
-    const result = await assetsApi.create(formData);
-    return assetSourceUrl(result.asset.id, result.asset.name, result.asset.kind);
-  }, []);
+  const handleUpload = useCallback(
+    async (file: File): Promise<string> => {
+      const optimized = await ensureWithinLimit(file);
+      if (optimized === null) {
+        throw new Error('upload cancelled');
+      }
+      const formData = new FormData();
+      formData.append('file', optimized);
+      const result = await assetsApi.create(formData);
+      return assetSourceUrl(result.asset.id, result.asset.name, result.asset.kind);
+    },
+    [ensureWithinLimit],
+  );
 
   const save = useMutation({
     mutationFn: async (meta: SavePayload) => {
@@ -1843,6 +1852,8 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
           {hasSelection ? t('editor.reviseSelectionWithAgent') : t('agent.title')}
         </button>
       )}
+
+      {optimizeDialog}
 
       {review !== null && (
         <ReviewChangesDialog
