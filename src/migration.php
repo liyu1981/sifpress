@@ -41,11 +41,7 @@ function handle_migration(string $action, string $method): never
                 json_response(['error' => 'already up to date'], 409);
             }
 
-            $applied = db_migrate();
-            seed_rbac();
-            seed_default_admin();
-            seed_favicon();
-            seed_default_sifront();
+            $applied = db_migrate_and_seed();
 
             json_response([
                 'applied' => $applied,

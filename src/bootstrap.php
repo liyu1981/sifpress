@@ -33,9 +33,42 @@
  */
 $sifpress_config_path = dirname(__FILE__) . '/sifpress_config.php';
 
-if (!is_file($sifpress_config_path)) {
-    $default_db_dir = dirname(__FILE__) . '/var/sifpress';
-    $config_content = <<< 'PHP'
+/*
+ * CLI runs skip the web auto-generation: the CLI `setup` command writes the
+ * config itself, as the invoking user. The CLI dispatch lives at the end of the
+ * assembled file (src/cli.php) so it runs after the MIGRATIONS constant is
+ * defined; see sifpress_cli().
+ */
+if (PHP_SAPI !== 'cli' && !is_file($sifpress_config_path)) {
+    $config_content = sifpress_config_template(dirname(__FILE__) . '/var/sifpress', '', '', '');
+
+    if (@file_put_contents($sifpress_config_path, $config_content) === false) {
+        http_response_code(500);
+        exit(
+            'Sifpress: cannot create ' . $sifpress_config_path . "\n"
+            . 'The directory ' . dirname($sifpress_config_path)
+            . " is not writable by the web server user.\n"
+            . 'Run `php ' . basename(__FILE__) . ' setup` from a shell (as the web user) instead.'
+        );
+    }
+}
+
+if (is_file($sifpress_config_path)) {
+    require_once $sifpress_config_path;
+}
+
+/**
+ * The sifpress_config.php body, shared by the web auto-generation and the CLI
+ * `setup` command. Values are emitted with var_export() so quotes/backslashes
+ * cannot break out of the generated file.
+ */
+function sifpress_config_template(
+    string $dbDir,
+    string $adminPassword,
+    string $manifestUrl,
+    string $baseUrl
+): string {
+    $template = <<<'PHP'
 <?php
 /**
  * Sifpress configuration file.
@@ -46,20 +79,20 @@ if (!is_file($sifpress_config_path)) {
  */
 
 /** Path to the folder that holds the SQLite database (sys.db inside). */
-define('SIFPRESS_DB_DIR', '%s');
+define('SIFPRESS_DB_DIR', %s);
 
 /**
  * Admin password for the initial admin account (admin/admin by default).
  * Only used when the users table is empty (first migration).
  * Leave as empty string to use the built-in default.
  */
-define('SIFPRESS_ADMIN_PASSWORD', '');
+define('SIFPRESS_ADMIN_PASSWORD', %s);
 
 /**
  * URL of the version-check manifest JSON.
  * Leave as empty string to use the built-in default.
  */
-define('SIFPRESS_MANIFEST_URL', '');
+define('SIFPRESS_MANIFEST_URL', %s);
 
 /**
  * Base URL used to build every generated link (admin UI, sifront, API,
@@ -71,13 +104,17 @@ define('SIFPRESS_MANIFEST_URL', '');
  * Leave as empty string to derive it from the request (falling back to
  * the site_url SEO setting when one is configured).
  */
-define('SIFPRESS_BASE_URL', '');
+define('SIFPRESS_BASE_URL', %s);
 PHP;
-    $config_content = sprintf($config_content, $default_db_dir);
-    file_put_contents($sifpress_config_path, $config_content);
-}
 
-require_once $sifpress_config_path;
+    return sprintf(
+        $template,
+        var_export($dbDir, true),
+        var_export($adminPassword, true),
+        var_export($manifestUrl, true),
+        var_export($baseUrl, true)
+    );
+}
 
 const APP_NAME = 'Sifpress';
 const APP_VERSION = '0.1.0';

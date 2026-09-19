@@ -128,6 +128,21 @@ function db_migrate(): array
 }
 
 /**
+ * Apply pending migrations and run the idempotent seeds (RBAC, default admin,
+ * favicon, default sifront). Shared by the web migration endpoint and the CLI.
+ */
+function db_migrate_and_seed(): array
+{
+    $applied = db_migrate();
+    seed_rbac();
+    seed_default_admin();
+    seed_favicon();
+    seed_default_sifront();
+
+    return $applied;
+}
+
+/**
  * Idempotent RBAC seeding: default permissions, roles, and role->permission
  * links. Admin is linked to every current permission (and future ones, on
  * later seed runs).
