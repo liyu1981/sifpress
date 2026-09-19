@@ -2,12 +2,27 @@ import { useQuery } from '@tanstack/react-query';
 import { createRootRoute, Outlet, useRouterState } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { useEffect } from 'react';
-import { AmbientBackground } from '@/components/ambient-background';
+import { useEffect, useMemo } from 'react';
+import { BackgroundWithCanvas } from '@/components/background-with-canvas';
 import { SiteFooter } from '@/components/site-footer';
 import { Sidebar } from '@/components/sidebar';
-import { ThemeConfigProvider } from '@/lib/theme-config';
+import { createBackground } from '@/lib/background';
+import { ThemeConfigProvider, useThemeConfig } from '@/lib/theme-config';
 import { settingsApi, tagsApi } from 'ui-sdk';
+
+function BackgroundLayer() {
+  const { backgroundKind } = useThemeConfig();
+  const background = useMemo(() => createBackground(backgroundKind), [backgroundKind]);
+
+  return (
+    <>
+      <BackgroundWithCanvas scene={background.scene} />
+      {background.maskClassName !== undefined && (
+        <div aria-hidden="true" className={background.maskClassName} />
+      )}
+    </>
+  );
+}
 
 function RootLayout() {
   const pathname = useRouterState({
@@ -65,7 +80,7 @@ function RootLayout() {
   return (
     <ThemeConfigProvider>
       <div className="ambient-bg min-h-screen w-full overflow-x-clip">
-        <AmbientBackground />
+        <BackgroundLayer />
         <div className="relative z-10 mx-auto flex w-full max-w-8xl flex-col gap-8 px-6 py-10">
           {content}
           <SiteFooter />

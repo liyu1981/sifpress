@@ -102,6 +102,7 @@ The one new backend piece. A generic best-effort multi-key read so any consumer
 | `sifpress1.sidebar.links` | `Array<{label, href}>` | Links & Shortcuts | current LINKS array |
 | `sifpress1.footer.text` | string | Footer left text | `"Powered by Sifpress · GitHub"` |
 | `sifpress1.footer.copyright` | string | Footer right text | `"© {year}"` |
+| `sifpress1.background.kind` | string (`ambient` \| `matrix` \| `none`) | Background scene id (see plan/sifront-background-canvas-plan.md §7) | `"ambient"` |
 | `sifpress1.copy.*` (phase 2) | flat string map | UI copy: empty states, search results header, article-not-found, 404 text, "Continue reading →", "min read", "Uncategorized" | current strings |
 | `sifpress1.ambient.palette` (phase 3) | `{light:{sat,light,alpha,count,hues[]}, dark:{...}}` | Ambient background blobs | current HUES/LIGHT/DARK constants |
 

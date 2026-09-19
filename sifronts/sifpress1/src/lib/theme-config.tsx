@@ -17,6 +17,7 @@ export interface ThemeConfig {
   links: LinkItem[];
   footerText: string;
   footerCopyright: string;
+  backgroundKind: string;
 }
 
 function parseSifrontMeta(raw: unknown): Record<string, unknown> {
@@ -113,6 +114,7 @@ function buildConfig(
     links,
     footerText: str('sifpress1.footer.text') || 'Powered by Sifpress',
     footerCopyright: str('sifpress1.footer.copyright') || '© {year}',
+    backgroundKind: str('sifpress1.background.kind') || 'ambient',
   };
 }
 
@@ -123,6 +125,7 @@ const ThemeConfigContext = createContext<ThemeConfig>({
   links: [],
   footerText: 'Powered by Sifpress',
   footerCopyright: '© {year}',
+  backgroundKind: 'ambient',
 });
 
 export function ThemeConfigProvider({ children }: { children: ReactNode }) {
