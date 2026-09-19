@@ -159,6 +159,7 @@ function seed_rbac(): void
         'assets.upload',
         'settings.manage',
         'kvs.write',
+        'sifronts.manage',
     ];
 
     $roles = [

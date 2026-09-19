@@ -116,6 +116,8 @@ export interface UserListItem {
   created_at: string;
   updated_at: string;
   roles: string[];
+  /** Direct per-user grants (layered on top of role permissions). */
+  permissions: string[];
 }
 
 export interface RoleListItem {
@@ -399,6 +401,12 @@ export const usersApi = {
     apiRequest<{ user: AuthUser }>('users.setRoles', {
       method: 'POST',
       body: { id, role_ids },
+    }).then(r => r.user),
+
+  setPermissions: (id: number, permissions: string[]) =>
+    apiRequest<{ user: AuthUser }>('users.setPermissions', {
+      method: 'POST',
+      body: { id, permissions },
     }).then(r => r.user),
 };
 

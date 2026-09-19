@@ -104,12 +104,14 @@ function KeyRow({
   current,
   fallback,
   saving,
+  canEdit,
   onSave,
 }: {
   keyName: string;
   current: unknown;
   fallback: unknown;
   saving: boolean;
+  canEdit: boolean;
   onSave: (key: string, value: unknown) => void;
 }) {
   const { t } = useTranslation();
@@ -128,6 +130,30 @@ function KeyRow({
   }, [current]);
 
   const dirty = draft !== stringifyValue(current);
+
+  if (!canEdit) {
+    return (
+      <tr className="align-top">
+        <td className="border-b border-border/60 px-2 py-2 font-mono text-xs break-all">
+          {keyName}
+        </td>
+        <td className="border-b border-border/60 px-2 py-2">
+          {current === undefined ? (
+            <span className="text-xs text-muted-foreground">—</span>
+          ) : (
+            <ValueCell value={current} />
+          )}
+        </td>
+        <td className="border-b border-border/60 px-2 py-2 text-muted-foreground">
+          {fallback === undefined ? (
+            <span className="text-xs text-muted-foreground">—</span>
+          ) : (
+            <ValueCell value={fallback} />
+          )}
+        </td>
+      </tr>
+    );
+  }
 
   return (
     <tr className="align-top">
@@ -183,11 +209,13 @@ function MetaTable({
   meta,
   values,
   savingKey,
+  canEdit,
   onSave,
 }: {
   meta: Record<string, unknown> | null;
   values?: Record<string, unknown>;
   savingKey: string | null;
+  canEdit: boolean;
   onSave: (key: string, value: unknown) => void;
 }) {
   const requireKeys: Record<string, unknown>[] =
@@ -228,6 +256,7 @@ function MetaTable({
                 current={values?.[key]}
                 fallback={def}
                 saving={savingKey === key}
+                canEdit={canEdit}
                 onSave={onSave}
               />
             );
@@ -362,6 +391,7 @@ function SifrontCard({
               meta={detail.data?.meta ?? null}
               values={values.data?.data}
               savingKey={saveValue.isPending ? (saveValue.variables?.key ?? null) : null}
+              canEdit={canManage}
               onSave={(key, value) => saveValue.mutate({ key, value })}
             />
           )}
@@ -385,7 +415,7 @@ export function SifrontsPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const canManage = user?.permissions?.includes('settings.manage') ?? false;
+  const canManage = user?.permissions?.includes('sifronts.manage') ?? false;
 
   usePageTitle(t('sifront.title'));
 

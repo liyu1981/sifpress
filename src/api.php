@@ -1717,8 +1717,22 @@ function api_users_list(string $method): never
         $byUser[$row['user_id']][] = $row['code'];
     }
 
+    $direct = db()->query(
+        'SELECT up.user_id, p.code
+           FROM user_permissions up JOIN permissions p ON p.id = up.permission_id
+          ORDER BY p.code'
+    )->fetchAll();
+
+    $permissionsByUser = [];
+
+    foreach ($direct as $row) {
+        $permissionsByUser[$row['user_id']][] = $row['code'];
+    }
+
     foreach ($users as &$row) {
         $row['roles'] = $byUser[$row['id']] ?? [];
+        // Direct grants only; the effective set also includes role permissions.
+        $row['permissions'] = $permissionsByUser[$row['id']] ?? [];
     }
     unset($row);
 
@@ -1896,6 +1910,73 @@ function api_users_set_roles(string $method): never
     }
 
     assign_roles($id, $roleIds);
+
+    json_response(['user' => user_payload($id)]);
+}
+
+function api_users_set_permissions(string $method): never
+{
+    if ($method !== 'POST') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_permission('users.manage');
+
+    $body = read_json_body();
+    $id = (int) ($body['id'] ?? 0);
+    $codes = array_values(array_unique(array_filter(
+        array_map(
+            static fn ($code): string => is_string($code) ? trim($code) : '',
+            (array) ($body['permissions'] ?? [])
+        ),
+        static fn (string $code): bool => $code !== ''
+    )));
+
+    $stmt = db()->prepare('SELECT 1 FROM users WHERE id = ?');
+    $stmt->execute([$id]);
+
+    if ($stmt->fetch() === false) {
+        json_response(['error' => 'user not found'], 404);
+    }
+
+    $permissionIds = [];
+
+    if ($codes !== []) {
+        $placeholders = implode(',', array_fill(0, count($codes), '?'));
+        $stmt = db()->prepare("SELECT id, code FROM permissions WHERE code IN ($placeholders)");
+        $stmt->execute($codes);
+
+        $found = [];
+
+        foreach ($stmt->fetchAll() as $row) {
+            $permissionIds[] = (int) $row['id'];
+            $found[] = $row['code'];
+        }
+
+        if (count($found) !== count($codes)) {
+            json_response(['error' => 'unknown permission'], 422);
+        }
+    }
+
+    $pdo = db();
+    $pdo->beginTransaction();
+
+    try {
+        $pdo->prepare('DELETE FROM user_permissions WHERE user_id = ?')->execute([$id]);
+
+        $insert = $pdo->prepare(
+            'INSERT OR IGNORE INTO user_permissions (user_id, permission_id) VALUES (?, ?)'
+        );
+
+        foreach ($permissionIds as $permissionId) {
+            $insert->execute([$id, $permissionId]);
+        }
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
 
     json_response(['user' => user_payload($id)]);
 }
@@ -3591,6 +3672,7 @@ function handle_api(string $action, string $method): never
                     'pages.delete', 'pages.search', 'pages.revisions', 'pages.revision.get', 'pages.revision.diff', 'pages.revision.restore',
                     'pages.grants', 'pages.grant', 'pages.revokeGrant',
                     'users.list', 'users.create', 'users.update', 'users.setRoles',
+                    'users.setPermissions',
                     'roles.list', 'tags.list',
                     'web.fetch',
                     'assets.list', 'assets.get', 'assets.create', 'assets.update',
@@ -3688,6 +3770,9 @@ function handle_api(string $action, string $method): never
 
         case 'users.setRoles':
             api_users_set_roles($method);
+
+        case 'users.setPermissions':
+            api_users_set_permissions($method);
 
         case 'roles.list':
             api_roles_list($method);

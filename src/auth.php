@@ -198,7 +198,8 @@ function user_roles_codes(int $userId): array
 }
 
 /**
- * Distinct permission codes granted to a user (cached per request).
+ * Distinct permission codes granted to a user (cached per request). Unions the
+ * user's role permissions with any direct per-user grants.
  */
 function user_permission_codes(int $userId): array
 {
@@ -213,7 +214,21 @@ function user_permission_codes(int $userId): array
               WHERE ur.user_id = ?'
         );
         $stmt->execute([$userId]);
-        $cache[$userId] = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        $codes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        // Direct per-user grants on top of the role baseline.
+        $stmt = db()->prepare(
+            'SELECT p.code
+               FROM user_permissions up
+               JOIN permissions p ON p.id = up.permission_id
+              WHERE up.user_id = ?'
+        );
+        $stmt->execute([$userId]);
+        $codes = array_values(
+            array_unique(array_merge($codes, $stmt->fetchAll(PDO::FETCH_COLUMN)))
+        );
+
+        $cache[$userId] = $codes;
     }
 
     return $cache[$userId];

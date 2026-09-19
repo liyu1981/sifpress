@@ -13,6 +13,7 @@ import {
   Upload,
   UserPlus,
   UserRound,
+  X,
 } from 'lucide-react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
@@ -34,6 +35,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
 import {
   Select,
@@ -374,26 +376,165 @@ function RoleCheckboxes({
   );
 }
 
-function UserRow({ user, roles }: { user: UserListItem; roles: RoleListItem[] }) {
+function PermissionPicker({
+  value,
+  onChange,
+  options,
+  inherited,
+}: {
+  value: string[];
+  onChange: (codes: string[]) => void;
+  options: string[];
+  inherited: string[];
+}) {
+  const { t } = useTranslation();
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+
+  const granted = new Set([...inherited, ...value]);
+  const available = options.filter(
+    code =>
+      !granted.has(code) && (query === '' || code.toLowerCase().includes(query.toLowerCase())),
+  );
+
+  const add = (code: string) => {
+    onChange([...value, code]);
+    setQuery('');
+  };
+
+  const remove = (code: string) => {
+    onChange(value.filter(existing => existing !== code));
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverAnchor asChild>
+        <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-lg border border-input bg-transparent px-2 py-1.5 text-sm">
+          {inherited.map(code => (
+            <span
+              key={code}
+              title={t('settings.permissionsInherited')}
+              className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground"
+            >
+              {code}
+            </span>
+          ))}
+          {value.map(code => (
+            <span
+              key={code}
+              className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 font-mono text-xs text-foreground"
+            >
+              {code}
+              <button
+                type="button"
+                onClick={() => remove(code)}
+                aria-label={t('settings.permissionsRemove', { code })}
+                className="text-muted-foreground transition-colors hover:text-destructive"
+              >
+                <X className="size-3" />
+              </button>
+            </span>
+          ))}
+          <input
+            value={query}
+            onChange={event => {
+              setQuery(event.target.value);
+              setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
+            onKeyDown={event => {
+              if (event.key === 'Backspace' && query === '' && value.length > 0) {
+                remove(value[value.length - 1]);
+              } else if (event.key === 'Enter' && available.length > 0) {
+                event.preventDefault();
+                add(available[0]);
+              }
+            }}
+            placeholder={t('settings.permissionsPlaceholder')}
+            aria-label={t('settings.permissionsField')}
+            className="min-w-32 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/70"
+          />
+        </div>
+      </PopoverAnchor>
+
+      {/* Portaled: the user card is overflow-hidden, so an inline menu would clip. */}
+      <PopoverContent
+        align="start"
+        sideOffset={4}
+        onOpenAutoFocus={event => event.preventDefault()}
+        className="max-h-56 w-[var(--radix-popover-trigger-width)] gap-0 overflow-y-auto p-1"
+      >
+        {available.length === 0 ? (
+          <p className="px-2 py-1.5 text-xs text-muted-foreground">
+            {t('settings.permissionsNone')}
+          </p>
+        ) : (
+          available.map(code => (
+            <button
+              key={code}
+              type="button"
+              onClick={() => add(code)}
+              className="block w-full rounded-md px-2 py-1.5 text-left font-mono text-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+            >
+              {code}
+            </button>
+          ))
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function UserRow({
+  user,
+  roles,
+  permissionOptions,
+}: {
+  user: UserListItem;
+  roles: RoleListItem[];
+  permissionOptions: string[];
+}) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
 
   const [expanded, setExpanded] = useState(false);
   const [roleIds, setRoleIds] = useState<number[]>([]);
+  const [permissionCodes, setPermissionCodes] = useState<string[]>([]);
   const [resetPassword, setResetPassword] = useState('');
   const [rowError, setRowError] = useState<string | null>(null);
 
   const roleIdByCode = new Map(roles.map(r => [r.code, r.id]));
 
+  // Permissions the user's roles already grant: shown as fixed pills.
+  const inheritedPermissions = Array.from(
+    new Set(roles.filter(role => user.roles.includes(role.code)).flatMap(role => role.permissions)),
+  );
+
   function open() {
     setRoleIds(
       user.roles.map(code => roleIdByCode.get(code)).filter((id): id is number => id !== undefined),
     );
+    setPermissionCodes(user.permissions ?? []);
     setExpanded(value => !value);
   }
 
   const setRoles = useMutation({
     mutationFn: () => usersApi.setRoles(user.id, roleIds),
+    onSuccess: () => {
+      setRowError(null);
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: err => {
+      setRowError(
+        err instanceof ApiError
+          ? (err.data.error ?? t('settings.userError'))
+          : t('settings.userError'),
+      );
+    },
+  });
+
+  const setPermissions = useMutation({
+    mutationFn: () => usersApi.setPermissions(user.id, permissionCodes),
     onSuccess: () => {
       setRowError(null);
       queryClient.invalidateQueries({ queryKey: ['users'] });
@@ -478,6 +619,27 @@ function UserRow({ user, roles }: { user: UserListItem; roles: RoleListItem[] })
             >
               {setRoles.isPending ? <Loader2 className="animate-spin" /> : <Save />}
               {t('settings.saveRoles')}
+            </Button>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>{t('settings.permissionsField')}</Label>
+            <p className="text-xs text-muted-foreground">{t('settings.permissionsHint')}</p>
+            <PermissionPicker
+              value={permissionCodes}
+              onChange={setPermissionCodes}
+              options={permissionOptions}
+              inherited={inheritedPermissions}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setPermissions.mutate()}
+              disabled={setPermissions.isPending}
+            >
+              {setPermissions.isPending ? <Loader2 className="animate-spin" /> : <Save />}
+              {t('settings.savePermissions')}
             </Button>
           </div>
 
@@ -569,6 +731,10 @@ function UsersCard() {
 
   const roles = rolesQuery.data ?? [];
 
+  // Full permission catalog = union of every role's permissions (admin holds
+  // them all), used for per-user "extra permission" grants.
+  const permissionOptions = Array.from(new Set(roles.flatMap(role => role.permissions))).sort();
+
   return (
     <Card>
       <CardHeader>
@@ -637,7 +803,12 @@ function UsersCard() {
         ) : (
           <ul className="space-y-2">
             {(usersQuery.data ?? []).map(user => (
-              <UserRow key={user.id} user={user} roles={roles} />
+              <UserRow
+                key={user.id}
+                user={user}
+                roles={roles}
+                permissionOptions={permissionOptions}
+              />
             ))}
           </ul>
         )}
@@ -1054,7 +1225,7 @@ function SystemSettingsCard() {
 
 const FAVICON_ACCEPT = 'image/png,image/jpeg,image/webp,image/avif,image/gif';
 
-function FaviconCard() {
+function FaviconCard({ canEdit }: { canEdit: boolean }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [uploading, setUploading] = useState<'favicon' | 'apple' | null>(null);
@@ -1170,26 +1341,30 @@ function FaviconCard() {
                   className="hidden"
                   onChange={event => handleFileChange('favicon', event)}
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={uploading !== null}
-                  onClick={() => faviconInputRef.current?.click()}
-                >
-                  {uploading === 'favicon' ? <Loader2 className="animate-spin" /> : <Upload />}
-                  {uploading === 'favicon' ? t('favicon.uploading') : t('favicon.upload')}
-                </Button>
-                {faviconId !== '' && faviconId !== '0' && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={uploading !== null}
-                    onClick={() => handleRemove('favicon')}
-                  >
-                    {t('favicon.remove')}
-                  </Button>
+                {canEdit && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={uploading !== null}
+                      onClick={() => faviconInputRef.current?.click()}
+                    >
+                      {uploading === 'favicon' ? <Loader2 className="animate-spin" /> : <Upload />}
+                      {uploading === 'favicon' ? t('favicon.uploading') : t('favicon.upload')}
+                    </Button>
+                    {faviconId !== '' && faviconId !== '0' && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={uploading !== null}
+                        onClick={() => handleRemove('favicon')}
+                      >
+                        {t('favicon.remove')}
+                      </Button>
+                    )}
+                  </>
                 )}
               </div>
               <p className="text-xs text-muted-foreground">{t('favicon.faviconHint')}</p>
@@ -1216,26 +1391,30 @@ function FaviconCard() {
                   className="hidden"
                   onChange={event => handleFileChange('apple', event)}
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={uploading !== null}
-                  onClick={() => appleInputRef.current?.click()}
-                >
-                  {uploading === 'apple' ? <Loader2 className="animate-spin" /> : <Upload />}
-                  {uploading === 'apple' ? t('favicon.uploading') : t('favicon.upload')}
-                </Button>
-                {appleId !== '' && appleId !== '0' && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={uploading !== null}
-                    onClick={() => handleRemove('apple')}
-                  >
-                    {t('favicon.remove')}
-                  </Button>
+                {canEdit && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={uploading !== null}
+                      onClick={() => appleInputRef.current?.click()}
+                    >
+                      {uploading === 'apple' ? <Loader2 className="animate-spin" /> : <Upload />}
+                      {uploading === 'apple' ? t('favicon.uploading') : t('favicon.upload')}
+                    </Button>
+                    {appleId !== '' && appleId !== '0' && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={uploading !== null}
+                        onClick={() => handleRemove('apple')}
+                      >
+                        {t('favicon.remove')}
+                      </Button>
+                    )}
+                  </>
                 )}
               </div>
               <p className="text-xs text-muted-foreground">{t('favicon.appleTouchHint')}</p>
@@ -1607,7 +1786,7 @@ export function SettingsPage() {
 
         <TabsContent value="system" className="space-y-6">
           <SystemSettingsCard />
-          <FaviconCard />
+          <FaviconCard canEdit={canManageSettings} />
         </TabsContent>
 
         {canManageSettings && (
