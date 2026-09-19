@@ -482,6 +482,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
           title: meta.title,
           content_md: meta.content_md,
           created_at: meta.created_at,
+          updated_at: meta.updated_at,
           commit_message: meta.commit_message,
         });
       }

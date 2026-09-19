@@ -182,6 +182,7 @@ export interface PageInput {
   content_md: string;
   status: PageStatus;
   created_at?: string;
+  updated_at?: string;
   commit_message: string;
 }
 
