@@ -304,6 +304,8 @@ function cron_read(?string $user): string
 /** Replace $user's crontab with $content. */
 function cron_write(string $content, ?string $user): void
 {
+    $content = cron_normalize($content);
+
     $tmp = tempnam(sys_get_temp_dir(), 'sifpress-cron-');
 
     if ($tmp === false || @file_put_contents($tmp, $content) === false) {
@@ -340,6 +342,20 @@ function cron_remove_all(?string $user): void
 function cron_user_flag(?string $user): string
 {
     return $user !== null && $user !== '' ? '-u ' . escapeshellarg($user) . ' ' : '';
+}
+
+/**
+ * Vixie cron (and cronie) may silently ignore the final line of a crontab
+ * that has no terminating newline, so every file we write ends with a blank
+ * line: the last entry is terminated and one empty line follows it.
+ */
+function cron_normalize(string $content): string
+{
+    if (trim($content) === '') {
+        return '';
+    }
+
+    return rtrim($content, "\n") . "\n\n";
 }
 
 /** Strip the managed sifpress block from a crontab. */
@@ -398,7 +414,7 @@ function sifpress_cli_cron(string $configPath, array $options, array $argv): voi
             if ($stripped === '') {
                 cron_remove_all($user);
             } else {
-                cron_write($stripped . "\n", $user);
+                cron_write($stripped, $user);
             }
         } catch (Throwable $e) {
             fwrite(STDERR, $e->getMessage() . "\n");
@@ -453,7 +469,7 @@ function sifpress_cli_cron(string $configPath, array $options, array $argv): voi
     // Cron treats a bare '%' as a newline; escape it.
     $line = str_replace('%', '\\%', $line);
 
-    $block = SIFPRESS_CRON_BEGIN . "\n" . $line . "\n" . SIFPRESS_CRON_END . "\n";
+    $block = SIFPRESS_CRON_BEGIN . "\n" . $line . "\n" . SIFPRESS_CRON_END;
     $existing = rtrim(cron_strip_block(cron_read($user)));
     $next = ($existing === '' ? '' : $existing . "\n") . $block;
 
