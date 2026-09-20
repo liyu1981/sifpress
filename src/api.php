@@ -3391,12 +3391,11 @@ function assign_roles(int $userId, array $roleIds): void
 /* ------------------------------------------------------------------ */
 
 /**
- * In dev builds, sifront bundles live on disk as `dist/<name>.sifront` with
- * their theme `meta.json` embedded in a `<meta name="sifront_meta">` tag.
- * Extract and decode that so the admin UI can show a sifront's required keys
- * and defaults without a re-upload. Returns null when the bundle isn't on
- * disk (release builds, or non-dev) so the caller falls back to the DB
- * `meta` column.
+ * In dev builds, sifront bundles are also written to disk as plain
+ * `dist/<name>.meta.json` companions (see buildfront.php). Return that so the
+ * admin UI can show a sifront's required keys and defaults without a
+ * re-upload. Returns null when the companion isn't on disk (release builds)
+ * so the caller falls back to the DB `meta` column.
  */
 function sifront_bundle_meta(string $name): ?array
 {
@@ -3404,27 +3403,7 @@ function sifront_bundle_meta(string $name): ?array
         return null;
     }
 
-    $file = __DIR__ . '/' . $name . '.sifront';
-
-    if (!is_file($file)) {
-        return null;
-    }
-
-    $html = file_get_contents($file);
-
-    if ($html === false) {
-        return null;
-    }
-
-    if (preg_match('/<meta\s+name="sifront_meta"\s+content="([^"]*)"/i', $html, $match) === 1) {
-        $decoded = json_decode(html_entity_decode($match[1], ENT_QUOTES), true);
-
-        if (is_array($decoded)) {
-            return $decoded;
-        }
-    }
-
-    return null;
+    return sifront_dev_meta($name);
 }
 
 function api_sifronts_list(string $method): never
@@ -3434,7 +3413,7 @@ function api_sifronts_list(string $method): never
     }
 
     $rows = db()->query(
-        'SELECT id, name, version, created_at, updated_at FROM sifronts ORDER BY id'
+        'SELECT id, name, version, bundle_size, created_at, updated_at FROM sifronts ORDER BY id'
     )->fetchAll();
 
     $activeId = (string) setting_get('active_sifront_id', '');
@@ -3445,6 +3424,8 @@ function api_sifronts_list(string $method): never
                 'id' => (int) $r['id'],
                 'name' => (string) $r['name'],
                 'version' => (string) $r['version'],
+                'has_bundle' => (int) $r['bundle_size'] > 0,
+                'bundle_size' => (int) $r['bundle_size'],
                 'is_active' => (string) $r['id'] === $activeId,
                 'created_at' => (string) $r['created_at'],
                 'updated_at' => (string) $r['updated_at'],
@@ -3466,7 +3447,10 @@ function api_sifronts_get(string $method): never
         json_response(['error' => 'id is required'], 422);
     }
 
-    $stmt = db()->prepare('SELECT * FROM sifronts WHERE id = ?');
+    $stmt = db()->prepare(
+        'SELECT id, name, content, meta, version, bundle_size, created_at, updated_at'
+        . ' FROM sifronts WHERE id = ?'
+    );
     $stmt->execute([$id]);
     $row = $stmt->fetch();
 
@@ -3487,6 +3471,8 @@ function api_sifronts_get(string $method): never
             'name' => (string) $row['name'],
             'content' => (string) $row['content'],
             'version' => (string) $row['version'],
+            'has_bundle' => (int) $row['bundle_size'] > 0,
+            'bundle_size' => (int) $row['bundle_size'],
             'meta' => $meta,
             'is_active' => (string) $row['id'] === $activeId,
             'created_at' => (string) $row['created_at'],
@@ -3501,7 +3487,7 @@ function api_sifronts_create(string $method): never
         json_response(['error' => 'Method not allowed'], 405);
     }
 
-    require_permission('settings.manage');
+    require_permission('sifronts.manage');
 
     $body = read_json_body();
     $errors = [];
@@ -3514,16 +3500,25 @@ function api_sifronts_create(string $method): never
     }
 
     $content = (string) ($body['content'] ?? '');
+    $bundle = isset($body['bundle']) && is_string($body['bundle']) ? $body['bundle'] : '';
     $meta = isset($body['meta']) ? json_encode($body['meta']) : '{}';
+    $version = isset($body['version']) && is_string($body['version']) && $body['version'] !== ''
+        ? $body['version']
+        : '0.0.0';
+
+    if (strlen($bundle) > SIFRONT_MAX_BUNDLE_BYTES) {
+        $errors['bundle'] = ['bundle is too large'];
+    }
 
     if ($errors !== []) {
         json_response(['error' => 'validation failed', 'errors' => $errors], 422);
     }
 
     $stmt = db()->prepare(
-        'INSERT INTO sifronts (name, content, meta, version) VALUES (?, ?, ?, 1)'
+        'INSERT INTO sifronts (name, content, meta, version, bundle, bundle_size)'
+        . ' VALUES (?, ?, ?, ?, ?, ?)'
     );
-    $stmt->execute([$name, $content, $meta]);
+    $stmt->execute([$name, $content, $meta, $version, $bundle, strlen($bundle)]);
     $id = (int) db()->lastInsertId();
 
     json_response([
@@ -3531,7 +3526,9 @@ function api_sifronts_create(string $method): never
             'id' => $id,
             'name' => $name,
             'content' => $content,
-            'version' => '1',
+            'version' => $version,
+            'has_bundle' => $bundle !== '',
+            'bundle_size' => strlen($bundle),
             'meta' => json_decode($meta, true),
             'is_active' => false,
             'created_at' => date('Y-m-d H:i:s'),
@@ -3546,7 +3543,7 @@ function api_sifronts_update(string $method): never
         json_response(['error' => 'Method not allowed'], 405);
     }
 
-    require_permission('settings.manage');
+    require_permission('sifronts.manage');
 
     $body = read_json_body();
     $id = (int) ($body['id'] ?? 0);
@@ -3583,6 +3580,27 @@ function api_sifronts_update(string $method): never
         $sets['meta'] = json_encode($body['meta']);
     }
 
+    if (array_key_exists('bundle', $body) && is_string($body['bundle'])) {
+        $bundle = $body['bundle'];
+
+        if (strlen($bundle) > SIFRONT_MAX_BUNDLE_BYTES) {
+            $errors['bundle'] = ['bundle is too large'];
+        } else {
+            $sets['bundle'] = $bundle;
+            $sets['bundle_size'] = strlen($bundle);
+        }
+    }
+
+    if (array_key_exists('version', $body)) {
+        $version = (string) $body['version'];
+
+        if (trim($version) === '') {
+            $errors['version'] = ['version is required'];
+        } else {
+            $sets['version'] = $version;
+        }
+    }
+
     if ($errors !== []) {
         json_response(['error' => 'validation failed', 'errors' => $errors], 422);
     }
@@ -3591,13 +3609,12 @@ function api_sifronts_update(string $method): never
         json_response(['error' => 'nothing to update'], 422);
     }
 
-    $sets['version'] = 'version + 1';
     $sets['updated_at'] = "datetime('now')";
 
     $setClauses = [];
     $params = [];
     foreach ($sets as $key => $value) {
-        if ($key === 'version' || $key === 'updated_at') {
+        if ($key === 'updated_at') {
             $setClauses[] = $key . ' = ' . $value;
         } else {
             $setClauses[] = $key . ' = ?';
@@ -3610,7 +3627,10 @@ function api_sifronts_update(string $method): never
         'UPDATE sifronts SET ' . implode(', ', $setClauses) . ' WHERE id = ?'
     )->execute($params);
 
-    $stmt = db()->prepare('SELECT * FROM sifronts WHERE id = ?');
+    $stmt = db()->prepare(
+        'SELECT id, name, content, meta, version, bundle_size, created_at, updated_at'
+        . ' FROM sifronts WHERE id = ?'
+    );
     $stmt->execute([$id]);
     $row = $stmt->fetch();
 
@@ -3622,6 +3642,8 @@ function api_sifronts_update(string $method): never
             'name' => (string) $row['name'],
             'content' => (string) $row['content'],
             'version' => (string) $row['version'],
+            'has_bundle' => (int) $row['bundle_size'] > 0,
+            'bundle_size' => (int) $row['bundle_size'],
             'meta' => json_decode((string) $row['meta'], true),
             'is_active' => (string) $row['id'] === $activeId,
             'created_at' => (string) $row['created_at'],
@@ -3636,7 +3658,7 @@ function api_sifronts_delete(string $method): never
         json_response(['error' => 'Method not allowed'], 405);
     }
 
-    require_permission('settings.manage');
+    require_permission('sifronts.manage');
 
     $id = (int) request_param('id', '0');
 
@@ -3665,7 +3687,7 @@ function api_sifronts_activate(string $method): never
         json_response(['error' => 'Method not allowed'], 405);
     }
 
-    require_permission('settings.manage');
+    require_permission('sifronts.manage');
 
     $body = read_json_body();
     $id = (int) ($body['id'] ?? 0);

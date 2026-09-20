@@ -626,6 +626,8 @@ export interface SifrontListItem {
   id: number;
   name: string;
   version: string;
+  has_bundle: boolean;
+  bundle_size: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -642,7 +644,13 @@ export const sifrontsApi = {
     apiRequest<{ sifront: SifrontDetail }>('sifronts.get', {
       params: { id: String(id) },
     }).then(r => r.sifront),
-  create: (input: { name: string; content?: string; meta?: Record<string, unknown> }) =>
+  create: (input: {
+    name: string;
+    content?: string;
+    bundle?: string;
+    meta?: Record<string, unknown>;
+    version?: string;
+  }) =>
     apiRequest<{ sifront: SifrontDetail }>('sifronts.create', {
       method: 'POST',
       body: input,
@@ -651,7 +659,9 @@ export const sifrontsApi = {
     id: number;
     name?: string;
     content?: string;
+    bundle?: string;
     meta?: Record<string, unknown>;
+    version?: string;
   }) =>
     apiRequest<{ sifront: SifrontDetail }>('sifronts.update', {
       method: 'PATCH',

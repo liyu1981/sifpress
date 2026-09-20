@@ -79,6 +79,7 @@ $parts = [
     'demo_page.php',
     'api.php',
     'asset.php',
+    'sifront.php',
     'seo.php',
     'tracking.php',
     'favicon.php',

@@ -7,6 +7,7 @@
  *   p=sifpress/api        -> server-side JSON API (action required)
  *   p=sifpress/migration  -> schema migration status / run
  *   p=sifpress/asset      -> binary asset serving
+ *   p=sifpress/sifront-bundle -> a sifront's bundle.js (from its ZIP bundle)
  *   p=sifpress/update     -> update check / upgrade
  *   p=sifpress/seo        -> sitemap / robots.txt
  *   p=sifpress/favicon    -> favicon serving
@@ -36,6 +37,10 @@ if (str_starts_with($p, 'sifpress/')) {
 
     if ($inner === 'asset') {
         handle_asset($method);
+    }
+
+    if ($inner === 'sifront-bundle') {
+        serve_sifront_bundle();
     }
 
     if ($inner === 'update') {

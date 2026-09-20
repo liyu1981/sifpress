@@ -46,6 +46,89 @@ function run(string $command, string $cwd): void
 }
 
 /**
+ * Rewrite every relative url() in a stylesheet to a data: URI so the
+ * referencing artifact stays fully self-contained (Vite emits fonts as
+ * separate files that cannot be fetched once the CSS is inlined).
+ * `$cssFile` is the on-disk path the CSS was read from (resolves `./`
+ * refs); `assets/` refs resolve against `$dist`.
+ */
+function inline_css_urls(string $css, string $dist, string $cssFile): string
+{
+    $inlined = preg_replace_callback(
+        '/url\(\s*(?:"([^"]+)"|\'([^\']+)\'|([^)\s]*?))\s*\)/i',
+        function (array $m) use ($dist, $cssFile): string {
+            $url = $m[1] !== '' ? $m[1] : ($m[2] !== '' ? $m[2] : trim($m[3]));
+
+            if ($url === '' || str_starts_with($url, 'data:') || str_starts_with($url, 'http')) {
+                return $m[0];
+            }
+
+            $candidate = null;
+
+            if (str_starts_with($url, './')) {
+                $candidate = dirname($cssFile) . '/' . substr($url, 2);
+            } elseif (str_starts_with($url, 'assets/')) {
+                $candidate = $dist . '/' . $url;
+            }
+
+            $candidate = $candidate !== null ? realpath($candidate) : false;
+
+            if ($candidate === false || !is_file($candidate)) {
+                return $m[0];
+            }
+
+            $mime = match (pathinfo($candidate, PATHINFO_EXTENSION)) {
+                'woff2' => 'font/woff2',
+                'woff' => 'font/woff',
+                'ttf' => 'font/ttf',
+                'otf' => 'font/otf',
+                'eot' => 'application/vnd.ms-fontobject',
+                'svg' => 'image/svg+xml',
+                'png' => 'image/png',
+                'jpg', 'jpeg' => 'image/jpeg',
+                'gif' => 'image/gif',
+                'webp' => 'image/webp',
+                default => 'application/octet-stream',
+            };
+
+            $data = file_get_contents($candidate);
+
+            if ($data === false) {
+                return $m[0];
+            }
+
+            return 'url("data:' . $mime . ';base64,' . base64_encode($data) . '")';
+        },
+        $css
+    );
+
+    return $inlined ?? $css;
+}
+
+/**
+ * Write a ZIP archive with `name => bytes` entries, overwriting any
+ * existing file. Uses PharData (the `zip` extension is not assumed).
+ */
+function zip_create(string $path, array $entries): void
+{
+    if (is_file($path) && !unlink($path)) {
+        throw new RuntimeException("Could not remove existing $path");
+    }
+
+    $zip = new PharData($path, 0, null, Phar::ZIP);
+
+    foreach ($entries as $name => $data) {
+        $zip[$name] = $data;
+    }
+
+    unset($zip);
+
+    if (!is_file($path)) {
+        throw new RuntimeException("Could not write $path");
+    }
+}
+
+/**
  * Inline every stylesheet and script that references a built asset
  * in dist/. The result is a fully self-contained HTML document.
  */
@@ -74,63 +157,7 @@ function inline_assets(string $html, string $dist, bool $dev): string
                 return $tag;
             }
 
-            /*
-             * Inline any font/asset referenced via url() so the
-             * artifact stays fully self-contained (fonts are emitted
-             * as separate files by Vite and cannot be fetched after
-             * the HTML is inlined into a single PHP file).
-             */
-            $css = preg_replace_callback(
-                '/url\(\s*(?:"([^"]+)"|\'([^\']+)\'|([^)\s]*?))\s*\)/i',
-                function (array $m) use ($dist, $file): string {
-                    $url = $m[1] !== '' ? $m[1] : ($m[2] !== '' ? $m[2] : trim($m[3]));
-
-                    if ($url === '' || str_starts_with($url, 'data:') || str_starts_with($url, 'http')) {
-                        return $m[0];
-                    }
-
-                    $candidate = null;
-
-                    if (str_starts_with($url, './')) {
-                        $candidate = dirname($file) . '/' . substr($url, 2);
-                    } elseif (str_starts_with($url, 'assets/')) {
-                        $candidate = $dist . '/' . $url;
-                    }
-
-                    $candidate = $candidate !== null ? realpath($candidate) : false;
-
-                    if ($candidate === false || !is_file($candidate)) {
-                        return $m[0];
-                    }
-
-                    $mime = match (pathinfo($candidate, PATHINFO_EXTENSION)) {
-                        'woff2' => 'font/woff2',
-                        'woff' => 'font/woff',
-                        'ttf' => 'font/ttf',
-                        'otf' => 'font/otf',
-                        'eot' => 'application/vnd.ms-fontobject',
-                        'svg' => 'image/svg+xml',
-                        'png' => 'image/png',
-                        'jpg', 'jpeg' => 'image/jpeg',
-                        'gif' => 'image/gif',
-                        'webp' => 'image/webp',
-                        default => 'application/octet-stream',
-                    };
-
-                    $data = file_get_contents($candidate);
-
-                    if ($data === false) {
-                        return $m[0];
-                    }
-
-                    return 'url("data:' . $mime . ';base64,' . base64_encode($data) . '")';
-                },
-                $css
-            );
-
-            if ($css === null) {
-                return $tag;
-            }
+            $css = inline_css_urls($css, $dist, $file);
 
             return '<style>' . $css . '</style>';
         },

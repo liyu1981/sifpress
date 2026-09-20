@@ -4,7 +4,7 @@ import {
   useQueryClient,
   type UseMutationResult,
 } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight, Eye, Loader2, Plus, Save, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Eye, Loader2, Plus, Save, Trash2, Upload } from 'lucide-react';
 import { type ChangeEvent, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -24,48 +24,11 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useAuth } from 'ui-sdk';
 import { appBaseUrl, kvsApi, sifrontsApi, type SifrontListItem } from 'ui-sdk';
 import { formatTimestamp } from '@/lib/format';
+import { readSifrontBundle } from '@/lib/sifront-bundle';
 
 function ValueCell({ value }: { value: unknown }) {
   const text = typeof value === 'string' ? value : JSON.stringify(value);
   return <span className="whitespace-pre-wrap break-all text-xs">{text}</span>;
-}
-
-/** Read the sifront's <meta name="sifront_meta"> payload, if the bundle has one. */
-function parseSifrontMeta(html: string): Record<string, unknown> | undefined {
-  try {
-    const content = new DOMParser()
-      .parseFromString(html, 'text/html')
-      .querySelector('meta[name="sifront_meta"]')
-      ?.getAttribute('content');
-
-    if (content === null || content === undefined || content === '') {
-      return undefined;
-    }
-
-    const parsed: unknown = JSON.parse(content);
-
-    return parsed !== null && typeof parsed === 'object'
-      ? (parsed as Record<string, unknown>)
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** Derive a display name from the uploaded file name, falling back to <title>. */
-function sifrontNameFromFile(fileName: string, html: string): string {
-  const base = fileName.replace(/\.(sifront|html?)$/i, '').trim();
-
-  if (base !== '') {
-    return base;
-  }
-
-  const title = new DOMParser()
-    .parseFromString(html, 'text/html')
-    .querySelector('title')
-    ?.textContent?.trim();
-
-  return title !== undefined && title !== '' ? title : 'Sifront';
 }
 
 /** Render a KV value for display / as the default string in an editor. */
@@ -272,16 +235,20 @@ function SifrontCard({
   canManage,
   activate,
   remove,
+  update,
 }: {
   sf: SifrontListItem;
   canManage: boolean;
   activate: UseMutationResult<unknown, unknown, number>;
   remove: UseMutationResult<unknown, unknown, number>;
+  update: UseMutationResult<unknown, unknown, { id: number; file: File }>;
 }) {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(sf.is_active);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const updateRef = useRef<HTMLInputElement | null>(null);
+  const updating = update.isPending && update.variables?.id === sf.id;
 
   const detail = useQuery({
     queryKey: ['sifront', sf.id],
@@ -343,6 +310,35 @@ function SifrontCard({
           )}
           {canManage && (
             <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => updateRef.current?.click()}
+                disabled={updating}
+              >
+                {updating ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <>
+                    <Upload className="size-4" />
+                    {t('sifront.update')}
+                  </>
+                )}
+              </Button>
+              <input
+                ref={updateRef}
+                type="file"
+                accept=".sifront,application/zip"
+                className="hidden"
+                onChange={event => {
+                  const file = event.target.files?.[0];
+                  event.target.value = '';
+
+                  if (file !== undefined) {
+                    update.mutate({ id: sf.id, file });
+                  }
+                }}
+              />
               {!sf.is_active && (
                 <Button
                   variant="outline"
@@ -425,11 +421,13 @@ export function SifrontsPage() {
   });
 
   const create = useMutation({
-    mutationFn: (input: { name: string; content: string; meta?: Record<string, unknown> }) =>
-      sifrontsApi.create(input),
+    mutationFn: async (input: { file: File }) => {
+      const { name, version, meta, bundle } = await readSifrontBundle(input.file);
+      return sifrontsApi.create({ name, version, meta, bundle });
+    },
     onSuccess: sf => {
       queryClient.invalidateQueries({ queryKey: ['sifronts'] });
-      toast.success(t('sifront.created', { name: sf.name }));
+      toast.success(t('sifront.created', { name: sf.name, version: sf.version }));
     },
     onError: error => {
       toast.error(
@@ -440,34 +438,32 @@ export function SifrontsPage() {
     },
   });
 
-  const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
+  const update = useMutation({
+    mutationFn: async (input: { id: number; file: File }) => {
+      const { name, version, meta, bundle } = await readSifrontBundle(input.file);
+      return sifrontsApi.update({ id: input.id, name, version, meta, bundle });
+    },
+    onSuccess: sf => {
+      queryClient.invalidateQueries({ queryKey: ['sifronts'] });
+      queryClient.invalidateQueries({ queryKey: ['sifront', sf.id] });
+      toast.success(t('sifront.updated', { name: sf.name, version: sf.version }));
+    },
+    onError: error => {
+      toast.error(
+        t('sifront.updateFailed', {
+          detail: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    },
+  });
+
+  const handleFile = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     // Reset so the same file can be picked again after a failure.
     event.target.value = '';
 
-    if (file === undefined) {
-      return;
-    }
-
-    try {
-      const content = await file.text();
-
-      if (content.trim() === '') {
-        toast.error(t('sifront.uploadFailed', { detail: 'empty file' }));
-        return;
-      }
-
-      create.mutate({
-        name: sifrontNameFromFile(file.name, content),
-        content,
-        meta: parseSifrontMeta(content),
-      });
-    } catch (error) {
-      toast.error(
-        t('sifront.uploadFailed', {
-          detail: error instanceof Error ? error.message : String(error),
-        }),
-      );
+    if (file !== undefined) {
+      create.mutate({ file });
     }
   };
 
@@ -504,9 +500,9 @@ export function SifrontsPage() {
         <input
           ref={fileRef}
           type="file"
-          accept=".sifront,.html,text/html"
+          accept=".sifront,application/zip"
           className="hidden"
-          onChange={event => void handleFile(event)}
+          onChange={event => handleFile(event)}
         />
       </div>
 
@@ -531,6 +527,7 @@ export function SifrontsPage() {
           canManage={canManage}
           activate={activate}
           remove={remove}
+          update={update}
         />
       ))}
     </div>

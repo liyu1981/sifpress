@@ -113,9 +113,64 @@ function apply_ui_sdk_version(string $html): string
 }
 
 /**
- * Serve the active sifront page. Falls back to the static HTML when the
- * DB is not migrated, no active sifront is configured, or the row is
- * missing.
+ * Theme bootstrap from the old sifpress1 index.html: apply the stored theme
+ * before first paint so glass surfaces don't flash. Inlined into <head>.
+ */
+function sifront_theme_bootstrap(): string
+{
+    return <<<'JS'
+;(function () {
+  var theme = localStorage.getItem('theme')
+  var dark =
+    theme === 'dark' ||
+    ((theme === 'system' || theme === null) &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches)
+  if (dark) document.documentElement.classList.add('dark')
+})()
+JS;
+}
+
+/**
+ * HTML shell for a bundled sifront. The backend owns the document; the ZIP's
+ * `bundle.js` is loaded as a module and injects its own styles.
+ */
+function sifront_shell_html(int $id, string $name, array $meta, string $version): string
+{
+    $title = is_string($meta['title'] ?? null) && $meta['title'] !== ''
+        ? $meta['title']
+        : $name;
+
+    $metaJson = json_encode(
+        $meta,
+        JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+            | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+    );
+
+    if ($metaJson === false) {
+        $metaJson = '{}';
+    }
+
+    $bundleSrc = '?p=sifpress/sifront-bundle&id=' . $id . '&v=' . rawurlencode($version);
+
+    return '<!doctype html>'
+        . '<html lang="en">'
+        . '<head>'
+        . '<meta charset="UTF-8">'
+        . '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
+        . '<title>' . htmlspecialchars($title, ENT_QUOTES) . '</title>'
+        . '<script>' . sifront_theme_bootstrap() . '</script>'
+        . '<meta name="sifront_meta" content="' . htmlspecialchars($metaJson, ENT_QUOTES) . '">'
+        . '<script type="module" src="?p=sifpress/asset/js/ui-sdk.mjs"></script>'
+        . '<script type="module" src="' . $bundleSrc . '"></script>'
+        . '</head>'
+        . '<body><div id="root"></div></body>'
+        . '</html>';
+}
+
+/**
+ * Serve the active sifront page. Bundled sifronts get a generated shell
+ * (the ZIP carries no HTML); legacy rows still serve their stored HTML, and
+ * anything else falls back to the static construction page.
  */
 function serve_sifront_page(): never
 {
@@ -126,30 +181,52 @@ function serve_sifront_page(): never
     $html = '';
 
     if (!db_needs_migration()) {
-        $activeId = (string) setting_get('active_sifront_id', '');
+        $activeId = (int) setting_get('active_sifront_id', '0');
 
-        if ($activeId !== '' && $activeId !== '0') {
-            /*
-             * Dev builds only: the seeded `sifpress1` entry keeps empty
-             * DB content and is served straight from the built bundle on
-             * disk, so front-end iteration needs no re-upload. A missing
-             * bundle falls through to the normal DB/fallback path.
-             */
-            if (defined('SIFPRESS_DEV') && (int) $activeId === SIFRONT_SIFPRESS1_ID) {
-                $bundle = file_get_contents(__DIR__ . '/sifpress1.sifront');
+        if ($activeId > 0) {
+            $stmt = db()->prepare(
+                'SELECT name, content, meta, version, bundle_size FROM sifronts WHERE id = ?'
+            );
+            $stmt->execute([$activeId]);
+            $row = $stmt->fetch();
 
-                if ($bundle !== false) {
-                    $html = $bundle;
+            if ($row !== false) {
+                $name = (string) $row['name'];
+                $version = (string) $row['version'];
+                $meta = json_decode((string) $row['meta'], true);
+                $meta = is_array($meta) ? $meta : [];
+                $isBundled = (int) $row['bundle_size'] > 0;
+
+                /*
+                 * Dev builds only: the seeded `sifpress1` entry keeps empty
+                 * DB content and is served from the freshly built ZIP on disk,
+                 * so front-end iteration needs no re-upload. A missing bundle
+                 * falls through to the normal DB/fallback path.
+                 */
+                if (defined('SIFPRESS_DEV') && $activeId === SIFRONT_SIFPRESS1_ID) {
+                    $diskMeta = sifront_dev_meta('sifpress1');
+
+                    if ($diskMeta !== null) {
+                        $meta = $diskMeta;
+                        $name = is_string($diskMeta['name'] ?? null) && $diskMeta['name'] !== ''
+                            ? $diskMeta['name']
+                            : $name;
+                        $version = is_string($diskMeta['version'] ?? null)
+                            && $diskMeta['version'] !== ''
+                            ? $diskMeta['version']
+                            : $version;
+                        $isBundled = true;
+                    }
                 }
-            }
 
-            if ($html === '') {
-                $stmt = db()->prepare('SELECT content FROM sifronts WHERE id = ?');
-                $stmt->execute([(int) $activeId]);
-                $content = $stmt->fetchColumn();
+                if ($isBundled) {
+                    $html = sifront_shell_html($activeId, $name, $meta, $version);
+                } else {
+                    $content = (string) $row['content'];
 
-                if ($content !== false && $content !== '') {
-                    $html = $content;
+                    if ($content !== '') {
+                        $html = $content;
+                    }
                 }
             }
         }
@@ -160,6 +237,56 @@ function serve_sifront_page(): never
     }
 
     echo apply_ui_sdk_version(inject_into_head($html, base_url_meta()));
+    exit;
+}
+
+/**
+ * Serve a sifront's `bundle.js` from the stored bytes (or the dev disk
+ * bundle). The URL is versioned, so the response is safely immutable.
+ */
+function serve_sifront_bundle(): never
+{
+    $id = (int) request_param('id', '0');
+
+    if ($id <= 0) {
+        $id = (int) setting_get('active_sifront_id', '0');
+    }
+
+    $bundle = null;
+
+    if ($id > 0 && !db_needs_migration()) {
+        if (defined('SIFPRESS_DEV') && $id === SIFRONT_SIFPRESS1_ID) {
+            $bundle = sifront_dev_bundle('sifpress1');
+        }
+
+        if ($bundle === null) {
+            $stmt = db()->prepare('SELECT bundle FROM sifronts WHERE id = ?');
+            $stmt->execute([$id]);
+            $row = $stmt->fetch();
+
+            if ($row !== false && $row['bundle'] !== null && $row['bundle'] !== '') {
+                $bundle = (string) $row['bundle'];
+            }
+        }
+    }
+
+    if ($bundle === null) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=utf-8');
+        header('X-Content-Type-Options: nosniff');
+        echo 'bundle not found';
+        exit;
+    }
+
+    header('Content-Type: text/javascript; charset=utf-8');
+    header('X-Content-Type-Options: nosniff');
+    header(
+        'Cache-Control: ' . (defined('SIFPRESS_DEV')
+            ? 'no-cache'
+            : 'public, max-age=31536000, immutable')
+    );
+
+    echo $bundle;
     exit;
 }
 
