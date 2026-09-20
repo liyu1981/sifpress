@@ -108,33 +108,15 @@ function dev_inject_sifront(string $name): array
         throw new RuntimeException("No dev bundle companion for '{$name}' (run buildfront.php).");
     }
 
-    $metaStr = json_encode($meta, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    $metaStr = $metaStr === false ? '{}' : $metaStr;
     $version = is_string($meta['version'] ?? null) && $meta['version'] !== ''
         ? $meta['version']
         : '0.0.0';
 
-    $stmt = db()->prepare('SELECT id FROM sifronts WHERE name = ? AND is_virtual = 0');
-    $stmt->execute([$name]);
-    $existing = $stmt->fetchColumn();
+    $result = sifront_store($name, $meta, $bundle, $version);
 
-    if ($existing === false) {
-        db()->prepare(
-            'INSERT INTO sifronts (name, content, meta, version, bundle, bundle_size, bundle_hash)'
-            . " VALUES (?, '', ?, ?, ?, ?, ?)"
-        )->execute([$name, $metaStr, $version, $bundle, strlen($bundle), md5($bundle)]);
-        $id = (int) db()->lastInsertId();
-    } else {
-        $id = (int) $existing;
-        db()->prepare(
-            'UPDATE sifronts SET meta = ?, version = ?, bundle = ?, bundle_size = ?,'
-            . " bundle_hash = ?, updated_at = datetime('now') WHERE id = ?"
-        )->execute([$metaStr, $version, $bundle, strlen($bundle), md5($bundle), $id]);
-    }
+    setting_set('active_sifront_id', (string) $result['id']);
 
-    setting_set('active_sifront_id', (string) $id);
-
-    return ['id' => $id, 'version' => $version];
+    return ['id' => $result['id'], 'version' => $version];
 }
 
 /**

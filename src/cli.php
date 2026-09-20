@@ -7,6 +7,8 @@
  *   setup            (default) write sifpress_config.php + create the DB folder
  *   migrate          apply pending migrations
  *   change_password  set a user's password (clears must_change_password)
+ *   inject_sifront   (dev only) push the on-disk build companions into the DB
+ *   update_sifront   install/update a sifront from a .sifront archive (unzip)
  *   status           print paths, version and migration state
  *   help             show usage
  *
@@ -38,6 +40,10 @@ function sifpress_cli(array $argv): never
 
         case 'inject_sifront':
             sifpress_cli_inject_sifront($configPath, $argv);
+            break;
+
+        case 'update_sifront':
+            sifpress_cli_update_sifront($configPath, $options, $argv);
             break;
 
         case 'status':
@@ -74,6 +80,8 @@ function sifpress_cli_usage(): void
         '  change_password  set a user password: change_password <user> <password>',
         '  inject_sifront   (dev only) push a built sifront into the DB and activate it:',
         '                   inject_sifront [name]   (default: sifpress1)',
+        '  update_sifront   install/update a sifront from a .sifront archive:',
+        '                   update_sifront <file.sifront> [--name=NAME] [--activate]',
         '  status           print paths, version and migration state',
         '  help             show this help',
         '',
@@ -276,6 +284,73 @@ function sifpress_cli_inject_sifront(string $configPath, array $argv): void
         STDOUT,
         "Injected '{$name}' (v{$result['version']}, id {$result['id']}) and activated it.\n"
     );
+}
+
+/**
+ * `update_sifront <file.sifront> [--name=NAME] [--activate]`: extract a
+ * built sifront archive with the system unzip(1) and upsert it into the DB
+ * through the normal storage columns. Creates the row when the name is new;
+ * pass --activate to also make it the active sifront.
+ */
+function sifpress_cli_update_sifront(string $configPath, array $options, array $argv): void
+{
+    if (!is_file($configPath)) {
+        fwrite(STDERR, 'No config found. Run: php ' . basename(__FILE__) . " setup\n");
+        exit(1);
+    }
+
+    $file = '';
+
+    foreach (array_slice($argv, 2) as $arg) {
+        if (substr($arg, 0, 2) !== '--') {
+            $file = trim($arg);
+            break;
+        }
+    }
+
+    if ($file === '') {
+        fwrite(
+            STDERR,
+            'Usage: php ' . basename(__FILE__) . " update_sifront <file.sifront> [--name=NAME] [--activate]\n"
+        );
+        exit(1);
+    }
+
+    require_once $configPath;
+
+    if (db_needs_migration()) {
+        fwrite(STDERR, 'Database needs migration. Run: php ' . basename(__FILE__) . " migrate\n");
+        exit(1);
+    }
+
+    try {
+        $archive = sifront_read_archive($file);
+
+        $name = sifpress_cli_option($options, 'name');
+
+        if ($name === null || trim($name) === '') {
+            $metaName = $archive['meta']['name'] ?? null;
+            $name = is_string($metaName) && trim($metaName) !== ''
+                ? trim($metaName)
+                : pathinfo($file, PATHINFO_FILENAME);
+        }
+
+        $result = sifront_store($name, $archive['meta'], $archive['bundle'], $archive['version']);
+
+        if (isset($options['activate'])) {
+            setting_set('active_sifront_id', (string) $result['id']);
+        }
+    } catch (Throwable $e) {
+        fwrite(STDERR, $e->getMessage() . "\n");
+        exit(1);
+    }
+
+    sifpress_cli_adopt_db();
+
+    $verb = $result['created'] ? 'Installed' : 'Updated';
+    $suffix = isset($options['activate']) ? ' and activated it' : '';
+
+    fwrite(STDOUT, "{$verb} '{$name}' (v{$result['version']}, id {$result['id']}){$suffix}.\n");
 }
 
 function sifpress_cli_status(string $configPath): void
