@@ -95,6 +95,9 @@ const en = {
     searchEmpty: 'No matches.',
     byAuthor: 'by',
     empty: 'No pages yet.',
+    prev: 'Previous',
+    next: 'Next',
+    page: 'Page {{page}} of {{pages}}',
   },
   login: {
     badge: 'Sign in',
@@ -815,6 +818,9 @@ const zh = {
     searchEmpty: '没有匹配结果。',
     byAuthor: '作者',
     empty: '还没有页面。',
+    prev: '上一页',
+    next: '下一页',
+    page: '第 {{page}} / {{pages}} 页',
   },
   login: {
     badge: '登录',

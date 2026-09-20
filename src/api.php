@@ -249,13 +249,34 @@ function page_payload(array $page): array
  * FTS5 search over pages. Returns a page_payload-shaped list with an
  * excerpt, or an empty list for short/empty queries.
  */
-function search_pages(string $q, ?string $status): array
+function search_pages(string $q, ?string $status, int $page = 1, int $perPage = 20): array
 {
     $match = build_match($q);
 
     if ($match === '') {
-        return ['items' => [], 'total' => 0];
+        return ['items' => [], 'total' => 0, 'page' => 1, 'per_page' => $perPage];
     }
+
+    $where = 'pages_fts MATCH :match';
+    $params = ['match' => $match];
+
+    if ($status !== null) {
+        $where .= ' AND p.status = :status';
+        $params['status'] = $status;
+    }
+
+    $view = view_filter_sql();
+
+    if ($view['clause'] !== '') {
+        $where .= ' AND ' . $view['clause'];
+        $params = array_merge($params, $view['params']);
+    }
+
+    $countStmt = db()->prepare(
+        'SELECT COUNT(*) FROM pages_fts JOIN pages p ON p.id = pages_fts.rowid WHERE ' . $where
+    );
+    $countStmt->execute($params);
+    $total = (int) $countStmt->fetchColumn();
 
     $sql = 'SELECT p.id, p.slug, p.title, p.status, p.created_by, p.updated_by,
                    p.created_at, p.updated_at, cu.name AS created_by_name,
@@ -265,26 +286,20 @@ function search_pages(string $q, ?string $status): array
               JOIN pages p ON p.id = pages_fts.rowid
               LEFT JOIN users cu ON cu.id = p.created_by
               LEFT JOIN users uu ON uu.id = p.updated_by
-             WHERE pages_fts MATCH :match';
-
-    $params = ['match' => $match];
-
-    if ($status !== null) {
-        $sql .= ' AND p.status = :status';
-        $params['status'] = $status;
-    }
-
-    $view = view_filter_sql();
-
-    if ($view['clause'] !== '') {
-        $sql .= ' AND ' . $view['clause'];
-        $params = array_merge($params, $view['params']);
-    }
-
-    $sql .= ' ORDER BY rank LIMIT 50';
+             WHERE ' . $where . '
+             ORDER BY rank
+             LIMIT :limit OFFSET :offset';
 
     $stmt = db()->prepare($sql);
-    $stmt->execute($params);
+
+    foreach ($params as $k => $v) {
+        $stmt->bindValue($k, $v);
+    }
+
+    $stmt->bindValue('limit', $perPage, PDO::PARAM_INT);
+    $stmt->bindValue('offset', ($page - 1) * $perPage, PDO::PARAM_INT);
+    $stmt->execute();
+
     $rows = $stmt->fetchAll();
     $user = current_user();
 
@@ -301,7 +316,12 @@ function search_pages(string $q, ?string $status): array
         ];
     }, $rows);
 
-    return ['items' => $items, 'total' => count($items)];
+    return [
+        'items' => $items,
+        'total' => $total,
+        'page' => $page,
+        'per_page' => $perPage,
+    ];
 }
 
 /* ------------------------------------------------------------------ */
@@ -809,16 +829,16 @@ function api_pages_list(string $method): never
         json_response(['error' => 'Method not allowed'], 405);
     }
 
-    $q = request_param('q');
-
-    if ($q !== null && trim($q) !== '') {
-        json_response(search_pages(trim($q), api_status_param()));
-    }
-
     $status = api_status_param();
     $page = max(1, (int) request_param('page', '1'));
     $perPage = min(100, max(1, (int) request_param('per_page', '20')));
     $tag = request_param('tag');
+
+    $q = request_param('q');
+
+    if ($q !== null && trim($q) !== '') {
+        json_response(search_pages(trim($q), $status, $page, $perPage));
+    }
 
     $view = view_filter_sql();
     $whereParts = [];
@@ -1293,7 +1313,12 @@ function api_pages_search(string $method): never
         json_response(['error' => 'Method not allowed'], 405);
     }
 
-    json_response(search_pages(trim((string) request_param('q', '')), api_status_param()));
+    $page = max(1, (int) request_param('page', '1'));
+    $perPage = min(100, max(1, (int) request_param('per_page', '20')));
+
+    json_response(
+        search_pages(trim((string) request_param('q', '')), api_status_param(), $page, $perPage)
+    );
 }
 
 function api_pages_revisions(string $method): never

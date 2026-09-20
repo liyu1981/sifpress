@@ -174,6 +174,8 @@ export interface PageListResult {
 export interface SearchResultSet {
   items: SearchResult[];
   total: number;
+  page: number;
+  per_page: number;
 }
 
 export interface PageInput {
@@ -297,7 +299,14 @@ export const pagesApi = {
       },
     }).then(r => r.page),
 
-  search: (q: string) => apiRequest<SearchResultSet>('pages.search', { params: { q } }),
+  search: (q: string, params: { page?: number; per_page?: number } = {}) =>
+    apiRequest<SearchResultSet>('pages.search', {
+      params: {
+        q,
+        ...(params.page ? { page: String(params.page) } : {}),
+        ...(params.per_page ? { per_page: String(params.per_page) } : {}),
+      },
+    }),
 
   create: (input: PageInput) =>
     apiRequest<{ page: Page }>('pages.create', {

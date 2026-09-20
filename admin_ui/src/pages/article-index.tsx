@@ -22,6 +22,8 @@ import { frontMatterString, parseFrontMatter } from '@/lib/front-matter';
 import type { PageListItem, SearchResult } from 'ui-sdk';
 import { pagesApi, settingsApi, tagsApi } from 'ui-sdk';
 
+const ARTICLE_PER_PAGE = 20;
+
 function SearchCard({ result, locale }: { result: SearchResult; locale: string }) {
   const { t } = useTranslation();
 
@@ -154,7 +156,7 @@ function ArticleCard({ article, locale }: { article: PageListItem; locale: strin
   );
 }
 
-export function ArticleIndexPage({ tag }: { tag?: string }) {
+export function ArticleIndexPage({ tag, page }: { tag?: string; page: number }) {
   const { t, i18n } = useTranslation();
   const { has, user } = useAuth();
   const navigate = useNavigate();
@@ -186,18 +188,19 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
   ];
 
   const list = useQuery({
-    queryKey: ['pages', { tag, filter, user: user?.id ?? null }],
+    queryKey: ['pages', { tag, filter, page, user: user?.id ?? null }],
     queryFn: () =>
       pagesApi.list({
-        per_page: 50,
+        per_page: ARTICLE_PER_PAGE,
+        page,
         tag,
         ...(filter !== 'all' ? { status: filter } : {}),
       }),
   });
 
   const search = useQuery({
-    queryKey: ['pages', 'search', q, user?.id ?? null],
-    queryFn: () => pagesApi.search(q),
+    queryKey: ['pages', 'search', q, page, user?.id ?? null],
+    queryFn: () => pagesApi.search(q, { page, per_page: ARTICLE_PER_PAGE }),
     enabled: q.length >= 3,
   });
 
@@ -213,6 +216,48 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
       to: '/admin/articles',
       search: next !== undefined ? { tag: next } : {},
     });
+  }
+
+  function goToPage(next: number) {
+    navigate({
+      to: '/admin/articles',
+      search: {
+        ...(tag !== undefined ? { tag } : {}),
+        ...(next > 1 ? { page: next } : {}),
+      },
+    });
+  }
+
+  function pager(total: number) {
+    const pages = Math.max(1, Math.ceil(total / ARTICLE_PER_PAGE));
+
+    if (pages <= 1) {
+      return null;
+    }
+
+    return (
+      <div className="flex items-center justify-between pt-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={page <= 1}
+          onClick={() => goToPage(page - 1)}
+        >
+          {t('article.prev')}
+        </Button>
+        <span className="text-sm text-muted-foreground">{t('article.page', { page, pages })}</span>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={page >= pages}
+          onClick={() => goToPage(page + 1)}
+        >
+          {t('article.next')}
+        </Button>
+      </div>
+    );
   }
 
   return (
@@ -245,7 +290,12 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
                 <Input
                   type="search"
                   value={query}
-                  onChange={event => setQuery(event.target.value)}
+                  onChange={event => {
+                    setQuery(event.target.value);
+                    if (page !== 1) {
+                      goToPage(1);
+                    }
+                  }}
                   placeholder={t('article.searchPlaceholder')}
                   className="pl-8"
                 />
@@ -262,7 +312,12 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
                     <button
                       key={option.value}
                       type="button"
-                      onClick={() => setFilter(option.value)}
+                      onClick={() => {
+                        setFilter(option.value);
+                        if (page !== 1) {
+                          goToPage(1);
+                        }
+                      }}
                       className={`rounded-lg px-3 py-1.5 text-left text-sm font-medium transition-colors ${
                         filter === option.value
                           ? 'bg-accent text-accent-foreground'
@@ -319,11 +374,14 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
             search.isLoading ? (
               <p className="text-sm text-muted-foreground">{t('article.searching')}</p>
             ) : search.data && search.data.items.length > 0 ? (
-              <div className="space-y-4">
-                {search.data.items.map(result => (
-                  <SearchCard key={result.slug} result={result} locale={i18n.language} />
-                ))}
-              </div>
+              <>
+                <div className="space-y-4">
+                  {search.data.items.map(result => (
+                    <SearchCard key={result.slug} result={result} locale={i18n.language} />
+                  ))}
+                </div>
+                {pager(search.data.total)}
+              </>
             ) : (
               <p className="text-sm text-muted-foreground">{t('article.searchEmpty')}</p>
             )
@@ -350,11 +408,14 @@ export function ArticleIndexPage({ tag }: { tag?: string }) {
               )}
             </div>
           ) : (
-            <div className="space-y-4">
-              {list.data.items.map(article => (
-                <ArticleCard key={article.slug} article={article} locale={i18n.language} />
-              ))}
-            </div>
+            <>
+              <div className="space-y-4">
+                {list.data.items.map(article => (
+                  <ArticleCard key={article.slug} article={article} locale={i18n.language} />
+                ))}
+              </div>
+              {pager(list.data.total)}
+            </>
           )}
         </main>
       </div>
