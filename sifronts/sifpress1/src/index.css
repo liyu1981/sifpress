@@ -406,6 +406,14 @@
       0 8px 20px rgb(0 0 0 / 0.28),
       inset 0 1px 0 color-mix(in oklch, white 35%, transparent);
   }
+
+  /* Compact gold frame for the mobile avatar bar. */
+  .avatar-frame-sm {
+    border-width: 2px;
+    box-shadow:
+      0 2px 8px rgb(0 0 0 / 0.25),
+      inset 0 1px 0 color-mix(in oklch, white 35%, transparent);
+  }
 }
 
 .prose.prose {

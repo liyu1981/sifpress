@@ -37,10 +37,10 @@ export function Sidebar({ tags, settings }: { tags: TagCount[]; settings?: SeoSe
             <img
               src={config.sidebarAvatar}
               alt=""
-              className="size-10 shrink-0 -rotate-2 border-2 border-foreground bg-card object-cover shadow-sm"
+              className="avatar-frame avatar-frame-sm size-10 shrink-0 -rotate-2 object-cover"
             />
           ) : (
-            <span className="flex size-10 shrink-0 -rotate-2 items-center justify-center border-2 border-foreground bg-muted font-serif text-lg text-foreground shadow-sm">
+            <span className="avatar-frame avatar-frame-sm flex size-10 shrink-0 -rotate-2 items-center justify-center font-serif text-lg text-foreground">
               {initial}
             </span>
           )}
