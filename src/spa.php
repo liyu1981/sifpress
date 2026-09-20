@@ -197,28 +197,6 @@ function serve_sifront_page(): never
                 $meta = is_array($meta) ? $meta : [];
                 $isBundled = (int) $row['bundle_size'] > 0;
 
-                /*
-                 * Dev builds only: the seeded `sifpress1` entry keeps empty
-                 * DB content and is served from the freshly built ZIP on disk,
-                 * so front-end iteration needs no re-upload. A missing bundle
-                 * falls through to the normal DB/fallback path.
-                 */
-                if (defined('SIFPRESS_DEV') && $activeId === SIFRONT_SIFPRESS1_ID) {
-                    $diskMeta = sifront_dev_meta('sifpress1');
-
-                    if ($diskMeta !== null) {
-                        $meta = $diskMeta;
-                        $name = is_string($diskMeta['name'] ?? null) && $diskMeta['name'] !== ''
-                            ? $diskMeta['name']
-                            : $name;
-                        $version = is_string($diskMeta['version'] ?? null)
-                            && $diskMeta['version'] !== ''
-                            ? $diskMeta['version']
-                            : $version;
-                        $isBundled = true;
-                    }
-                }
-
                 if ($isBundled) {
                     $html = sifront_shell_html($activeId, $name, $meta, $version);
                 } else {
@@ -241,8 +219,8 @@ function serve_sifront_page(): never
 }
 
 /**
- * Serve a sifront's `bundle.js` from the stored bytes (or the dev disk
- * bundle). The URL is versioned, so the response is safely immutable.
+ * Serve a sifront's `bundle.js` from the stored bytes. The URL is versioned,
+ * so the response is safely immutable.
  */
 function serve_sifront_bundle(): never
 {
@@ -255,18 +233,12 @@ function serve_sifront_bundle(): never
     $bundle = null;
 
     if ($id > 0 && !db_needs_migration()) {
-        if (defined('SIFPRESS_DEV') && $id === SIFRONT_SIFPRESS1_ID) {
-            $bundle = sifront_dev_bundle('sifpress1');
-        }
+        $stmt = db()->prepare('SELECT bundle FROM sifronts WHERE id = ?');
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
 
-        if ($bundle === null) {
-            $stmt = db()->prepare('SELECT bundle FROM sifronts WHERE id = ?');
-            $stmt->execute([$id]);
-            $row = $stmt->fetch();
-
-            if ($row !== false && $row['bundle'] !== null && $row['bundle'] !== '') {
-                $bundle = (string) $row['bundle'];
-            }
+        if ($row !== false && $row['bundle'] !== null && $row['bundle'] !== '') {
+            $bundle = (string) $row['bundle'];
         }
     }
 

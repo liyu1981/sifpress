@@ -26,7 +26,7 @@ function formatDate(dateStr: string): string {
 
 export function ArticleCard({ article }: { article: ArticleCardData }) {
   return (
-    <article className="glass-control overflow-hidden rounded-2xl transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5">
+    <article className="glass-control glass-control-read overflow-hidden rounded-2xl transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5">
       {article.cover != null && article.cover !== '' && (
         <Link
           to="/article/$slug"

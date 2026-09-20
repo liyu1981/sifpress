@@ -294,6 +294,7 @@ function SifrontCard({
         <CardTitle className="flex items-center gap-2 text-base">
           {sf.name}
           {sf.is_active && <Badge variant="default">{t('sifront.active')}</Badge>}
+          {sf.is_virtual && <Badge variant="secondary">{t('sifront.virtual')}</Badge>}
         </CardTitle>
         <CardDescription>
           {t('sifront.version', { version: sf.version })} ·{' '}
@@ -310,35 +311,39 @@ function SifrontCard({
           )}
           {canManage && (
             <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => updateRef.current?.click()}
-                disabled={updating}
-              >
-                {updating ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <>
-                    <Upload className="size-4" />
-                    {t('sifront.update')}
-                  </>
-                )}
-              </Button>
-              <input
-                ref={updateRef}
-                type="file"
-                accept=".sifront,application/zip"
-                className="hidden"
-                onChange={event => {
-                  const file = event.target.files?.[0];
-                  event.target.value = '';
+              {!sf.is_virtual && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => updateRef.current?.click()}
+                    disabled={updating}
+                  >
+                    {updating ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Upload className="size-4" />
+                        {t('sifront.update')}
+                      </>
+                    )}
+                  </Button>
+                  <input
+                    ref={updateRef}
+                    type="file"
+                    accept=".sifront,application/zip"
+                    className="hidden"
+                    onChange={event => {
+                      const file = event.target.files?.[0];
+                      event.target.value = '';
 
-                  if (file !== undefined) {
-                    update.mutate({ id: sf.id, file });
-                  }
-                }}
-              />
+                      if (file !== undefined) {
+                        update.mutate({ id: sf.id, file });
+                      }
+                    }}
+                  />
+                </>
+              )}
               {!sf.is_active && (
                 <Button
                   variant="outline"
@@ -353,7 +358,7 @@ function SifrontCard({
                   )}
                 </Button>
               )}
-              {!sf.is_active && (
+              {!sf.is_active && !sf.is_virtual && (
                 <Button
                   variant="ghost"
                   size="icon"

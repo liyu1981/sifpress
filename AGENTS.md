@@ -64,15 +64,14 @@ php buildfront.php release
   dispatch region from `router.php`, so `dist/sifpress.php` contains no
   trace of the dev endpoint. `dev.sh` always makes dev builds; use
   `rel.sh` for releases.
-- **Dev sifront file serving**: migration `0015` seeds a `sifpress1`
-  sifront (fixed id `SIFRONT_SIFPRESS1_ID`, empty content, version
-  `0.0.1`) and makes it the default active sifront. In dev builds,
-  when it is the active sifront, the shell reads `dist/sifpress1.meta.json`
-  and the bundle endpoint reads `dist/sifpress1.bundle.js` (the plain
-  companions, not the ZIP) instead of the DB — run `php buildfront.php`
-  to refresh them.
-  Release builds always serve DB content (empty → construction
-  fallback).
+- **Built-in sifront**: migration `0015` seeds the construction sifront
+  (fixed id `1001`, empty content) as the default active sifront;
+  migration `0020` renames it to `sifpress_in_construction` and flags it
+  `is_virtual`. Virtual rows render the construction fallback and reject
+  update/delete (they can still be activated). A real theme (`sifpress1`)
+  is created through the normal admin flow. `buildfront.php` writes
+  `dist/<name>.{sifront,meta.json,bundle.js}`; the plain companions exist
+  for the dev injection flow.
 - `dist/*.php` are build artifacts and are gitignored. Never edit them
   directly; edit `src/*.php` instead.
 - **Configuration**: on first request the artifact looks for

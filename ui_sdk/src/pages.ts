@@ -628,6 +628,7 @@ export interface SifrontListItem {
   version: string;
   has_bundle: boolean;
   bundle_size: number;
+  is_virtual: boolean;
   is_active: boolean;
   created_at: string;
   updated_at: string;

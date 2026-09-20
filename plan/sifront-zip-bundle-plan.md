@@ -162,16 +162,16 @@ parameterized by the active sifront's `meta.json`:
 
 - `apply_ui_sdk_version()` adds the `&v=` to the ui-sdk tag; `base_url_meta()`
   is injected into `<head>` as before.
-- Dev builds keep the `SIFPRESS1` disk fast-path, reading the **plain
-  companions** `dist/sifpress1.meta.json` / `.bundle.js` (never the ZIP).
+- The built-in construction sifront (`sifpress_in_construction`, `is_virtual`)
+  has no bundle: its row is served via the construction fallback. A real theme
+  is injected through the normal admin flow.
 
 ### Bundle endpoint (`?p=sifpress/sifront-bundle`)
 
 `serve_sifront_bundle()` (in `spa.php`), routed from `router.php`:
 
 - `id` optional; defaults to the active sifront.
-- Dev + `SIFPRESS1`: read `dist/sifpress1.bundle.js`.
-- Else stream the stored `bundle` BLOB.
+- Streams the stored `bundle` BLOB (no dev disk override).
 - Headers: `Content-Type: text/javascript; charset=utf-8`,
   `Cache-Control: public, max-age=31536000, immutable` (URL is versioned),
   `X-Content-Type-Options: nosniff`; `no-cache` in dev. 404 when absent.

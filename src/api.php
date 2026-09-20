@@ -3413,7 +3413,8 @@ function api_sifronts_list(string $method): never
     }
 
     $rows = db()->query(
-        'SELECT id, name, version, bundle_size, created_at, updated_at FROM sifronts ORDER BY id'
+        'SELECT id, name, version, bundle_size, is_virtual, created_at, updated_at'
+        . ' FROM sifronts ORDER BY id'
     )->fetchAll();
 
     $activeId = (string) setting_get('active_sifront_id', '');
@@ -3426,6 +3427,7 @@ function api_sifronts_list(string $method): never
                 'version' => (string) $r['version'],
                 'has_bundle' => (int) $r['bundle_size'] > 0,
                 'bundle_size' => (int) $r['bundle_size'],
+                'is_virtual' => (int) $r['is_virtual'] === 1,
                 'is_active' => (string) $r['id'] === $activeId,
                 'created_at' => (string) $r['created_at'],
                 'updated_at' => (string) $r['updated_at'],
@@ -3448,7 +3450,7 @@ function api_sifronts_get(string $method): never
     }
 
     $stmt = db()->prepare(
-        'SELECT id, name, content, meta, version, bundle_size, created_at, updated_at'
+        'SELECT id, name, content, meta, version, bundle_size, is_virtual, created_at, updated_at'
         . ' FROM sifronts WHERE id = ?'
     );
     $stmt->execute([$id]);
@@ -3473,6 +3475,7 @@ function api_sifronts_get(string $method): never
             'version' => (string) $row['version'],
             'has_bundle' => (int) $row['bundle_size'] > 0,
             'bundle_size' => (int) $row['bundle_size'],
+            'is_virtual' => (int) $row['is_virtual'] === 1,
             'meta' => $meta,
             'is_active' => (string) $row['id'] === $activeId,
             'created_at' => (string) $row['created_at'],
@@ -3529,6 +3532,7 @@ function api_sifronts_create(string $method): never
             'version' => $version,
             'has_bundle' => $bundle !== '',
             'bundle_size' => strlen($bundle),
+            'is_virtual' => false,
             'meta' => json_decode($meta, true),
             'is_active' => false,
             'created_at' => date('Y-m-d H:i:s'),
@@ -3552,10 +3556,16 @@ function api_sifronts_update(string $method): never
         json_response(['error' => 'id is required'], 422);
     }
 
-    $stmt = db()->prepare('SELECT id FROM sifronts WHERE id = ?');
+    $stmt = db()->prepare('SELECT id, is_virtual FROM sifronts WHERE id = ?');
     $stmt->execute([$id]);
-    if ($stmt->fetch() === false) {
+    $existing = $stmt->fetch();
+
+    if ($existing === false) {
         json_response(['error' => 'sifront not found'], 404);
+    }
+
+    if ((int) $existing['is_virtual'] === 1) {
+        json_response(['error' => 'the built-in sifront cannot be updated'], 422);
     }
 
     $sets = [];
@@ -3628,7 +3638,7 @@ function api_sifronts_update(string $method): never
     )->execute($params);
 
     $stmt = db()->prepare(
-        'SELECT id, name, content, meta, version, bundle_size, created_at, updated_at'
+        'SELECT id, name, content, meta, version, bundle_size, is_virtual, created_at, updated_at'
         . ' FROM sifronts WHERE id = ?'
     );
     $stmt->execute([$id]);
@@ -3644,6 +3654,7 @@ function api_sifronts_update(string $method): never
             'version' => (string) $row['version'],
             'has_bundle' => (int) $row['bundle_size'] > 0,
             'bundle_size' => (int) $row['bundle_size'],
+            'is_virtual' => (int) $row['is_virtual'] === 1,
             'meta' => json_decode((string) $row['meta'], true),
             'is_active' => (string) $row['id'] === $activeId,
             'created_at' => (string) $row['created_at'],
@@ -3666,17 +3677,24 @@ function api_sifronts_delete(string $method): never
         json_response(['error' => 'id is required'], 422);
     }
 
+    $stmt = db()->prepare('SELECT is_virtual FROM sifronts WHERE id = ?');
+    $stmt->execute([$id]);
+    $row = $stmt->fetch();
+
+    if ($row === false) {
+        json_response(['error' => 'sifront not found'], 404);
+    }
+
+    if ((int) $row['is_virtual'] === 1) {
+        json_response(['error' => 'the built-in sifront cannot be deleted'], 422);
+    }
+
     $activeId = (string) setting_get('active_sifront_id', '');
     if ((string) $id === $activeId) {
         json_response(['error' => 'cannot delete the active sifront'], 422);
     }
 
-    $stmt = db()->prepare('DELETE FROM sifronts WHERE id = ?');
-    $stmt->execute([$id]);
-
-    if ($stmt->rowCount() === 0) {
-        json_response(['error' => 'sifront not found'], 404);
-    }
+    db()->prepare('DELETE FROM sifronts WHERE id = ?')->execute([$id]);
 
     json_response(['ok' => true]);
 }

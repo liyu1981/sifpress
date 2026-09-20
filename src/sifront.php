@@ -11,7 +11,7 @@
  * JSON API, so the backend never opens a ZIP: it stores `bundle`/`meta`/
  * `version` columns directly. For local iteration `buildfront.php` also
  * writes `<name>.bundle.js` / `<name>.meta.json` next to the artifact, which
- * the dev disk fast-path reads.
+ * a dev injection step reads instead of re-picking the ZIP.
  * ------------------------------------------------------------
  */
 

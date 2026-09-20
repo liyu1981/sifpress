@@ -141,13 +141,6 @@ const WEB_FETCH_ENDPOINT = 'https://markdown.new';
 const WEB_FETCH_TIMEOUT = 30;
 const WEB_FETCH_MAX_BYTES = 2 * 1024 * 1024;
 
-/*
- * Fixed row id of the seeded `sifpress1` sifront (see
- * migrations/0015_sifpress1_sifront.sql). Dev builds serve its bundle
- * (dist/sifpress1.sifront) from disk instead of the DB content.
- */
-const SIFRONT_SIFPRESS1_ID = 1001;
-
 function request_method(): string
 {
     return strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
