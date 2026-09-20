@@ -186,6 +186,27 @@
       inset 0 1px 0 color-mix(in oklch, white 10%, transparent);
   }
 
+  /*
+   * Readability modifier: apply alongside `glass-control` on long-form
+   * reading surfaces (sidebar, article body) to raise the surface opacity.
+   * Only the background changes; border/blur/shadow stay from glass-control.
+   */
+  .glass-control-read {
+    background: linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--card) 92%, transparent),
+      color-mix(in oklch, var(--card) 82%, transparent)
+    );
+  }
+
+  .dark .glass-control-read {
+    background: linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--card) 90%, transparent),
+      color-mix(in oklch, var(--card) 78%, transparent)
+    );
+  }
+
   .apple-panel {
     background: linear-gradient(
       180deg,
@@ -514,5 +535,10 @@
     background: var(--background);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+  }
+
+  .glass-control-read,
+  .dark .glass-control-read {
+    background: var(--card);
   }
 }

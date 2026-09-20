@@ -25,7 +25,7 @@ export function Sidebar({ tags, settings }: { tags: TagCount[]; settings?: SeoSe
   }
 
   return (
-    <aside className="glass-control flex flex-col gap-6 rounded-2xl p-4 lg:p-6">
+    <aside className="glass-control glass-control-read flex flex-col gap-6 rounded-2xl p-4 lg:p-6">
       {/*
         Mobile: the nav starts collapsed, showing only the avatar/logo and the
         site name. The toggle reveals the rest; on lg+ everything is always

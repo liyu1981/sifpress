@@ -91,7 +91,7 @@ function ArticleDetailPage() {
     <div className="mx-auto w-full max-w-8xl">
       <ReadingProgress />
       <div className="mx-auto grid max-w-6xl gap-8 xl:grid-cols-[minmax(0,1fr)_14rem]">
-        <article className="glass-control overflow-hidden rounded-2xl">
+        <article className="glass-control glass-control-read overflow-hidden rounded-2xl">
           {cover !== null && (
             <div className="relative aspect-[21/9] w-full overflow-hidden bg-muted">
               <img src={cover} alt="" className="absolute inset-0 size-full object-cover" />
