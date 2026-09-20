@@ -507,6 +507,11 @@ const en = {
     revokeGrant: 'Revoke',
     grantError: 'Could not update the grant.',
     loading: 'Loading…',
+    optimizeToggle: 'Optimize',
+    optimizeToggleHint: 'Optimize this image before uploading',
+    optimizeTitleOptional: 'Optimize image',
+    optimizeDescriptionOptional:
+      '"{{name}}" is {{size}} — within the {{limit}} limit. Optimize it to shrink the upload, or upload the original.',
     optimizeTitle: 'Image is too large',
     optimizeDescription:
       '"{{name}}" is {{size}} — over the {{limit}} limit. Choose a local optimization below, then confirm to upload.',
@@ -522,6 +527,7 @@ const en = {
       'No method brings this image under the limit. Try cropping or exporting it at a smaller size.',
     optimizeConfirm: 'Optimize & upload',
     optimizeCancel: 'Skip file',
+    optimizeUploadOriginal: 'Upload original',
     optimizeSkipped: 'Skipped: image too large',
     optimizeLoading: 'Analyzing image…',
     optimizeFailed: 'Could not process this image.',
@@ -1216,6 +1222,11 @@ const zh = {
     revokeGrant: '撤销',
     grantError: '无法更新授权。',
     loading: '加载中…',
+    optimizeToggle: '优化',
+    optimizeToggleHint: '上传前优化此图片',
+    optimizeTitleOptional: '优化图片',
+    optimizeDescriptionOptional:
+      '「{{name}}」大小为 {{size}}，在 {{limit}} 限制以内。可优化以减小上传体积，或直接上传原图。',
     optimizeTitle: '图片过大',
     optimizeDescription:
       '「{{name}}」大小为 {{size}}，超出 {{limit}} 的限制。请选择下方的本地优化方式，确认后再上传。',
@@ -1230,6 +1241,7 @@ const zh = {
     optimizeNoOptions: '没有一种方式能将此图片压缩到限制以内。请尝试裁剪或以更小尺寸导出。',
     optimizeConfirm: '优化并上传',
     optimizeCancel: '跳过此文件',
+    optimizeUploadOriginal: '上传原图',
     optimizeSkipped: '已跳过：图片过大',
     optimizeLoading: '正在分析图片…',
     optimizeFailed: '无法处理此图片。',

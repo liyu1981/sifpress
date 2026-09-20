@@ -26,7 +26,7 @@ import { formatBytes, formatTimestamp } from '@/lib/format';
 import { AssetThumb } from '@/components/asset-thumb';
 import { AssetDetailDialog } from '@/components/asset-detail-dialog';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { useImageOptimize } from '@/hooks/use-image-optimize';
+import { shouldOptimizeByDefault, useImageOptimize } from '@/hooks/use-image-optimize';
 
 const PER_PAGE = 24;
 const ACCEPT =
@@ -38,6 +38,7 @@ interface UploadItem {
   status: 'queued' | 'processing' | 'done' | 'error';
   error?: string;
   duplicate?: boolean;
+  optimize: boolean;
 }
 
 export function AssetsPage() {
@@ -90,6 +91,8 @@ export function AssetsPage() {
   });
 
   const limits = systemQuery.data?.asset_limits;
+  const isOverLimit = (file: File): boolean =>
+    limits !== undefined && file.size > limits.image_max_bytes;
 
   const remove = useMutation({
     mutationFn: (id: number) => assetsApi.remove(id),
@@ -115,6 +118,7 @@ export function AssetsPage() {
         file,
         status: supported ? 'queued' : 'error',
         error: supported ? undefined : t('assets.unsupported'),
+        optimize: shouldOptimizeByDefault(file),
       });
     }
     setQueue(current => [...current, ...next]);
@@ -196,22 +200,26 @@ export function AssetsPage() {
       let current = item;
 
       if (item.file.type.startsWith('image/')) {
-        const optimized = await ensureWithinLimit(item.file);
-        if (optimized === null) {
-          setQueue(list =>
-            list.map(entry =>
-              entry.key === item.key
-                ? { ...entry, status: 'error' as const, error: t('assets.optimizeSkipped') }
-                : entry,
-            ),
-          );
-          continue;
-        }
-        if (optimized !== item.file) {
-          current = { ...item, file: optimized };
-          setQueue(list =>
-            list.map(entry => (entry.key === item.key ? { ...entry, file: optimized } : entry)),
-          );
+        const overLimit = isOverLimit(item.file);
+
+        if (overLimit || item.optimize) {
+          const optimized = await ensureWithinLimit(item.file, { optional: !overLimit });
+          if (optimized === null) {
+            setQueue(list =>
+              list.map(entry =>
+                entry.key === item.key
+                  ? { ...entry, status: 'error' as const, error: t('assets.optimizeSkipped') }
+                  : entry,
+              ),
+            );
+            continue;
+          }
+          if (optimized !== item.file) {
+            current = { ...item, file: optimized };
+            setQueue(list =>
+              list.map(entry => (entry.key === item.key ? { ...entry, file: optimized } : entry)),
+            );
+          }
         }
       }
 
@@ -348,6 +356,30 @@ export function AssetsPage() {
                       <Upload className="size-4 shrink-0 text-muted-foreground" />
                     )}
                     <span className="min-w-0 flex-1 truncate">{item.file.name}</span>
+                    <Badge variant="outline">{formatBytes(item.file.size)}</Badge>
+                    {item.file.type.startsWith('image/') && item.status === 'queued' && (
+                      <label
+                        className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground"
+                        title={t('assets.optimizeToggleHint')}
+                      >
+                        <input
+                          type="checkbox"
+                          className="size-4 accent-primary"
+                          checked={item.optimize || isOverLimit(item.file)}
+                          disabled={isOverLimit(item.file)}
+                          onChange={event =>
+                            setQueue(current =>
+                              current.map(entry =>
+                                entry.key === item.key
+                                  ? { ...entry, optimize: event.target.checked }
+                                  : entry,
+                              ),
+                            )
+                          }
+                        />
+                        <span className="hidden sm:inline">{t('assets.optimizeToggle')}</span>
+                      </label>
+                    )}
                     {item.duplicate && <Badge variant="secondary">{t('assets.duplicate')}</Badge>}
                     {item.error !== undefined && (
                       <span className="truncate text-xs text-destructive">{item.error}</span>

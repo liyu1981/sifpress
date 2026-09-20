@@ -78,6 +78,7 @@ function ImageOptimizeDialog({
   onConfirm,
 }: ImageOptimizeDialogProps) {
   const { t } = useTranslation();
+  const withinLimit = file.size <= limitBytes;
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
@@ -211,13 +212,21 @@ function ImageOptimizeDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="glass-control-opaque max-w-lg">
         <DialogHeader>
-          <DialogTitle>{t('assets.optimizeTitle')}</DialogTitle>
+          <DialogTitle>
+            {withinLimit ? t('assets.optimizeTitleOptional') : t('assets.optimizeTitle')}
+          </DialogTitle>
           <DialogDescription>
-            {t('assets.optimizeDescription', {
-              name: file.name,
-              size: formatBytes(file.size),
-              limit: formatBytes(limitBytes),
-            })}
+            {withinLimit
+              ? t('assets.optimizeDescriptionOptional', {
+                  name: file.name,
+                  size: formatBytes(file.size),
+                  limit: formatBytes(limitBytes),
+                })
+              : t('assets.optimizeDescription', {
+                  name: file.name,
+                  size: formatBytes(file.size),
+                  limit: formatBytes(limitBytes),
+                })}
           </DialogDescription>
         </DialogHeader>
 
@@ -339,7 +348,7 @@ function ImageOptimizeDialog({
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            {t('assets.optimizeCancel')}
+            {withinLimit ? t('assets.optimizeUploadOriginal') : t('assets.optimizeCancel')}
           </Button>
           <Button type="button" onClick={handleConfirm} disabled={!canConfirm}>
             {t('assets.optimizeConfirm')}
