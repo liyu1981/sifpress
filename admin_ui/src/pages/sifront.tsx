@@ -24,7 +24,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useAuth } from 'ui-sdk';
 import { appBaseUrl, kvsApi, sifrontsApi, type SifrontListItem } from 'ui-sdk';
 import { formatTimestamp } from '@/lib/format';
-import { readSifrontBundle } from '@/lib/sifront-bundle';
+import { readSifrontBundle, compareVersions, type SifrontBundle } from '@/lib/sifront-bundle';
 
 function ValueCell({ value }: { value: unknown }) {
   const text = typeof value === 'string' ? value : JSON.stringify(value);
@@ -241,12 +241,14 @@ function SifrontCard({
   canManage: boolean;
   activate: UseMutationResult<unknown, unknown, number>;
   remove: UseMutationResult<unknown, unknown, number>;
-  update: UseMutationResult<unknown, unknown, { id: number; file: File }>;
+  update: UseMutationResult<unknown, unknown, { id: number; bundle: SifrontBundle }>;
 }) {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(sf.is_active);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [pendingBundle, setPendingBundle] = useState<SifrontBundle | null>(null);
+  const [confirmForce, setConfirmForce] = useState(false);
   const updateRef = useRef<HTMLInputElement | null>(null);
   const updating = update.isPending && update.variables?.id === sf.id;
 
@@ -333,12 +335,29 @@ function SifrontCard({
                     type="file"
                     accept=".sifront,application/zip"
                     className="hidden"
-                    onChange={event => {
+                    onChange={async event => {
                       const file = event.target.files?.[0];
                       event.target.value = '';
 
-                      if (file !== undefined) {
-                        update.mutate({ id: sf.id, file });
+                      if (file === undefined) {
+                        return;
+                      }
+
+                      try {
+                        const parsed = await readSifrontBundle(file);
+
+                        if (compareVersions(parsed.version, sf.version) > 0) {
+                          update.mutate({ id: sf.id, bundle: parsed });
+                        } else {
+                          setPendingBundle(parsed);
+                          setConfirmForce(true);
+                        }
+                      } catch (error) {
+                        toast.error(
+                          t('sifront.updateFailed', {
+                            detail: error instanceof Error ? error.message : String(error),
+                          }),
+                        );
                       }
                     }}
                   />
@@ -407,6 +426,29 @@ function SifrontCard({
         destructive
         onConfirm={() => remove.mutate(sf.id)}
       />
+      <ConfirmDialog
+        open={confirmForce}
+        onOpenChange={open => {
+          setConfirmForce(open);
+
+          if (!open) {
+            setPendingBundle(null);
+          }
+        }}
+        title={t('sifront.forceUpdateConfirm', {
+          name: sf.name,
+          version: pendingBundle?.version ?? '',
+          current: sf.version,
+        })}
+        confirmLabel={t('sifront.forceUpdate')}
+        cancelLabel={t('common.cancel')}
+        onConfirm={() => {
+          if (pendingBundle !== null) {
+            update.mutate({ id: sf.id, bundle: pendingBundle });
+            setPendingBundle(null);
+          }
+        }}
+      />
     </Card>
   );
 }
@@ -444,8 +486,8 @@ export function SifrontsPage() {
   });
 
   const update = useMutation({
-    mutationFn: async (input: { id: number; file: File }) => {
-      const { name, version, meta, bundle } = await readSifrontBundle(input.file);
+    mutationFn: async (input: { id: number; bundle: SifrontBundle }) => {
+      const { name, version, meta, bundle } = input.bundle;
       return sifrontsApi.update({ id: input.id, name, version, meta, bundle });
     },
     onSuccess: sf => {

@@ -3518,10 +3518,18 @@ function api_sifronts_create(string $method): never
     }
 
     $stmt = db()->prepare(
-        'INSERT INTO sifronts (name, content, meta, version, bundle, bundle_size)'
-        . ' VALUES (?, ?, ?, ?, ?, ?)'
+        'INSERT INTO sifronts (name, content, meta, version, bundle, bundle_size, bundle_hash)'
+        . ' VALUES (?, ?, ?, ?, ?, ?, ?)'
     );
-    $stmt->execute([$name, $content, $meta, $version, $bundle, strlen($bundle)]);
+    $stmt->execute([
+        $name,
+        $content,
+        $meta,
+        $version,
+        $bundle,
+        strlen($bundle),
+        $bundle === '' ? '' : md5($bundle),
+    ]);
     $id = (int) db()->lastInsertId();
 
     json_response([
@@ -3598,6 +3606,7 @@ function api_sifronts_update(string $method): never
         } else {
             $sets['bundle'] = $bundle;
             $sets['bundle_size'] = strlen($bundle);
+            $sets['bundle_hash'] = $bundle === '' ? '' : md5($bundle);
         }
     }
 

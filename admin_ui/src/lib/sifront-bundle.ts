@@ -51,3 +51,33 @@ export async function readSifrontBundle(file: File): Promise<SifrontBundle> {
 
   return { name, version, meta, bundle };
 }
+
+/**
+ * Compare two dotted version strings. Returns > 0 when `a` is newer than
+ * `b`, 0 when equal, < 0 when older. Non-numeric versions fall back to a
+ * plain string comparison.
+ */
+export function compareVersions(a: string, b: string): number {
+  const parse = (value: string): number[] | null => {
+    const parts = value.trim().split('.');
+
+    return parts.length > 0 && parts.every(part => /^\d+$/.test(part)) ? parts.map(Number) : null;
+  };
+
+  const pa = parse(a);
+  const pb = parse(b);
+
+  if (pa === null || pb === null) {
+    return a === b ? 0 : a < b ? -1 : 1;
+  }
+
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+
+    if (diff !== 0) {
+      return diff > 0 ? 1 : -1;
+    }
+  }
+
+  return 0;
+}

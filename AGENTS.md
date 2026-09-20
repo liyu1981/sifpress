@@ -56,7 +56,9 @@ php buildfront.php release
   bundled sifront in a server-generated HTML shell (theme bootstrap +
   `<meta name="sifront_meta">` + the ui-sdk/module + `bundle.js`),
   while `serve_sifront_bundle()` streams `bundle.js` from the stored
-  bytes at `?p=sifpress/sifront-bundle&id=N&v=version`. A row with
+  bytes at `?p=sifpress/sifront-bundle&id=N&v=version&h=md5`. The `h`
+  content hash keeps the URL unique across same-version re-uploads even
+  though the endpoint is `immutable`. A row with
   legacy HTML `content` and no bundle is still served verbatim.
 - **Dev vs release**: dev builds include `src/dev.php`
   (`?p=dev&action=initData`, an admin-gated demo-data seeder) and define

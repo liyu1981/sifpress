@@ -154,7 +154,7 @@ parameterized by the active sifront's `meta.json`:
   <script>/* theme bootstrap: localStorage.theme → html.dark */</script>
   <meta name="sifront_meta" content="{json-escaped meta.json}">
   <script type="module" src="?p=sifpress/asset/js/ui-sdk.mjs"></script>
-  <script type="module" src="?p=sifpress/sifront-bundle&id={id}&v={version}"></script>
+  <script type="module" src="?p=sifpress/sifront-bundle&id={id}&v={version}&h={hash}"></script>
 </head>
 <body><div id="root"></div></body>
 </html>
@@ -176,7 +176,8 @@ parameterized by the active sifront's `meta.json`:
 - `id` optional; defaults to the active sifront.
 - Streams the stored `bundle` BLOB (no dev disk override).
 - Headers: `Content-Type: text/javascript; charset=utf-8`,
-  `Cache-Control: public, max-age=31536000, immutable` (URL is versioned),
+  `Cache-Control: public, max-age=31536000, immutable` (URL carries `v` +
+  the md5 `h`, so same-version re-uploads still bust the cache),
   `X-Content-Type-Options: nosniff`; `no-cache` in dev. 404 when absent.
 
 ---
@@ -224,7 +225,9 @@ PATCH ?p=sifpress/api?action=sifronts.update
 - `admin_ui/src/pages/sifront.tsx`
   - "New sifront" reads the picked `.sifront` and `sifrontsApi.create(...)`.
   - Each card's **Update** button reads the picked file and
-    `sifrontsApi.update({ id, ... })`.
+    `sifrontsApi.update({ id, ... })`. A bundle whose version is not newer
+    than the installed one opens a **force-update** confirm first; a newer
+    version updates directly.
   - Toasts show the resulting version; the list already renders it.
   - The `content`/legacy path is dropped from the UI.
 - `ui_sdk/src/pages.ts`: `sifrontsApi.create` / `update` accept `bundle`;

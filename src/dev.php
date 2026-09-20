@@ -120,16 +120,16 @@ function dev_inject_sifront(string $name): array
 
     if ($existing === false) {
         db()->prepare(
-            'INSERT INTO sifronts (name, content, meta, version, bundle, bundle_size)'
-            . " VALUES (?, '', ?, ?, ?, ?)"
-        )->execute([$name, $metaStr, $version, $bundle, strlen($bundle)]);
+            'INSERT INTO sifronts (name, content, meta, version, bundle, bundle_size, bundle_hash)'
+            . " VALUES (?, '', ?, ?, ?, ?, ?)"
+        )->execute([$name, $metaStr, $version, $bundle, strlen($bundle), md5($bundle)]);
         $id = (int) db()->lastInsertId();
     } else {
         $id = (int) $existing;
         db()->prepare(
             'UPDATE sifronts SET meta = ?, version = ?, bundle = ?, bundle_size = ?,'
-            . " updated_at = datetime('now') WHERE id = ?"
-        )->execute([$metaStr, $version, $bundle, strlen($bundle), $id]);
+            . " bundle_hash = ?, updated_at = datetime('now') WHERE id = ?"
+        )->execute([$metaStr, $version, $bundle, strlen($bundle), md5($bundle), $id]);
     }
 
     setting_set('active_sifront_id', (string) $id);

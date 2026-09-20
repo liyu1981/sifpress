@@ -57,6 +57,9 @@ const en = {
     update: 'Update',
     updated: 'Sifront "{{name}}" updated to v{{version}}.',
     updateFailed: 'Could not update sifront: {{detail}}',
+    forceUpdate: 'Force update',
+    forceUpdateConfirm:
+      'Bundle version {{version}} is not newer than the installed v{{current}}. Replace "{{name}}" anyway?',
     valueSaved: 'Saved "{{key}}".',
     valueFailed: 'Could not save "{{key}}": {{detail}}',
     saveValue: 'Save',
@@ -769,6 +772,9 @@ const zh = {
     update: '更新',
     updated: '已更新前台「{{name}}」到 v{{version}}。',
     updateFailed: '无法更新前台：{{detail}}',
+    forceUpdate: '强制更新',
+    forceUpdateConfirm:
+      '该前台版本 {{version}} 不高于已安装的 v{{current}}。仍要替换「{{name}}」吗？',
     valueSaved: '已保存「{{key}}」。',
     valueFailed: '无法保存「{{key}}」：{{detail}}',
     saveValue: '保存',

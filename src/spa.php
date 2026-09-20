@@ -134,8 +134,13 @@ JS;
  * HTML shell for a bundled sifront. The backend owns the document; the ZIP's
  * `bundle.js` is loaded as a module and injects its own styles.
  */
-function sifront_shell_html(int $id, string $name, array $meta, string $version): string
-{
+function sifront_shell_html(
+    int $id,
+    string $name,
+    array $meta,
+    string $version,
+    string $hash = ''
+): string {
     $title = is_string($meta['title'] ?? null) && $meta['title'] !== ''
         ? $meta['title']
         : $name;
@@ -151,6 +156,10 @@ function sifront_shell_html(int $id, string $name, array $meta, string $version)
     }
 
     $bundleSrc = '?p=sifpress/sifront-bundle&id=' . $id . '&v=' . rawurlencode($version);
+
+    if ($hash !== '') {
+        $bundleSrc .= '&h=' . rawurlencode($hash);
+    }
 
     return '<!doctype html>'
         . '<html lang="en">'
@@ -185,7 +194,8 @@ function serve_sifront_page(): never
 
         if ($activeId > 0) {
             $stmt = db()->prepare(
-                'SELECT name, content, meta, version, bundle_size FROM sifronts WHERE id = ?'
+                'SELECT name, content, meta, version, bundle_size, bundle_hash'
+                . ' FROM sifronts WHERE id = ?'
             );
             $stmt->execute([$activeId]);
             $row = $stmt->fetch();
@@ -198,7 +208,13 @@ function serve_sifront_page(): never
                 $isBundled = (int) $row['bundle_size'] > 0;
 
                 if ($isBundled) {
-                    $html = sifront_shell_html($activeId, $name, $meta, $version);
+                    $html = sifront_shell_html(
+                        $activeId,
+                        $name,
+                        $meta,
+                        $version,
+                        (string) $row['bundle_hash']
+                    );
                 } else {
                     $content = (string) $row['content'];
 
