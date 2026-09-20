@@ -1,7 +1,8 @@
 import { ChevronsUpDown, Redo2, Undo2 } from 'lucide-react';
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { addedFor, type ChangeEdits, type DiffBlock } from '@/lib/diff/blocks';
+import { wordDiff, type WordDiffPair } from '@/lib/diff/words';
 import { cn } from '@/lib/utils';
 
 const CONTEXT_LINES = 4;
@@ -19,6 +20,7 @@ interface LineRow {
   changeType?: ChangeType;
   changeIndex?: number;
   showToggle?: boolean;
+  segments?: WordDiffPair;
 }
 
 interface CollapsedRow {
@@ -98,6 +100,8 @@ function buildRows(
         changeType,
         changeIndex: hasRight ? i : undefined,
         showToggle: i === 0,
+        segments:
+          hasLeft && hasRight ? (wordDiff(block.removed[i], added[i]) ?? undefined) : undefined,
       });
     }
   }
@@ -109,10 +113,14 @@ function EditableLine({
   value,
   onChange,
   ariaLabel,
+  onBlur,
+  autoFocus = false,
 }: {
   value: string;
   onChange: (next: string) => void;
   ariaLabel: string;
+  onBlur?: () => void;
+  autoFocus?: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -132,15 +140,55 @@ function EditableLine({
       rows={1}
       spellCheck={false}
       autoComplete="off"
+      autoFocus={autoFocus}
       aria-label={ariaLabel}
+      onBlur={onBlur}
       onChange={event => onChange(event.target.value.replace(/[\r\n]+/g, ' '))}
       onKeyDown={event => {
-        if (event.key === 'Enter') {
+        if (event.key === 'Enter' || event.key === 'Escape') {
           event.preventDefault();
+          event.currentTarget.blur();
         }
       }}
       className="m-0 block min-w-0 flex-1 resize-none overflow-hidden rounded-sm border-0 bg-transparent p-0 font-mono text-xs leading-5 break-words whitespace-pre-wrap text-inherit outline-none transition-colors hover:bg-primary/10 focus-visible:bg-primary/15"
     />
+  );
+}
+
+function renderSegments(
+  text: string,
+  segments: WordDiffPair | undefined,
+  side: 'left' | 'right',
+  tone: 'context' | 'removed' | 'added',
+): ReactNode {
+  if (text === '') {
+    return '\u00a0';
+  }
+
+  if (segments === undefined) {
+    return text;
+  }
+
+  const parts = side === 'left' ? segments.left : segments.right;
+
+  if (parts.length === 0) {
+    return text;
+  }
+
+  return parts.map((part, index) =>
+    part.changed ? (
+      <mark
+        key={index}
+        className={cn(
+          'rounded-[2px] text-inherit',
+          tone === 'removed' ? 'bg-red-500/30' : 'bg-emerald-500/30',
+        )}
+      >
+        {part.text}
+      </mark>
+    ) : (
+      <span key={index}>{part.text}</span>
+    ),
   );
 }
 
@@ -150,7 +198,11 @@ interface DiffLineCellProps {
   text: string;
   tone: 'context' | 'removed' | 'added';
   reverted: boolean;
+  segments?: WordDiffPair;
   editable?: boolean;
+  editing?: boolean;
+  onStartEdit?: () => void;
+  onStopEdit?: () => void;
   onChange?: (next: string) => void;
   ariaLabel?: string;
 }
@@ -161,10 +213,16 @@ function DiffLineCell({
   text,
   tone,
   reverted,
+  segments,
   editable = false,
+  editing = false,
+  onStartEdit,
+  onStopEdit,
   onChange,
   ariaLabel = '',
 }: DiffLineCellProps) {
+  const activeSegments = reverted ? undefined : segments;
+
   return (
     <div
       className={cn(
@@ -178,8 +236,24 @@ function DiffLineCell({
       <span className="w-9 shrink-0 select-none text-right font-mono text-[10px] leading-5 text-muted-foreground/50 tabular-nums">
         {lineNo ?? ''}
       </span>
-      {editable && onChange !== undefined ? (
-        <EditableLine value={text} onChange={onChange} ariaLabel={ariaLabel} />
+      {editable && editing && onChange !== undefined ? (
+        <EditableLine
+          value={text}
+          onChange={onChange}
+          ariaLabel={ariaLabel}
+          onBlur={onStopEdit}
+          autoFocus
+        />
+      ) : editable && onStartEdit !== undefined ? (
+        <button
+          type="button"
+          onFocus={onStartEdit}
+          onClick={onStartEdit}
+          aria-label={ariaLabel}
+          className="m-0 min-w-0 flex-1 cursor-text rounded-sm border-0 bg-transparent p-0 text-left font-mono text-xs leading-5 break-words whitespace-pre-wrap text-inherit outline-none transition-colors hover:bg-primary/10 focus-visible:bg-primary/15"
+        >
+          {renderSegments(text, activeSegments, side, tone)}
+        </button>
       ) : (
         <span
           className={cn(
@@ -187,7 +261,7 @@ function DiffLineCell({
             reverted && tone === 'added' && 'line-through',
           )}
         >
-          {text === '' ? '\u00a0' : text}
+          {renderSegments(text, activeSegments, side, tone)}
         </span>
       )}
     </div>
@@ -300,10 +374,16 @@ export function ReviewDiffView({
 }: ReviewDiffViewProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const rows = useMemo(
     () => buildRows(blocks, expanded, edited, firstLineNo),
     [blocks, expanded, edited, firstLineNo],
   );
+
+  useEffect(() => {
+    setEditingKey(null);
+  }, [blocks]);
+
   const hasSelectionContext = contextBefore !== undefined || contextAfter !== undefined;
   const changeCount = useMemo(
     () => blocks.filter(block => block.kind === 'change').length,
@@ -318,6 +398,11 @@ export function ReviewDiffView({
       next.add(contextId);
       return next;
     });
+
+  const handleToggle = (id: string) => {
+    setEditingKey(null);
+    onToggle?.(id);
+  };
 
   return (
     <div className="font-mono text-xs">
@@ -370,6 +455,7 @@ export function ReviewDiffView({
               text={row.leftText}
               tone={leftTone}
               reverted={isReverted}
+              segments={row.segments}
             />
             <DiffLineCell
               side="right"
@@ -377,7 +463,11 @@ export function ReviewDiffView({
               text={row.rightText}
               tone={rightTone}
               reverted={isReverted}
+              segments={row.segments}
               editable={canEdit}
+              editing={editingKey === row.key}
+              onStartEdit={canEdit ? () => setEditingKey(row.key) : undefined}
+              onStopEdit={() => setEditingKey(current => (current === row.key ? null : current))}
               ariaLabel={t('editor.reviewEditLine')}
               onChange={
                 canEdit
@@ -391,7 +481,8 @@ export function ReviewDiffView({
               row.changeId !== undefined && (
                 <button
                   type="button"
-                  onClick={() => onToggle?.(row.changeId as string)}
+                  onMouseDown={event => event.preventDefault()}
+                  onClick={() => handleToggle(row.changeId as string)}
                   aria-label={
                     isReverted ? t('editor.reviewRestoreChange') : t('editor.reviewUndoChange')
                   }
