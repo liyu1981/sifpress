@@ -70,6 +70,7 @@ const en = {
     indexDescription:
       'Notes on a single-file, markdown-powered blog — math, diagrams, and flexible images.',
     reading: '{{min}} min read',
+    updatedAt: 'Updated',
     readMore: 'Read more',
     toc: 'On this page',
     newer: 'Newer',
@@ -793,6 +794,7 @@ const zh = {
     indexTitle: '文章',
     indexDescription: '关于单文件、markdown 驱动的博客的笔记——数学公式、图表和灵活的图像。',
     reading: '阅读约 {{min}} 分钟',
+    updatedAt: '更新于',
     readMore: '阅读全文',
     toc: '本页目录',
     newer: '更新',

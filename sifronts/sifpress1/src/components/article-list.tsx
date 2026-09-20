@@ -32,6 +32,7 @@ function toCardData(article: PageListItem): ArticleCardData {
     reading_minutes: estimateReadingMinutes(content),
     author: article.created_by_name !== '' ? article.created_by_name : null,
     tags: article.tags ?? [],
+    created_at: article.created_at,
     updated_at: article.updated_at,
   };
 }

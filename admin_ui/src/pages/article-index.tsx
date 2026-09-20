@@ -6,6 +6,7 @@ import {
   Clock,
   FilePenLine,
   GitCommitHorizontal,
+  History,
   Search,
   Trash2,
 } from 'lucide-react';
@@ -32,8 +33,14 @@ function SearchCard({ result, locale }: { result: SearchResult; locale: string }
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
           <Calendar className="size-3.5" />
-          {formatDate(result.updated_at.slice(0, 10), locale)}
+          {formatDate(result.created_at.slice(0, 10), locale)}
         </span>
+        {result.updated_at !== result.created_at && (
+          <span className="inline-flex items-center gap-1.5">
+            <History className="size-3.5" />
+            {t('article.updatedAt')} {formatDate(result.updated_at.slice(0, 10), locale)}
+          </span>
+        )}
         <span className="inline-flex items-center gap-1.5">
           <Clock className="size-3.5" />
           {t('article.reading', { min: estimateReadingMinutes(result.excerpt) })}
@@ -89,8 +96,14 @@ function ArticleCard({ article, locale }: { article: PageListItem; locale: strin
         <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <Calendar className="size-3.5" />
-            {formatDate(article.updated_at.slice(0, 10), locale)}
+            {formatDate(article.created_at.slice(0, 10), locale)}
           </span>
+          {article.updated_at !== article.created_at && (
+            <span className="inline-flex items-center gap-1.5">
+              <History className="size-3.5" />
+              {t('article.updatedAt')} {formatDate(article.updated_at.slice(0, 10), locale)}
+            </span>
+          )}
           <span className="inline-flex items-center gap-1.5">
             <Clock className="size-3.5" />
             {t('article.reading', { min: readingMinutes })}

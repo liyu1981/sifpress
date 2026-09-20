@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Calendar, Clock, Folder } from 'lucide-react';
+import { Calendar, Clock, Folder, RefreshCw } from 'lucide-react';
 
 export interface ArticleCardData {
   slug: string;
@@ -9,6 +9,7 @@ export interface ArticleCardData {
   reading_minutes?: number;
   author?: string | null;
   tags: string[];
+  created_at: string;
   updated_at: string;
 }
 
@@ -68,8 +69,14 @@ export function ArticleCard({ article }: { article: ArticleCardData }) {
         <div className="mt-6 flex flex-wrap items-center gap-4 border-t border-border/70 pt-4 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <Calendar className="size-3.5" />
-            {formatDate(article.updated_at)}
+            {formatDate(article.created_at)}
           </span>
+          {article.updated_at !== article.created_at && (
+            <span className="inline-flex items-center gap-1.5" title="Last updated">
+              <RefreshCw className="size-3.5" />
+              Updated {formatDate(article.updated_at)}
+            </span>
+          )}
           {article.reading_minutes !== undefined && (
             <span className="inline-flex items-center gap-1.5">
               <Clock className="size-3.5" />

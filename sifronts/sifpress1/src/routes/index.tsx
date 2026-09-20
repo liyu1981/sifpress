@@ -130,6 +130,7 @@ function HomePage() {
                   title: result.title,
                   excerpt: result.excerpt || '…',
                   tags: [],
+                  created_at: result.created_at,
                   updated_at: result.updated_at,
                 };
 

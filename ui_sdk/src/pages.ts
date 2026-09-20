@@ -90,6 +90,7 @@ export interface PageListItem {
   current_revision_id: string | null;
   created_by: number | null;
   created_by_name: string;
+  created_at: string;
   updated_at: string;
   can_edit: boolean;
 }
@@ -101,6 +102,7 @@ export interface SearchResult {
   excerpt: string;
   status: PageStatus;
   created_by_name: string;
+  created_at: string;
   updated_at: string;
   can_edit: boolean;
   current_revision_id?: string | null;

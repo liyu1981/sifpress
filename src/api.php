@@ -311,6 +311,7 @@ function search_pages(string $q, ?string $status, int $page = 1, int $perPage = 
             'excerpt' => (string) $page['excerpt'],
             'status' => $page['status'],
             'created_by_name' => (string) $page['created_by_name'],
+            'created_at' => $page['created_at'],
             'updated_at' => $page['updated_at'],
             'can_edit' => $user !== null && can_edit_page($user, (int) $page['id']),
         ];
@@ -865,7 +866,7 @@ function api_pages_list(string $method): never
                LEFT JOIN users cu ON cu.id = p.created_by
                LEFT JOIN users uu ON uu.id = p.updated_by
                ' . $where . '
-              ORDER BY p.updated_at DESC'
+              ORDER BY p.created_at DESC, p.id DESC'
         );
         $stmt->execute($params);
 
@@ -898,7 +899,7 @@ function api_pages_list(string $method): never
               LEFT JOIN users cu ON cu.id = p.created_by
               LEFT JOIN users uu ON uu.id = p.updated_by
               ' . $where . '
-             ORDER BY p.updated_at DESC
+             ORDER BY p.created_at DESC, p.id DESC
              LIMIT :limit OFFSET :offset';
 
     $stmt = db()->prepare($sql);
