@@ -34,6 +34,20 @@
 $sifpress_config_path = dirname(__FILE__) . '/sifpress_config.php';
 
 /*
+ * On the CLI a `--config=PATH` option selects the config file; honour it
+ * here so the default config is not loaded (and its constants defined)
+ * before the CLI gets a chance to.
+ */
+if (PHP_SAPI === 'cli') {
+    foreach ($argv ?? [] as $sifpress_arg) {
+        if (str_starts_with((string) $sifpress_arg, '--config=')) {
+            $sifpress_config_path = substr((string) $sifpress_arg, 9);
+            break;
+        }
+    }
+}
+
+/*
  * CLI runs skip the web auto-generation: the CLI `setup` command writes the
  * config itself, as the invoking user. The CLI dispatch lives at the end of the
  * assembled file (src/cli.php) so it runs after the MIGRATIONS constant is
@@ -107,6 +121,23 @@ define('SIFPRESS_MANIFEST_URL', %s);
  * public https URL explicitly if your proxy does not forward either.
  */
 define('SIFPRESS_BASE_URL', %s);
+
+/**
+ * Folder where `php sifpress.php backup` writes snapshot archives.
+ * REQUIRED for the backup command: there is no default, and the command
+ * fails when this is left empty. The folder must be writable by the user
+ * running the CLI (the web user, or root for a system cron job).
+ */
+define('SIFPRESS_BACKUP_DIR', '');
+
+/** How many of the newest backup archives to keep (0 = unlimited). */
+define('SIFPRESS_BACKUP_KEEP', 90);
+
+/**
+ * Filename prefix for backup archives. Leave empty to use the artifact
+ * name, e.g. sifpress-20260921-143000.tgz.
+ */
+define('SIFPRESS_BACKUP_PREFIX', '');
 PHP;
 
     return sprintf(

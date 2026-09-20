@@ -9,6 +9,9 @@
  *   change_password  set a user's password (clears must_change_password)
  *   inject_sifront   (dev only) push the on-disk build companions into the DB
  *   update_sifront   install/update a sifront from a .sifront archive (unzip)
+ *   backup           snapshot the DB to a .tgz and prune old archives
+ *   config           view or update sifpress_config.php
+ *   cron             install/remove the backup crontab entry
  *   status           print paths, version and migration state
  *   help             show usage
  *
@@ -23,7 +26,7 @@ function sifpress_cli(array $argv): never
 {
     $command = $argv[1] ?? 'setup';
     $options = sifpress_cli_parse_options(array_slice($argv, 2));
-    $configPath = dirname(__FILE__) . '/sifpress_config.php';
+    $configPath = sifpress_cli_option($options, 'config') ?? dirname(__FILE__) . '/sifpress_config.php';
 
     switch ($command) {
         case 'setup':
@@ -44,6 +47,18 @@ function sifpress_cli(array $argv): never
 
         case 'update_sifront':
             sifpress_cli_update_sifront($configPath, $options, $argv);
+            break;
+
+        case 'backup':
+            sifpress_cli_backup($configPath, $options);
+            break;
+
+        case 'config':
+            sifpress_cli_config($configPath, $options, $argv);
+            break;
+
+        case 'cron':
+            sifpress_cli_cron($configPath, $options, $argv);
             break;
 
         case 'status':
@@ -82,6 +97,14 @@ function sifpress_cli_usage(): void
         '                   inject_sifront [name]   (default: sifpress1)',
         '  update_sifront   install/update a sifront from a .sifront archive:',
         '                   update_sifront <file.sifront> [--name=NAME] [--activate]',
+        '  backup           snapshot the SQLite DB to a .tgz and prune old ones:',
+        '                   backup [--config=PATH] [--dir=PATH] [--keep=N] [--dry-run]',
+        '  config           view or update sifpress_config.php:',
+        '                   config [--config=PATH] [--show-secrets]',
+        '                   config --set KEY=VALUE [--set KEY=VALUE ...]',
+        '  cron             manage the backup crontab entry for a user:',
+        '                   cron install [--schedule="0 3 * * *"] [--user=USER] [--log=PATH]',
+        '                   cron show | cron remove [--user=USER]',
         '  status           print paths, version and migration state',
         '  help             show this help',
         '',
@@ -351,6 +374,309 @@ function sifpress_cli_update_sifront(string $configPath, array $options, array $
     $suffix = isset($options['activate']) ? ' and activated it' : '';
 
     fwrite(STDOUT, "{$verb} '{$name}' (v{$result['version']}, id {$result['id']}){$suffix}.\n");
+}
+
+/**
+ * Known config keys and the PHP type to store them as. Unknown keys are
+ * inferred from the value text.
+ */
+function sifpress_config_types(): array
+{
+    return [
+        'SIFPRESS_DB_DIR' => 'string',
+        'SIFPRESS_ADMIN_PASSWORD' => 'string',
+        'SIFPRESS_MANIFEST_URL' => 'string',
+        'SIFPRESS_BASE_URL' => 'string',
+        'SIFPRESS_BACKUP_DIR' => 'string',
+        'SIFPRESS_BACKUP_KEEP' => 'int',
+        'SIFPRESS_BACKUP_PREFIX' => 'string',
+    ];
+}
+
+/** Whether a config key holds a value that should be masked in output. */
+function sifpress_config_secret(string $key): bool
+{
+    return preg_match('/PASSWORD|SECRET|TOKEN|KEY/i', $key) === 1;
+}
+
+/** Cast a CLI value to the type a config key expects. */
+function sifpress_config_cast(string $key, string $raw): mixed
+{
+    $type = sifpress_config_types()[$key] ?? null;
+    $value = trim($raw);
+
+    if ($type === 'int') {
+        if (preg_match('/^-?\d+$/', $value) !== 1) {
+            throw new RuntimeException("{$key} must be an integer.");
+        }
+
+        return (int) $value;
+    }
+
+    if ($type === 'string') {
+        return $raw;
+    }
+
+    if (strcasecmp($value, 'true') === 0) {
+        return true;
+    }
+
+    if (strcasecmp($value, 'false') === 0) {
+        return false;
+    }
+
+    if (strcasecmp($value, 'null') === 0) {
+        return null;
+    }
+
+    if (preg_match('/^-?\d+$/', $value) === 1) {
+        return (int) $value;
+    }
+
+    if (is_numeric($value)) {
+        return (float) $value;
+    }
+
+    return $raw;
+}
+
+/**
+ * Rewrite `define()` values in a config source while preserving comments and
+ * every other statement. The tokenizer keeps string values containing `);`
+ * or quotes safe; keys that are missing are appended.
+ */
+function sifpress_config_patch(string $source, array $values): string
+{
+    $tokens = token_get_all($source);
+    $offsets = [];
+    $pos = 0;
+
+    foreach ($tokens as $i => $token) {
+        $offsets[$i] = $pos;
+        $pos += strlen(is_array($token) ? $token[1] : $token);
+    }
+
+    $offsets[count($tokens)] = $pos;
+
+    $replacements = [];
+    $found = [];
+    $count = count($tokens);
+
+    for ($i = 0; $i < $count; $i++) {
+        $token = $tokens[$i];
+
+        if (!is_array($token) || $token[0] !== T_STRING || strtolower($token[1]) !== 'define') {
+            continue;
+        }
+
+        $j = $i + 1;
+
+        while ($j < $count && is_array($tokens[$j]) && $tokens[$j][0] === T_WHITESPACE) {
+            $j++;
+        }
+
+        if ($j >= $count || $tokens[$j] !== '(') {
+            continue;
+        }
+
+        $j++;
+
+        while ($j < $count && is_array($tokens[$j]) && $tokens[$j][0] === T_WHITESPACE) {
+            $j++;
+        }
+
+        if ($j >= $count || !is_array($tokens[$j]) || $tokens[$j][0] !== T_CONSTANT_ENCAPSED_STRING) {
+            continue;
+        }
+
+        $name = stripcslashes(substr($tokens[$j][1], 1, -1));
+        $j++;
+
+        while ($j < $count && is_array($tokens[$j]) && $tokens[$j][0] === T_WHITESPACE) {
+            $j++;
+        }
+
+        if ($j >= $count || $tokens[$j] !== ',') {
+            continue;
+        }
+
+        $j++;
+
+        while ($j < $count && is_array($tokens[$j]) && $tokens[$j][0] === T_WHITESPACE) {
+            $j++;
+        }
+
+        $valueStart = $j;
+        $depth = 0;
+
+        while ($j < $count) {
+            $text = is_array($tokens[$j]) ? $tokens[$j][1] : $tokens[$j];
+
+            if ($text === '(') {
+                $depth++;
+            } elseif ($text === ')') {
+                if ($depth === 0) {
+                    break;
+                }
+
+                $depth--;
+            }
+
+            $j++;
+        }
+
+        if (!array_key_exists($name, $values)) {
+            continue;
+        }
+
+        $replacements[] = [$offsets[$valueStart], $offsets[$j], var_export($values[$name], true)];
+        $found[$name] = true;
+    }
+
+    usort($replacements, static fn (array $a, array $b): int => $b[0] <=> $a[0]);
+
+    foreach ($replacements as [$start, $end, $text]) {
+        $source = substr($source, 0, $start) . $text . substr($source, $end);
+    }
+
+    $missing = array_diff_key($values, $found);
+
+    if ($missing !== []) {
+        $source = rtrim($source) . "\n";
+
+        foreach ($missing as $name => $value) {
+            $source .= "\ndefine('" . $name . "', " . var_export($value, true) . ');';
+        }
+
+        $source .= "\n";
+    }
+
+    return $source;
+}
+
+/**
+ * `config [--config=PATH] [--show-secrets]` lists the current values;
+ * `config --set KEY=VALUE [--set KEY=VALUE ...]` updates them in place.
+ */
+function sifpress_cli_config(string $configPath, array $options, array $argv): void
+{
+    if (!is_file($configPath)) {
+        fwrite(STDERR, "No config found at {$configPath}. Run: php " . basename(__FILE__) . " setup\n");
+        exit(1);
+    }
+
+    $sets = [];
+    $args = array_slice($argv, 2);
+
+    for ($i = 0; $i < count($args); $i++) {
+        $arg = $args[$i];
+        $pair = null;
+
+        if (str_starts_with($arg, '--set=')) {
+            $pair = substr($arg, 6);
+        } elseif ($arg === '--set') {
+            $pair = $args[$i + 1] ?? null;
+            $i++;
+        }
+
+        if ($pair === null) {
+            continue;
+        }
+
+        $eq = strpos($pair, '=');
+
+        if ($eq === false || $eq === 0) {
+            fwrite(STDERR, "Invalid --set, expected KEY=VALUE: {$pair}\n");
+            exit(1);
+        }
+
+        $key = substr($pair, 0, $eq);
+
+        if (preg_match('/^[A-Z][A-Z0-9_]*$/', $key) !== 1) {
+            fwrite(STDERR, "Invalid config key: {$key}\n");
+            exit(1);
+        }
+
+        $sets[$key] = substr($pair, $eq + 1);
+    }
+
+    require_once $configPath;
+
+    $showSecrets = isset($options['show-secrets']);
+
+    if ($sets === []) {
+        $user = get_defined_constants(true)['user'] ?? [];
+
+        foreach (sifpress_config_types() as $key => $type) {
+            if (!array_key_exists($key, $user)) {
+                continue;
+            }
+
+            $value = $user[$key];
+
+            if (sifpress_config_secret($key) && !$showSecrets) {
+                $display = $value === '' ? "''" : "'********'";
+            } else {
+                $display = var_export($value, true);
+            }
+
+            fwrite(STDOUT, "{$key} = {$display}\n");
+        }
+
+        return;
+    }
+
+    $values = [];
+
+    try {
+        foreach ($sets as $key => $raw) {
+            $values[$key] = sifpress_config_cast($key, $raw);
+        }
+    } catch (Throwable $e) {
+        fwrite(STDERR, $e->getMessage() . "\n");
+        exit(1);
+    }
+
+    $source = file_get_contents($configPath);
+
+    if ($source === false) {
+        fwrite(STDERR, "Could not read {$configPath}\n");
+        exit(1);
+    }
+
+    $patched = sifpress_config_patch($source, $values);
+
+    if (@file_put_contents($configPath . '.bak', $source) === false) {
+        fwrite(STDERR, "Could not write {$configPath}.bak\n");
+        exit(1);
+    }
+
+    $tmp = $configPath . '.tmp.' . bin2hex(random_bytes(4));
+
+    if (@file_put_contents($tmp, $patched) === false) {
+        fwrite(STDERR, "Could not write {$tmp}\n");
+        exit(1);
+    }
+
+    @chmod($tmp, fileperms($configPath) & 0777);
+
+    if (!@rename($tmp, $configPath)) {
+        @unlink($tmp);
+        fwrite(STDERR, "Could not replace {$configPath}\n");
+        exit(1);
+    }
+
+    sifpress_cli_adopt_owner($configPath);
+
+    foreach ($values as $key => $value) {
+        $display = sifpress_config_secret($key) && !$showSecrets
+            ? '********'
+            : var_export($value, true);
+
+        fwrite(STDOUT, "{$key} = {$display}\n");
+    }
+
+    fwrite(STDOUT, "Updated {$configPath} (backup: {$configPath}.bak)\n");
 }
 
 function sifpress_cli_status(string $configPath): void

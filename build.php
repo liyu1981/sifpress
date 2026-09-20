@@ -87,6 +87,7 @@ $parts = [
     'embed.php',
     'ui_sdk_serve.php',
     'migrations.php',
+    'backup.php',
     'cli.php',
 ];
 
