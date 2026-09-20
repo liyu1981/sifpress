@@ -164,7 +164,10 @@ parameterized by the active sifront's `meta.json`:
   is injected into `<head>` as before.
 - The built-in construction sifront (`sifpress_in_construction`, `is_virtual`)
   has no bundle: its row is served via the construction fallback. A real theme
-  is injected through the normal admin flow.
+  is injected through the normal admin flow; in dev, `dev.sh` runs
+  `php dist/index.php inject_sifront sifpress1` after each build (the
+  `inject_sifront` CLI / `?p=sifpress/dev&action=injectSifront` action upsert
+  the disk companions into the same columns), so rebuilds are always live.
 
 ### Bundle endpoint (`?p=sifpress/sifront-bundle`)
 

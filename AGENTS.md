@@ -71,7 +71,9 @@ php buildfront.php release
   update/delete (they can still be activated). A real theme (`sifpress1`)
   is created through the normal admin flow. `buildfront.php` writes
   `dist/<name>.{sifront,meta.json,bundle.js}`; the plain companions exist
-  for the dev injection flow.
+  for the dev injection flow: `dev.sh` runs `php dist/index.php inject_sifront
+  sifpress1` after every rebuild, and `?p=sifpress/dev&action=injectSifront`
+  does the same over HTTP.
 - `dist/*.php` are build artifacts and are gitignored. Never edit them
   directly; edit `src/*.php` instead.
 - **Configuration**: on first request the artifact looks for
@@ -89,7 +91,10 @@ php buildfront.php release
   web user; when run as root the created files are chowned to the artifact's
   owner. `migrate` applies pending migrations + seeds (same as the web
   `?p=sifpress/migration&action=run`). `change_password <user> <password>` sets
-  a password and clears `must_change_password`. See `src/cli.php`.
+  a password and clears `must_change_password`. `inject_sifront [name]`
+  (dev-only) reads the `dist/<name>.{meta.json,bundle.js}` companions and
+  upserts + activates that sifront through the normal storage columns. See
+  `src/cli.php`.
 
 ## Development server
 

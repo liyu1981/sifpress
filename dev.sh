@@ -31,8 +31,16 @@ if ! command -v inotifywait >/dev/null 2>&1; then
   exit 1
 fi
 
+inject_sifront_dev() {
+  # Dev-only: push the freshly built sifpress1 bundle into the DB through the
+  # same storage path the admin uses, so the served sifront is never stale.
+  if [ -f "$ROOT/dist/sifpress1.bundle.js" ] && [ -f "$ROOT/dist/sifpress1.meta.json" ]; then
+    php "$ROOT/dist/index.php" inject_sifront sifpress1 >/dev/null 2>&1 || true
+  fi
+}
+
 build() {
-  php build.php && php buildfront.php
+  php build.php && php buildfront.php && inject_sifront_dev
 }
 
 # The server needs dist/index.php to exist, so a missing artifact blocks

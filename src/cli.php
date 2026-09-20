@@ -36,6 +36,10 @@ function sifpress_cli(array $argv): never
             sifpress_cli_change_password($configPath, $argv);
             break;
 
+        case 'inject_sifront':
+            sifpress_cli_inject_sifront($configPath, $argv);
+            break;
+
         case 'status':
             sifpress_cli_status($configPath);
             break;
@@ -68,6 +72,8 @@ function sifpress_cli_usage(): void
         '  setup            (default) create sifpress_config.php and the DB folder',
         '  migrate          apply pending migrations',
         '  change_password  set a user password: change_password <user> <password>',
+        '  inject_sifront   (dev only) push a built sifront into the DB and activate it:',
+        '                   inject_sifront [name]   (default: sifpress1)',
         '  status           print paths, version and migration state',
         '  help             show this help',
         '',
@@ -225,6 +231,51 @@ function sifpress_cli_change_password(string $configPath, array $argv): void
     sifpress_cli_adopt_db();
 
     fwrite(STDOUT, "Password updated for '{$username}'. Sign in with the new password.\n");
+}
+
+/**
+ * Dev-only `inject_sifront [name]`: read the on-disk build companions and
+ * push them into the DB through the same columns the admin flow writes, then
+ * activate the sifront. Absent from release builds.
+ */
+function sifpress_cli_inject_sifront(string $configPath, array $argv): void
+{
+    if (!function_exists('dev_inject_sifront')) {
+        fwrite(STDERR, "inject_sifront is only available in dev builds.\n");
+        exit(1);
+    }
+
+    if (!is_file($configPath)) {
+        fwrite(STDERR, 'No config found. Run: php ' . basename(__FILE__) . " setup\n");
+        exit(1);
+    }
+
+    require_once $configPath;
+
+    if (db_needs_migration()) {
+        fwrite(STDERR, 'Database needs migration. Run: php ' . basename(__FILE__) . " migrate\n");
+        exit(1);
+    }
+
+    $name = trim((string) ($argv[2] ?? 'sifpress1'));
+
+    if ($name === '') {
+        $name = 'sifpress1';
+    }
+
+    try {
+        $result = dev_inject_sifront($name);
+    } catch (Throwable $e) {
+        fwrite(STDERR, $e->getMessage() . "\n");
+        exit(1);
+    }
+
+    sifpress_cli_adopt_db();
+
+    fwrite(
+        STDOUT,
+        "Injected '{$name}' (v{$result['version']}, id {$result['id']}) and activated it.\n"
+    );
 }
 
 function sifpress_cli_status(string $configPath): void

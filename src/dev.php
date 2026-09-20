@@ -2,8 +2,9 @@
  * ------------------------------------------------------------
  * Dev-only module
  *
- *   ?p=sifpress/dev&action=initData    POST  seed the demo article
- *   ?p=sifpress/dev&resetAdminPasswd=  GET/POST reset the admin password
+ *   ?p=sifpress/dev&action=initData       POST  seed the demo article
+ *   ?p=sifpress/dev&action=injectSifront  GET/POST  push a built sifront
+ *   ?p=sifpress/dev&resetAdminPasswd=     GET/POST reset the admin password
  *
  * This fragment is included ONLY in dev builds (php build.php).
  * rel.sh / "php build.php release" excludes it, and the router
@@ -86,6 +87,57 @@ function reset_admin_password(string $password): void
 }
 
 /**
+ * Dev-only: push a freshly built sifront from its on-disk companions
+ * (`dist/<name>.bundle.js` / `dist/<name>.meta.json`, written by
+ * buildfront.php) into the same columns the admin create/update flow
+ * writes, then make it the active sifront. This is how dev gets the latest
+ * `sifpress1` without a manual re-upload.
+ *
+ * @return array{id: int, version: string}
+ */
+function dev_inject_sifront(string $name): array
+{
+    $meta = sifront_dev_meta($name);
+    $bundle = sifront_dev_bundle($name);
+
+    if ($meta === null) {
+        throw new RuntimeException("No dev meta companion for '{$name}' (run buildfront.php).");
+    }
+
+    if ($bundle === null) {
+        throw new RuntimeException("No dev bundle companion for '{$name}' (run buildfront.php).");
+    }
+
+    $metaStr = json_encode($meta, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $metaStr = $metaStr === false ? '{}' : $metaStr;
+    $version = is_string($meta['version'] ?? null) && $meta['version'] !== ''
+        ? $meta['version']
+        : '0.0.0';
+
+    $stmt = db()->prepare('SELECT id FROM sifronts WHERE name = ? AND is_virtual = 0');
+    $stmt->execute([$name]);
+    $existing = $stmt->fetchColumn();
+
+    if ($existing === false) {
+        db()->prepare(
+            'INSERT INTO sifronts (name, content, meta, version, bundle, bundle_size)'
+            . " VALUES (?, '', ?, ?, ?, ?)"
+        )->execute([$name, $metaStr, $version, $bundle, strlen($bundle)]);
+        $id = (int) db()->lastInsertId();
+    } else {
+        $id = (int) $existing;
+        db()->prepare(
+            'UPDATE sifronts SET meta = ?, version = ?, bundle = ?, bundle_size = ?,'
+            . " updated_at = datetime('now') WHERE id = ?"
+        )->execute([$metaStr, $version, $bundle, strlen($bundle), $id]);
+    }
+
+    setting_set('active_sifront_id', (string) $id);
+
+    return ['id' => $id, 'version' => $version];
+}
+
+/**
  * Seed (or refresh) the demo page in the name of the authenticated
  * admin. Every hit overwrites the page in place (id, content, cover,
  * status, and authorship all reset), so the demo data is always an
@@ -115,6 +167,21 @@ function handle_dev(string $action, string $method): never
     }
 
     switch ($action) {
+        case 'injectSifront':
+            if (!in_array($method, ['GET', 'POST'], true)) {
+                json_response(['error' => 'Method not allowed'], 405);
+            }
+
+            $name = trim((string) request_param('name', 'sifpress1'));
+
+            try {
+                $result = dev_inject_sifront($name);
+            } catch (Throwable $e) {
+                json_response(['error' => $e->getMessage()], 422);
+            }
+
+            json_response(['ok' => true] + $result);
+
         case 'initData':
             if (!in_array($method, ['GET', 'POST'], true)) {
                 json_response(['error' => 'Method not allowed'], 405);
