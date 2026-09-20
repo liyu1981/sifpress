@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { ArrowLeft, Calendar, Clock, FilePenLine, Trash2 } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, FilePenLine, History, Trash2 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DeletePageMenu } from '@/components/delete-page-menu';
@@ -203,8 +203,15 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
               <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1.5">
                   <Calendar className="size-3.5" />
-                  {formatDate(page.updated_at.slice(0, 10), i18n.language)}
+                  {formatDate(page.created_at.slice(0, 10), i18n.language)}
                 </span>
+                {page.updated_at !== page.created_at && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <History className="size-3.5" />
+                    {t('article.updatedAt')}{' '}
+                    {formatDate(page.updated_at.slice(0, 10), i18n.language)}
+                  </span>
+                )}
                 <span className="inline-flex items-center gap-1.5">
                   <Clock className="size-3.5" />
                   {t('article.reading', {

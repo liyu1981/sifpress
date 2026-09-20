@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { createRootRoute, Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
-import { ChevronDown, Loader2, LogOut } from 'lucide-react';
+import { ChevronDown, Home, Loader2, LogOut } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Toaster } from '@/components/ui/sonner';
 import { useAuth } from 'ui-sdk';
-import { DEMO_PAGE_SLUG, systemApi } from 'ui-sdk';
+import { appBaseUrl, DEMO_PAGE_SLUG, systemApi } from 'ui-sdk';
 import { ChangePasswordPage } from '@/pages/change-password';
 import { LoginPage } from '@/pages/login';
 
@@ -41,6 +41,12 @@ function AppHeader() {
   return (
     <header className="apple-panel sticky top-4 z-10 flex flex-wrap items-center justify-between gap-2 rounded-2xl -mx-4 px-6 py-2">
       <nav className="flex items-center gap-1">
+        <Button asChild variant="ghost" size="sm" title={t('nav.front')}>
+          <a href={appBaseUrl()}>
+            <Home className="size-4" />
+            <span className="hidden sm:inline">{t('nav.front')}</span>
+          </a>
+        </Button>
         <Button asChild variant="ghost" size="sm">
           <Link
             to="/admin/sifront"

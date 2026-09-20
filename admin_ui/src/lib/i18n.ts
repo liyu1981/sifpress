@@ -12,6 +12,7 @@ const en = {
   },
   nav: {
     home: 'Home',
+    front: 'Front',
     sifront: 'Sifront',
     article: 'Articles',
     assets: 'Assets',
@@ -737,6 +738,7 @@ const zh = {
   },
   nav: {
     home: '首页',
+    front: '查看前台',
     sifront: '前台',
     article: '文章',
     assets: '资源',

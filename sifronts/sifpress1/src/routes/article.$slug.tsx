@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { ArrowLeft, Calendar, Clock, Loader2 } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, Loader2, RefreshCw } from 'lucide-react';
 import { useRef } from 'react';
 import { MarkdownView, pagesApi, parseFrontMatter } from 'ui-sdk';
 import { ReadingProgress } from '@/components/reading-progress';
@@ -113,10 +113,16 @@ function ArticleDetailPage() {
               </h1>
 
               <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                {page.updated_at && (
+                {page.created_at && (
                   <span className="inline-flex items-center gap-1.5">
                     <Calendar className="size-3.5" />
-                    {formatDate(page.updated_at)}
+                    {formatDate(page.created_at)}
+                  </span>
+                )}
+                {page.updated_at && page.updated_at !== page.created_at && (
+                  <span className="inline-flex items-center gap-1.5" title="Last updated">
+                    <RefreshCw className="size-3.5" />
+                    Updated {formatDate(page.updated_at)}
                   </span>
                 )}
                 <span className="inline-flex items-center gap-1.5">
