@@ -1275,7 +1275,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
               )}
             </TabsList>
 
-            <div className="flex-1">
+            <div className="min-w-0 flex-1">
               {/* ── Editor Tab ── */}
               <TabsContent value="editor" className="mt-0 space-y-4">
                 {!isRevisionPreview && (

@@ -70,8 +70,20 @@ export const MarkdownView = memo(function MarkdownView({
 
     const shell = target.closest('.md-codeblock');
     const code = shell?.querySelector('pre');
-    if (code != null) {
+
+    if (code === null || code === undefined) {
+      return;
+    }
+
+    try {
       await copyText(code.textContent ?? '');
+      const previous = target.textContent;
+      target.textContent = 'Copied';
+      window.setTimeout(() => {
+        target.textContent = previous;
+      }, 1500);
+    } catch {
+      // Clipboard unavailable; keep the button idle.
     }
   };
 
