@@ -68,20 +68,16 @@ export function Sidebar({ tags, settings }: { tags: TagCount[]; settings?: SeoSe
 
         <div className="hidden flex-col items-center lg:flex">
           <Link to="/" search={{}} className="flex flex-col items-center focus:outline-none">
-            <div className="relative mb-4">
-              <span
-                aria-hidden="true"
-                className="absolute -top-1.5 left-1/2 size-2 -translate-x-1/2 rounded-full bg-foreground shadow-md"
-              />
-              <div className="-rotate-2 border-4 border-foreground bg-card p-1.5 shadow-sm">
+            <div className="avatar-hang mb-4">
+              <div className="avatar-frame p-1.5">
                 {config.sidebarAvatar !== '' ? (
                   <img
                     src={config.sidebarAvatar}
                     alt=""
-                    className="aspect-square w-28 rounded-none object-cover"
+                    className="aspect-[4/5] w-32 rounded-none object-cover"
                   />
                 ) : (
-                  <div className="flex aspect-square w-28 items-center justify-center bg-muted font-serif text-4xl text-foreground">
+                  <div className="flex aspect-[4/5] w-32 items-center justify-center bg-muted font-serif text-4xl text-foreground">
                     {initial}
                   </div>
                 )}
