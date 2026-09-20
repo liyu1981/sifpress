@@ -3,8 +3,10 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { ArrowLeft, Calendar, Clock, Loader2, RefreshCw } from 'lucide-react';
 import { useRef } from 'react';
 import { MarkdownView, pagesApi, parseFrontMatter } from 'ui-sdk';
+import { RawHtml } from '@/components/raw-html';
 import { ReadingProgress } from '@/components/reading-progress';
 import { TableOfContents, useArticleHeadings, useScrollSpy } from '@/components/toc';
+import { useThemeConfig } from '@/lib/theme-config';
 
 export const Route = createFileRoute('/article/$slug')({
   component: ArticleDetailPage,
@@ -42,6 +44,7 @@ function TagPill({ tag }: { tag: string }) {
 
 function ArticleDetailPage() {
   const { slug } = Route.useParams();
+  const { articleBottomHtml } = useThemeConfig();
   const contentRef = useRef<HTMLDivElement>(null);
 
   const article = useQuery({
@@ -91,64 +94,76 @@ function ArticleDetailPage() {
     <div className="mx-auto w-full max-w-8xl">
       <ReadingProgress />
       <div className="mx-auto grid max-w-6xl gap-8 xl:grid-cols-[minmax(0,1fr)_14rem]">
-        <article className="glass-control glass-control-read overflow-hidden rounded-2xl">
-          {cover !== null && (
-            <div className="relative aspect-[21/9] w-full overflow-hidden bg-muted">
-              <img src={cover} alt="" className="absolute inset-0 size-full object-cover" />
-            </div>
-          )}
-
-          <div className="px-6 py-8 sm:px-10 sm:py-10">
-            <Link
-              to="/"
-              className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <ArrowLeft className="size-4" />
-              Back to home
-            </Link>
-
-            <header className="mt-6 mb-8 space-y-4">
-              <h1 className="font-heading text-3xl leading-tight font-bold tracking-tight text-foreground sm:text-4xl">
-                {page.title}
-              </h1>
-
-              <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                {page.created_at && (
-                  <span className="inline-flex items-center gap-1.5">
-                    <Calendar className="size-3.5" />
-                    {formatDate(page.created_at)}
-                  </span>
-                )}
-                {page.updated_at && page.updated_at !== page.created_at && (
-                  <span className="inline-flex items-center gap-1.5" title="Last updated">
-                    <RefreshCw className="size-3.5" />
-                    Updated {formatDate(page.updated_at)}
-                  </span>
-                )}
-                <span className="inline-flex items-center gap-1.5">
-                  <Clock className="size-3.5" />
-                  {readingMinutes} min read
-                </span>
-                {page.created_by_name && <span>by {page.created_by_name}</span>}
+        <div className="min-w-0 space-y-8">
+          <article className="glass-control glass-control-read overflow-hidden rounded-2xl">
+            {cover !== null && (
+              <div className="relative aspect-[21/9] w-full overflow-hidden bg-muted">
+                <img src={cover} alt="" className="absolute inset-0 size-full object-cover" />
               </div>
+            )}
 
-              {tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 xl:hidden">
-                  {tags.map(tag => (
-                    <TagPill key={tag} tag={tag} />
-                  ))}
+            <div className="px-6 py-8 sm:px-10 sm:py-10">
+              <Link
+                to="/"
+                className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <ArrowLeft className="size-4" />
+                Back to home
+              </Link>
+
+              <header className="mt-6 mb-8 space-y-4">
+                <h1 className="font-heading text-3xl leading-tight font-bold tracking-tight text-foreground sm:text-4xl">
+                  {page.title}
+                </h1>
+
+                <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                  {page.created_at && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Calendar className="size-3.5" />
+                      {formatDate(page.created_at)}
+                    </span>
+                  )}
+                  {page.updated_at && page.updated_at !== page.created_at && (
+                    <span className="inline-flex items-center gap-1.5" title="Last updated">
+                      <RefreshCw className="size-3.5" />
+                      Updated {formatDate(page.updated_at)}
+                    </span>
+                  )}
+                  <span className="inline-flex items-center gap-1.5">
+                    <Clock className="size-3.5" />
+                    {readingMinutes} min read
+                  </span>
+                  {page.created_by_name && <span>by {page.created_by_name}</span>}
                 </div>
-              )}
-            </header>
 
-            <div ref={contentRef}>
-              <MarkdownView
-                content={page.content_md}
-                className="prose max-w-none text-[0.95rem] leading-7"
-              />
+                {tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 xl:hidden">
+                    {tags.map(tag => (
+                      <TagPill key={tag} tag={tag} />
+                    ))}
+                  </div>
+                )}
+              </header>
+
+              <div ref={contentRef}>
+                <MarkdownView
+                  content={page.content_md}
+                  className="prose max-w-none text-[0.95rem] leading-7"
+                />
+              </div>
             </div>
-          </div>
-        </article>
+          </article>
+
+          {articleBottomHtml.trim() !== '' && (
+            <section
+              key={slug}
+              aria-label="Article footer"
+              className="glass-control glass-control-read overflow-hidden rounded-2xl"
+            >
+              <RawHtml html={articleBottomHtml} className="px-6 py-8 sm:px-10 sm:py-10" />
+            </section>
+          )}
+        </div>
 
         <aside className="mt-12 hidden xl:block">
           <div className="sticky top-8 space-y-6">

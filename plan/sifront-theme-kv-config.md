@@ -103,8 +103,20 @@ The one new backend piece. A generic best-effort multi-key read so any consumer
 | `sifpress1.footer.text` | string | Footer left text | `"Powered by Sifpress · GitHub"` |
 | `sifpress1.footer.copyright` | string | Footer right text | `"© {year}"` |
 | `sifpress1.background.kind` | string (`ambient` \| `matrix` \| `none`) | Background scene id (see plan/sifront-background-canvas-plan.md §7) | `"ambient"` |
+| `sifpress1.article.bottom` | string (raw HTML) or `{html: string}` | Extra card rendered below the article content card on `/article/$slug` (comments/Disqus, embeds, arbitrary markup) | `""` (card hidden) |
 | `sifpress1.copy.*` (phase 2) | flat string map | UI copy: empty states, search results header, article-not-found, 404 text, "Continue reading →", "min read", "Uncategorized" | current strings |
 | `sifpress1.ambient.palette` (phase 3) | `{light:{sat,light,alpha,count,hues[]}, dark:{...}}` | Ambient background blobs | current HUES/LIGHT/DARK constants |
+
+### Raw HTML card (`sifpress1.article.bottom`)
+
+The article detail page renders one extra `glass-control` card below the main
+content card when this key is non-empty. Its value is trusted, admin-authored
+HTML injected with `dangerouslySetInnerHTML`; `<script>` tags are recreated
+after mount (`src/components/raw-html.tsx`) because scripts set via innerHTML
+do not execute — this is what lets a Disqus universal embed work. The card is
+keyed by slug so navigating between articles re-runs the embed. Treat the key
+like any other script-capable config: only users with `kvs.write` (or the
+pair's owner) can author it, and the default empty value keeps the card hidden.
 
 ## 5. Implementation phases
 

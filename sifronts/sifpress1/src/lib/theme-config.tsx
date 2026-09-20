@@ -18,6 +18,7 @@ export interface ThemeConfig {
   footerText: string;
   footerCopyright: string;
   backgroundKind: string;
+  articleBottomHtml: string;
 }
 
 function parseSifrontMeta(raw: unknown): Record<string, unknown> {
@@ -102,6 +103,21 @@ function buildConfig(
     return asString(value) ? value : '';
   };
 
+  const html = (key: string): string => {
+    const value = pick(key);
+    if (asString(value)) {
+      return value;
+    }
+    if (
+      value !== null &&
+      typeof value === 'object' &&
+      asString((value as Record<string, unknown>).html)
+    ) {
+      return (value as Record<string, unknown>).html as string;
+    }
+    return '';
+  };
+
   const links = ((): LinkItem[] => {
     const value = pick('sifpress1.sidebar.links');
     return asLinkArray(value) ?? asLinkArray(defaults['sifpress1.sidebar.links']) ?? [];
@@ -115,6 +131,7 @@ function buildConfig(
     footerText: str('sifpress1.footer.text') || 'Powered by Sifpress',
     footerCopyright: str('sifpress1.footer.copyright') || '© {year}',
     backgroundKind: str('sifpress1.background.kind') || 'ambient',
+    articleBottomHtml: html('sifpress1.article.bottom'),
   };
 }
 
@@ -126,6 +143,7 @@ const ThemeConfigContext = createContext<ThemeConfig>({
   footerText: 'Powered by Sifpress',
   footerCopyright: '© {year}',
   backgroundKind: 'ambient',
+  articleBottomHtml: '',
 });
 
 export function ThemeConfigProvider({ children }: { children: ReactNode }) {
