@@ -63,11 +63,12 @@ function parseScalar(raw: string): unknown {
       .filter(item => item !== null);
   }
 
-  if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'"))
-  ) {
-    return value.slice(1, -1);
+  if (value.startsWith('"') && value.endsWith('"')) {
+    return unescapeDoubleQuoted(value.slice(1, -1));
+  }
+
+  if (value.startsWith("'") && value.endsWith("'")) {
+    return value.slice(1, -1).replace(/''/g, "'");
   }
 
   if (value === 'true') {
@@ -83,4 +84,24 @@ function parseScalar(raw: string): unknown {
   }
 
   return value.split(/\s+#/)[0].trim();
+}
+
+/**
+ * Undo the escaping applied by the serializer's double-quoted scalars
+ * (`\\`, `\"`, plus the usual `\n`/`\t`/`\r`), so a title like
+ * `What does "good taste" mean` round-trips without literal backslashes.
+ */
+function unescapeDoubleQuoted(value: string): string {
+  return value.replace(/\\(["\\ntr])/g, (_, char: string) => {
+    switch (char) {
+      case 'n':
+        return '\n';
+      case 't':
+        return '\t';
+      case 'r':
+        return '\r';
+      default:
+        return char;
+    }
+  });
 }
