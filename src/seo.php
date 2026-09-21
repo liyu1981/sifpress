@@ -181,6 +181,61 @@ function base_url(): string
 }
 
 /**
+ * Origin (`scheme://host[:port]`) of the configured canonical base, or null
+ * when the base is relative. Lets a request detect that it arrived on a host
+ * alias (e.g. the apex domain while `SIFPRESS_BASE_URL`/`site_url` points at
+ * `www`).
+ */
+function canonical_origin(): ?string
+{
+    $parts = parse_url(base_url());
+
+    if (!is_array($parts) || !isset($parts['scheme'], $parts['host'])) {
+        return null;
+    }
+
+    $origin = $parts['scheme'] . '://' . $parts['host'];
+
+    if (isset($parts['port'])) {
+        $origin .= ':' . $parts['port'];
+    }
+
+    return $origin;
+}
+
+/**
+ * 301 a document load to the canonical host when it arrived on an alias.
+ * Only page loads call this, so API/asset/chunk requests keep the host the
+ * page was served from and stay same-origin. No-op when the base URL is
+ * request-derived or already matches the request host.
+ */
+function redirect_to_canonical_host(): void
+{
+    $origin = canonical_origin();
+
+    if ($origin === null) {
+        return;
+    }
+
+    $canonicalHost = (string) parse_url($origin, PHP_URL_HOST);
+    $requestHostRaw = (string) ($_SERVER['HTTP_HOST'] ?? '');
+    $requestHost = (string) parse_url('http://' . $requestHostRaw, PHP_URL_HOST);
+
+    if ($requestHost === '' || strcasecmp($requestHost, $canonicalHost) === 0) {
+        return;
+    }
+
+    $uri = str_replace(["\r", "\n"], '', (string) ($_SERVER['REQUEST_URI'] ?? '/'));
+
+    if ($uri === '' || $uri[0] !== '/') {
+        $uri = '/';
+    }
+
+    header('Location: ' . $origin . $uri, true, 301);
+    exit;
+}
+
+/**
  * Absolute canonical URL for a route. Root maps to the base; everything
  * else is the query-string form the router actually serves.
  */

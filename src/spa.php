@@ -188,6 +188,8 @@ function sifront_shell_html(
  */
 function serve_sifront_page(): never
 {
+    redirect_to_canonical_host();
+
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: no-cache');
     header('X-Content-Type-Options: nosniff');
@@ -283,6 +285,8 @@ function serve_sifront_bundle(): never
 
 function serve_spa(string $route): never
 {
+    redirect_to_canonical_host();
+
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: no-cache');
     header('X-Content-Type-Options: nosniff');

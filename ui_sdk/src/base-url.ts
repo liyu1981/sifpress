@@ -1,10 +1,11 @@
 /**
  * Base URL shared by every ui-sdk URL builder.
  *
- * The PHP artifact injects `window.SIFPRESS_BASE_URL` into the served HTML
- * (from the `SIFPRESS_BASE_URL` config constant, the `site_url` setting, or
- * the request). Falling back to the current document path keeps the bundle
- * working even when the script is absent (e.g. isolated tests).
+ * Same-origin URLs are derived from the current document path, so the bundle
+ * always talks to the host it was served from (see `appBaseUrl`). The PHP
+ * artifact also injects `window.SIFPRESS_BASE_URL` (from the
+ * `SIFPRESS_BASE_URL` config constant or the `site_url` setting); it is used
+ * only as a fallback for contexts without a document (e.g. isolated tests).
  */
 declare global {
   interface Window {
@@ -17,18 +18,31 @@ function trimTrailingSlashes(value: string): string {
 }
 
 /**
- * Absolute (or root-relative) base for API/asset URLs. Prefer the injected
- * value; otherwise use the current document path so the single-file
- * artifact still works at any mount depth.
+ * Root-relative base for API/asset/chunk URLs. The single-file artifact always
+ * serves those from the path the document was loaded from, so that path is
+ * authoritative: a host alias (apex vs `www`, a preview domain, the LAN IP
+ * during dev) must never turn same-origin fetches into cross-origin ones. The
+ * injected `SIFPRESS_BASE_URL` is only a fallback for contexts without a
+ * document (tests, SSR).
  */
 export function appBaseUrl(): string {
-  const injected = typeof window === 'undefined' ? undefined : window.SIFPRESS_BASE_URL;
+  if (typeof window === 'undefined') {
+    return '/';
+  }
+
+  const pathname = window.location.pathname;
+
+  if (typeof pathname === 'string' && pathname !== '') {
+    return pathname;
+  }
+
+  const injected = window.SIFPRESS_BASE_URL;
 
   if (typeof injected === 'string' && injected.trim() !== '') {
     return trimTrailingSlashes(injected.trim());
   }
 
-  return window.location.pathname;
+  return '/';
 }
 
 /**
