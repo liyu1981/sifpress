@@ -3,7 +3,7 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { ArrowLeft, Calendar, Clock, Loader2, RefreshCw } from 'lucide-react';
 import { useRef } from 'react';
 import { MarkdownView, pagesApi, parseFrontMatter } from 'ui-sdk';
-import { ArticleBottomCard } from '@/components/article-bottom-card';
+import { RawHtml } from '@/components/raw-html';
 import { ReadingProgress } from '@/components/reading-progress';
 import { TableOfContents, useArticleHeadings, useScrollSpy } from '@/components/toc';
 import { useThemeConfig } from '@/lib/theme-config';
@@ -154,7 +154,15 @@ function ArticleDetailPage() {
             </div>
           </article>
 
-          <ArticleBottomCard key={slug} html={articleBottomHtml} />
+          {articleBottomHtml.trim() !== '' && (
+            <section
+              key={slug}
+              aria-label="Article footer"
+              className="glass-control glass-control-read overflow-hidden rounded-2xl"
+            >
+              <RawHtml html={articleBottomHtml} className="px-6 py-8 sm:px-10 sm:py-10" />
+            </section>
+          )}
         </div>
 
         <aside className="mt-12 hidden xl:block">

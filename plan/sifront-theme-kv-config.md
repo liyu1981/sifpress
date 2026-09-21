@@ -118,18 +118,14 @@ keyed by slug so navigating between articles re-runs the embed. Treat the key
 like any other script-capable config: only users with `kvs.write` (or the
 pair's owner) can author it, and the default empty value keeps the card hidden.
 
-### Editing KV from the sifront (`KvEditDialog`)
+### Editing theme KV from the admin Sifront page
 
-Signed-in owners/admins get an inline pencil on the article-bottom card
-(`KvEditButton` → `KvEditDialog`) that opens a modal to edit the pair, or to
-create it when it is absent (the empty card shows an "Add content"
-affordance for them). The dialog reuses the text/JSON value switch: text is
-written as a single JSON string, so pasted HTML needs no escaping.
-Access is resolved client-side from `auth.me` + the pair's `can_edit`
-(`src/lib/kv-editor.ts`), and the backend still enforces `kvs.write` /
-ownership. A successful save invalidates `['theme-config']`, so the card
-re-renders immediately. The dialog/button are generic — any other KV-backed
-spot can drop in `<KvEditButton kvKey="sifpress1.…" />`.
+The admin Sifront page lists every `require_keys` entry with its current and
+default value. Each row's value has an expand icon that opens a larger editor
+dialog (`ValueEditorDialog` in `admin_ui/src/pages/sifront.tsx`) editing the
+same draft as the inline input; Save runs the normal `kvs.create`/`kvs.update`
+mutation. Valid JSON is parsed, anything else is stored as text — so pasted
+HTML needs no escaping. The public sifront stays read-only.
 
 ## 5. Implementation phases
 

@@ -4,7 +4,17 @@ import {
   useQueryClient,
   type UseMutationResult,
 } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight, Eye, Loader2, Plus, Save, Trash2, Upload } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  Loader2,
+  Maximize2,
+  Plus,
+  Save,
+  Trash2,
+  Upload,
+} from 'lucide-react';
 import { type ChangeEvent, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -19,6 +29,15 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useAuth } from 'ui-sdk';
@@ -59,6 +78,64 @@ function parseValue(input: string): unknown {
 }
 
 /**
+ * Larger editor for one theme key, opened from the expand icon in the row.
+ * It edits the row's draft so the inline input and the dialog stay in sync;
+ * Save persists the value (valid JSON is parsed, anything else stays text).
+ */
+function ValueEditorDialog({
+  open,
+  onOpenChange,
+  keyName,
+  value,
+  canEdit,
+  saving,
+  onChange,
+  onSave,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  keyName: string;
+  value: string;
+  canEdit: boolean;
+  saving: boolean;
+  onChange: (value: string) => void;
+  onSave: () => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle className="font-mono text-sm break-all">{keyName}</DialogTitle>
+          <DialogDescription>{t('sifront.valueDialogDescription')}</DialogDescription>
+        </DialogHeader>
+        <Textarea
+          value={value}
+          onChange={event => onChange(event.target.value)}
+          readOnly={!canEdit}
+          placeholder="—"
+          aria-label={keyName}
+          className="h-[50vh] font-mono text-sm"
+          autoFocus
+        />
+        <DialogFooter>
+          <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+            {canEdit ? t('common.cancel') : t('common.close')}
+          </Button>
+          {canEdit && (
+            <Button type="button" size="sm" disabled={saving} onClick={onSave}>
+              {saving ? <Loader2 className="animate-spin" /> : <Save />}
+              {t('sifront.saveValue')}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
  * One editable key row: edit the input, then press the Save button that appears
  * once the value is dirty. Nothing is saved automatically (Escape reverts).
  */
@@ -79,6 +156,7 @@ function KeyRow({
 }) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState(() => stringifyValue(current));
+  const [dialogOpen, setDialogOpen] = useState(false);
   const focusedRef = useRef(false);
 
   /*
@@ -94,18 +172,109 @@ function KeyRow({
 
   const dirty = draft !== stringifyValue(current);
 
+  const expandButton = (
+    <Button
+      type="button"
+      size="icon-sm"
+      variant="ghost"
+      onClick={() => setDialogOpen(true)}
+      aria-label={t('sifront.expandValue')}
+      title={t('sifront.expandValue')}
+    >
+      <Maximize2 />
+    </Button>
+  );
+
+  const dialog = (
+    <ValueEditorDialog
+      open={dialogOpen}
+      onOpenChange={setDialogOpen}
+      keyName={keyName}
+      value={draft}
+      canEdit={canEdit}
+      saving={saving}
+      onChange={setDraft}
+      onSave={() => {
+        onSave(keyName, parseValue(draft));
+        setDialogOpen(false);
+      }}
+    />
+  );
+
   if (!canEdit) {
     return (
+      <>
+        <tr className="align-top">
+          <td className="border-b border-border/60 px-2 py-2 font-mono text-xs break-all">
+            {keyName}
+          </td>
+          <td className="border-b border-border/60 px-2 py-2">
+            <div className="flex items-start gap-1.5">
+              <div className="min-w-0 flex-1">
+                {current === undefined ? (
+                  <span className="text-xs text-muted-foreground">—</span>
+                ) : (
+                  <ValueCell value={current} />
+                )}
+              </div>
+              {expandButton}
+            </div>
+          </td>
+          <td className="border-b border-border/60 px-2 py-2 text-muted-foreground">
+            {fallback === undefined ? (
+              <span className="text-xs text-muted-foreground">—</span>
+            ) : (
+              <ValueCell value={fallback} />
+            )}
+          </td>
+        </tr>
+        {dialog}
+      </>
+    );
+  }
+
+  return (
+    <>
       <tr className="align-top">
         <td className="border-b border-border/60 px-2 py-2 font-mono text-xs break-all">
           {keyName}
         </td>
         <td className="border-b border-border/60 px-2 py-2">
-          {current === undefined ? (
-            <span className="text-xs text-muted-foreground">—</span>
-          ) : (
-            <ValueCell value={current} />
-          )}
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={draft}
+              onChange={event => setDraft(event.target.value)}
+              onFocus={() => {
+                focusedRef.current = true;
+              }}
+              onBlur={() => {
+                focusedRef.current = false;
+              }}
+              onKeyDown={event => {
+                if (event.key === 'Escape') {
+                  setDraft(stringifyValue(current));
+                  event.currentTarget.blur();
+                }
+              }}
+              placeholder="—"
+              aria-label={keyName}
+              className="h-7 font-mono text-xs"
+            />
+            {expandButton}
+            {(dirty || saving) && (
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="outline"
+                disabled={saving}
+                onClick={() => onSave(keyName, parseValue(draft))}
+                aria-label={t('sifront.saveValue')}
+                title={t('sifront.saveValue')}
+              >
+                {saving ? <Loader2 className="animate-spin" /> : <Save />}
+              </Button>
+            )}
+          </div>
         </td>
         <td className="border-b border-border/60 px-2 py-2 text-muted-foreground">
           {fallback === undefined ? (
@@ -115,56 +284,8 @@ function KeyRow({
           )}
         </td>
       </tr>
-    );
-  }
-
-  return (
-    <tr className="align-top">
-      <td className="border-b border-border/60 px-2 py-2 font-mono text-xs break-all">{keyName}</td>
-      <td className="border-b border-border/60 px-2 py-2">
-        <div className="flex items-center gap-1.5">
-          <Input
-            value={draft}
-            onChange={event => setDraft(event.target.value)}
-            onFocus={() => {
-              focusedRef.current = true;
-            }}
-            onBlur={() => {
-              focusedRef.current = false;
-            }}
-            onKeyDown={event => {
-              if (event.key === 'Escape') {
-                setDraft(stringifyValue(current));
-                event.currentTarget.blur();
-              }
-            }}
-            placeholder="—"
-            aria-label={keyName}
-            className="h-7 font-mono text-xs"
-          />
-          {(dirty || saving) && (
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="outline"
-              disabled={saving}
-              onClick={() => onSave(keyName, parseValue(draft))}
-              aria-label={t('sifront.saveValue')}
-              title={t('sifront.saveValue')}
-            >
-              {saving ? <Loader2 className="animate-spin" /> : <Save />}
-            </Button>
-          )}
-        </div>
-      </td>
-      <td className="border-b border-border/60 px-2 py-2 text-muted-foreground">
-        {fallback === undefined ? (
-          <span className="text-xs text-muted-foreground">—</span>
-        ) : (
-          <ValueCell value={fallback} />
-        )}
-      </td>
-    </tr>
+      {dialog}
+    </>
   );
 }
 
