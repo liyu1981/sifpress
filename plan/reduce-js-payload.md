@@ -46,7 +46,10 @@ whitespace. esbuild post-minify would give 5.4 MB raw / 1.56 MB gzip.
 ```
 ui-sdk.mjs           core    React/ReactDOM/React Query/React Router/i18n,
                              api/base-url/pages/front-matter/rewrite,
-                             markdown render pipeline + thin MarkdownView
+                             light markdown helpers + lazy MarkdownView shim
+ui-sdk-markdown.mjs  lazy    Milkdown/Crepe render + edit pipeline, and the
+                             window.SifpressUI.Milkdown namespace the admin
+                             editor externalizes to
 ui-sdk-mermaid.mjs   lazy    mermaid
 ui-sdk-katex.mjs     lazy    katex
 ui-sdk-highlight.mjs lazy    highlight.js
@@ -86,20 +89,29 @@ Load graph:
 - `markdown/mermaid.ts`, `markdown/postprocess.ts`: load on demand only when a
   diagram / math block / code block is present.
 
-### Phase 3 — split the markdown render pipeline (todo)
-- Remove the heavy re-exports from `ui_sdk/src/markdown/index.ts`; keep only the
-  thin `MarkdownView` + types in the core barrel.
-- Move `render`/`shared`/`postprocess`/`mermaid`/`image-directives`/`video-*`
-  into `ui-sdk-markdown.mjs`; `MarkdownView` lazy-loads it.
-- Update `admin_ui/src/lib/md-editor/editor.tsx` to load the markdown chunk
-  before using `createMarkdownEditor` / `setMarkdownContent` /
-  `escapeTableCodePipes` / `setMermaidTheme`.
+### Phase 3 — split the markdown render pipeline (done)
+- `ui_sdk/src/sifpress-ui.ts` no longer imports `@milkdown/*`; the namespace
+  moved to `ui_sdk/src/milkdown-globals.ts`, published by the markdown chunk.
+- `ui_sdk/src/markdown-lazy.tsx` exports the thin core shims (`MarkdownView`,
+  `loadMarkdown`, `markdownToHtml`, `createMarkdownEditor`, …); `ui_sdk/src/index.ts`
+  re-exports `markdown/light` (pure helpers) plus those shims.
+- `ui_sdk/src/chunks/markdown.ts` imports the full `markdown/` barrel and
+  `milkdown-globals.ts`, then sets `window.SifpressUI.Milkdown` and
+  `window.SifpressUI.Libs.markdown`. Built with `externalGlobals({ milkdown: false })`
+  so it consumes the core's React but bundles Milkdown itself.
+- The admin HTML preloads the markdown chunk (`build.php` injects the tag next
+  to the core script) because the admin editor reads
+  `window.SifpressUI.Milkdown[…]` at module-eval and `codeSplitting: false`
+  keeps the editor in the single admin bundle. The sifront does **not** preload
+  it — `MarkdownView` loads it lazily on article pages only.
+- `image-directives.ts` was split: pure helpers stay in the core,
+  `imageDirectivesSchema` moved to `image-directives-schema.ts`.
 
-### Phase 4 — editor chrome chunk (todo)
-- Move the Crepe chrome features (toolbar/block-edit/cursor/link-tooltip/
-  list-item/placeholder/table) into `ui-sdk-editor.mjs`, loaded only on
-  `/editor/*`; it reuses the markdown chunk's `createMarkdownEditor` so the
-  schema cannot drift.
+### Phase 4 — editor chrome chunk (skipped)
+- The Crepe chrome features stay in `ui-sdk-markdown.mjs`. Splitting them into
+  a third chunk would only help the article page (the admin preloads both
+  anyway), and the saving is marginal versus the added loader complexity.
+  Revisit only if the article page payload becomes a target.
 
 ### Phase 5 — slim public core (todo)
 - Add a sifront-only core entry exposing just the globals the sifront bundle
@@ -113,13 +125,15 @@ Load graph:
 
 ## Expected impact (gzip transfer)
 
-| Page | Before | Phase 0–2 |
-|---|---|---|
-| Home | ~1.76 MB | ~0.6 MB |
-| Article (text) | ~1.76 MB | ~0.6 MB |
-| Article (mermaid/math/code) | ~1.76 MB | + on-demand |
+| Page | Before | Phase 0–2 | Phase 3 |
+|---|---|---|---|
+| Home | ~1.76 MB | ~0.6 MB | **~0.14 MB** |
+| Article (text) | ~1.76 MB | ~0.6 MB | ~0.14 + 0.44 MB |
+| Article (mermaid/math/code) | ~1.76 MB | + on-demand | + on-demand |
+| Admin (any page) | ~1.76 MB | ~0.6 MB | ~0.14 + 0.44 MB (markdown preloaded) |
 
-Phases 3–5 should bring the home page to ~100–200 KB.
+Phases 5–6 (sifront-only slim core, prefetch hints) are still open if the home
+page needs to shrink below ~140 KB.
 
 ## Results after Phase 0–2
 
@@ -136,6 +150,20 @@ imports):
 The initial JS transfer dropped from ~1.76 MB to ~0.57 MB gzip. `serve_ui_sdk`
 and `serve_encoded_text` now gzip the response; `dist/sifpress.php` shrank from
 12.57 MB to 10.35 MB.
+
+## Results after Phase 3
+
+| Chunk | Raw | gzip | Loaded |
+|---|---|---|---|
+| `ui-sdk.mjs` | 445,187 B | 139,922 B | always |
+| `ui-sdk-markdown.mjs` | 1,426,641 B | 443,685 B | article render / admin editor |
+| `ui-sdk-mermaid.mjs` | 3,386,549 B | 901,487 B | only when a diagram is rendered |
+| `ui-sdk-katex.mjs` | 258,490 B | 76,661 B | only when a math block is rendered |
+| `ui-sdk-highlight.mjs` | 155,549 B | 52,254 B | only when a code block is rendered |
+
+The core fell from 573 KB to **140 KB gzip**; the home page now loads the core
+only. `UI_SDK_VERSION` hashes all chunks (not just the core) so any chunk change
+busts the `immutable` cache.
 
 ## Verification
 

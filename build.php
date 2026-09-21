@@ -187,7 +187,8 @@ if ($html === null) {
  * references it. The tag has no asset/ src, so inline_assets() below leaves
  * it as-is.
  */
-$uiSdkScript = '<script type="module" src="?p=sifpress/asset/js/ui-sdk.mjs"></script>';
+$uiSdkScript = '<script type="module" src="?p=sifpress/asset/js/ui-sdk.mjs"></script>'
+    . '<script type="module" src="?p=sifpress/asset/js/ui-sdk-markdown.mjs"></script>';
 $pos = strpos($html, '<head>');
 if ($pos !== false) {
     $html = substr_replace($html, '<head>' . $uiSdkScript, $pos, strlen('<head>'));
@@ -292,7 +293,7 @@ foreach ($parts as $part) {
          * types and $/backslashes) is safe.
          */
         $uiSdkChunksPhp = var_export($uiSdkChunks, true);
-        $uiSdkVersion = substr(md5($uiSdkJs), 0, 12);
+        $uiSdkVersion = substr(md5(implode('', $uiSdkChunks)), 0, 12);
         $count = 0;
         $content = preg_replace_callback(
             '#// ___BEGIN_UI_SDK___\n.*?// ___END_UI_SDK___#s',

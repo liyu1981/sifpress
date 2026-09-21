@@ -47,6 +47,25 @@ const SHARED_EXTERNALS: Array<{ id: string; global: string }> = [
 
 const EXTERNALS = new Map(SHARED_EXTERNALS.map(e => [e.id, e.global]));
 
+export interface ExternalGlobalsOptions {
+  /**
+   * Externalize the `@milkdown/*` specifiers to
+   * `window.SifpressUI.Milkdown[...]`. Set to `false` when building the chunk
+   * that *provides* that global, otherwise the provider would read from the
+   * global it is about to define. Defaults to `true`.
+   */
+  milkdown?: boolean;
+}
+
+function buildExternals(options: ExternalGlobalsOptions): Map<string, string> {
+  const entries =
+    options.milkdown === false
+      ? SHARED_EXTERNALS.filter(e => !e.id.startsWith('@milkdown/'))
+      : SHARED_EXTERNALS;
+
+  return new Map(entries.map(e => [e.id, e.global]));
+}
+
 /**
  * Rewrite `import { a, b as c } from 'react'` -> `const { a, b: c } =
  * window.SifpressUI.React;`, `import * as R from 'react'` ->
@@ -54,7 +73,10 @@ const EXTERNALS = new Map(SHARED_EXTERNALS.map(e => [e.id, e.global]));
  * `export * as ns from 'react'` -> destructure + local export. Runs after
  * esbuild has stripped type-only imports, so only runtime imports remain.
  */
-export function rewriteImports(code: string): string {
+export function rewriteImports(
+  code: string,
+  externals: Map<string, string> = EXTERNALS,
+): string {
   let out = code;
 
   const importRe =
@@ -64,7 +86,7 @@ export function rewriteImports(code: string): string {
 
   for (const match of code.matchAll(importRe)) {
     const specifier = match.groups?.from;
-    const global = specifier === undefined ? undefined : EXTERNALS.get(specifier);
+    const global = specifier === undefined ? undefined : externals.get(specifier);
 
     if (global === undefined) {
       continue;
@@ -122,7 +144,7 @@ export function rewriteImports(code: string): string {
 
   for (const match of code.matchAll(exportFromRe)) {
     const specifier = match.groups?.from;
-    const global = specifier === undefined ? undefined : EXTERNALS.get(specifier);
+    const global = specifier === undefined ? undefined : externals.get(specifier);
 
     if (global === undefined) {
       continue;
@@ -198,13 +220,15 @@ export function rewriteImports(code: string): string {
  *   window.SifpressUI globals (runs after esbuild stripped type-only
  *   imports).
  */
-export function externalGlobals(): Plugin[] {
+export function externalGlobals(options: ExternalGlobalsOptions = {}): Plugin[] {
+  const externals = buildExternals(options);
+
   return [
     {
       name: 'sifpress-external-globals:resolve',
       enforce: 'pre',
       resolveId(id) {
-        if (EXTERNALS.has(id)) {
+        if (externals.has(id)) {
           return { id, external: true };
         }
         return null;
@@ -214,7 +238,7 @@ export function externalGlobals(): Plugin[] {
       name: 'sifpress-external-globals:rewrite',
       enforce: 'post',
       transform(code) {
-        return { code: rewriteImports(code), map: null };
+        return { code: rewriteImports(code, externals), map: null };
       },
     },
   ];

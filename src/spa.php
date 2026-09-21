@@ -101,17 +101,20 @@ function apply_ui_sdk_version(string $html): string
         return $html;
     }
 
-    $needle = 'src="?p=sifpress/asset/js/ui-sdk.mjs"';
+    $needles = [
+        'ui-sdk.mjs',
+        'ui-sdk-markdown.mjs',
+    ];
 
-    if (!str_contains($html, $needle)) {
-        return $html;
+    foreach ($needles as $file) {
+        $html = str_replace(
+            'src="?p=sifpress/asset/js/' . $file . '"',
+            'src="?p=sifpress/asset/js/' . $file . '&v=' . UI_SDK_VERSION . '"',
+            $html
+        );
     }
 
-    return str_replace(
-        $needle,
-        'src="?p=sifpress/asset/js/ui-sdk.mjs&v=' . UI_SDK_VERSION . '"',
-        $html
-    );
+    return $html;
 }
 
 /**

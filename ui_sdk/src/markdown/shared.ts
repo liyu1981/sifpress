@@ -3,7 +3,7 @@ import { codeMirror } from '@milkdown/crepe/feature/code-mirror';
 import { latex } from '@milkdown/crepe/feature/latex';
 import { editorViewCtx, editorViewOptionsCtx, parserCtx } from '@milkdown/kit/core';
 import type { Ctx } from '@milkdown/kit/ctx';
-import { imageDirectivesSchema } from './image-directives';
+import { imageDirectivesSchema } from './image-directives-schema';
 import {
   diagramNodeView,
   diagramSchema,

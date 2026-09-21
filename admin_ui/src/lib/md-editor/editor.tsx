@@ -16,13 +16,7 @@ import {
 import { TextSelection } from '@milkdown/kit/prose/state';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  createMarkdownEditor,
-  type MermaidTheme,
-  escapeTableCodePipes,
-  setMarkdownContent,
-  setMermaidTheme,
-} from 'ui-sdk';
+import { type MermaidTheme, escapeTableCodePipes, loadMarkdown, setMarkdownContent } from 'ui-sdk';
 import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { configureDiagramTooltip, diagramTooltip } from './plugins/diagram-tooltip';
@@ -284,59 +278,73 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
         return;
       }
 
-      const builder = createMarkdownEditor({
-        root: container,
-        defaultValue,
-        mode: 'edit',
+      let cancelled = false;
+      let builder: CrepeBuilder | null = null;
+
+      void loadMarkdown().then(lib => {
+        if (cancelled) {
+          return;
+        }
+
+        builder = lib.createMarkdownEditor({
+          root: container,
+          defaultValue,
+          mode: 'edit',
+        });
+
+        builder.addFeature(listItem);
+        builder.addFeature(linkTooltip);
+        builder.addFeature(cursor);
+        builder.addFeature(placeholder);
+        builder.addFeature(table);
+        builder.addFeature(toolbar, {
+          buildToolbar: groupBuilder => {
+            groupBuilder.addGroup('block', 'Block').addItem('block-type', {
+              icon: BLOCK_TYPE_ICON,
+              label: 'Block type',
+              active: () => false,
+              onRun: ctx => {
+                const trigger = document.querySelector<HTMLElement>(
+                  '[data-toolbar-item="block-type"]',
+                );
+                if (trigger === null) {
+                  return;
+                }
+                setBlockMenu(prev =>
+                  prev ? null : { rect: trigger.getBoundingClientRect(), ctx },
+                );
+              },
+            });
+            // Move the block-type group to the front: the toolbar inserts a
+            // divider before every group after the first, so this renders as
+            // [block type] | [inline formatting...]. `build()` returns the live
+            // group array that `getGroups` then returns.
+            const groups = groupBuilder.build();
+            const block = groups.pop();
+            if (block !== undefined) {
+              groups.unshift(block);
+            }
+          },
+        });
+        builder.addFeature(blockEdit);
+
+        builder.editor
+          .use(imageDirectivesView)
+          .config(configureImageDirectiveTooltip(onUpload))
+          .use(imageDirectiveTooltip)
+          .config(configureDiagramTooltip())
+          .use(diagramTooltip);
+
+        builderRef.current = builder;
+        void builder.create();
       });
-
-      builder.addFeature(listItem);
-      builder.addFeature(linkTooltip);
-      builder.addFeature(cursor);
-      builder.addFeature(placeholder);
-      builder.addFeature(table);
-      builder.addFeature(toolbar, {
-        buildToolbar: groupBuilder => {
-          groupBuilder.addGroup('block', 'Block').addItem('block-type', {
-            icon: BLOCK_TYPE_ICON,
-            label: 'Block type',
-            active: () => false,
-            onRun: ctx => {
-              const trigger = document.querySelector<HTMLElement>(
-                '[data-toolbar-item="block-type"]',
-              );
-              if (trigger === null) {
-                return;
-              }
-              setBlockMenu(prev => (prev ? null : { rect: trigger.getBoundingClientRect(), ctx }));
-            },
-          });
-          // Move the block-type group to the front: the toolbar inserts a
-          // divider before every group after the first, so this renders as
-          // [block type] | [inline formatting...]. `build()` returns the live
-          // group array that `getGroups` then returns.
-          const groups = groupBuilder.build();
-          const block = groups.pop();
-          if (block !== undefined) {
-            groups.unshift(block);
-          }
-        },
-      });
-      builder.addFeature(blockEdit);
-
-      builder.editor
-        .use(imageDirectivesView)
-        .config(configureImageDirectiveTooltip(onUpload))
-        .use(imageDirectiveTooltip)
-        .config(configureDiagramTooltip())
-        .use(diagramTooltip);
-
-      builderRef.current = builder;
-      void builder.create();
 
       return () => {
+        cancelled = true;
         builderRef.current = null;
-        void builder.destroy();
+        if (builder !== null) {
+          void builder.destroy();
+        }
       };
       // Mount once; live updates flow through the handle, not re-mounting.
     }, []);
@@ -349,7 +357,7 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
         : theme;
 
     useEffect(() => {
-      setMermaidTheme(resolved);
+      void loadMarkdown().then(lib => lib.setMermaidTheme(resolved));
     }, [resolved]);
 
     useEffect(() => {

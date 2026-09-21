@@ -13,8 +13,8 @@ export {
   type ResolvedVideo,
 } from './video-source';
 export { escapeTableCodePipes } from './preprocess';
+export { imageDirectivesSchema } from './image-directives-schema';
 export {
-  imageDirectivesSchema,
   rebuildImageAlt,
   type ImageDirectiveAttrs,
 } from './image-directives';
