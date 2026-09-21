@@ -105,7 +105,7 @@ function ValueEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="glass-control-opaque max-w-3xl">
         <DialogHeader>
           <DialogTitle className="font-mono text-sm break-all">{keyName}</DialogTitle>
           <DialogDescription>{t('sifront.valueDialogDescription')}</DialogDescription>
