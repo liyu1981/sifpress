@@ -88,8 +88,8 @@ export function KvEditDialog({ kvKey, existing, open, onOpenChange }: KvEditDial
         <DialogHeader>
           <DialogTitle>{existing !== null ? 'Edit key-value' : 'Create key-value'}</DialogTitle>
           <DialogDescription>
-            Stored in the key-value store and rendered by this theme. Raw text is saved as a single
-            JSON string, so HTML needs no escaping.
+            Stored in the key-value store and rendered by this theme. Text is saved as a single JSON
+            string, so HTML needs no escaping.
           </DialogDescription>
         </DialogHeader>
 
@@ -110,7 +110,7 @@ export function KvEditDialog({ kvKey, existing, open, onOpenChange }: KvEditDial
                 variant={mode === 'text' ? 'secondary' : 'ghost'}
                 onClick={() => setMode('text')}
               >
-                Raw text
+                Text
               </Button>
               <Button
                 type="button"
@@ -127,7 +127,7 @@ export function KvEditDialog({ kvKey, existing, open, onOpenChange }: KvEditDial
             <Textarea
               value={text}
               onChange={event => setText(event.target.value)}
-              placeholder="Paste raw text or HTML — saved as a single string."
+              placeholder="Paste text or HTML — saved as a single string."
               className="h-80"
               autoFocus
             />

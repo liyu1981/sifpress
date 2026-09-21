@@ -123,8 +123,8 @@ pair's owner) can author it, and the default empty value keeps the card hidden.
 Signed-in owners/admins get an inline pencil on the article-bottom card
 (`KvEditButton` → `KvEditDialog`) that opens a modal to edit the pair, or to
 create it when it is absent (the empty card shows an "Add content"
-affordance for them). The dialog reuses the raw-text/JSON value switch: raw
-text is written as a single JSON string, so pasted HTML needs no escaping.
+affordance for them). The dialog reuses the text/JSON value switch: text is
+written as a single JSON string, so pasted HTML needs no escaping.
 Access is resolved client-side from `auth.me` + the pair's `can_edit`
 (`src/lib/kv-editor.ts`), and the backend still enforces `kvs.write` /
 ownership. A successful save invalidates `['theme-config']`, so the card
