@@ -156,9 +156,10 @@ function ArticleDetailPage() {
 
           {articleBottomHtml.trim() !== '' && (
             <section
+              id="comments"
               key={slug}
-              aria-label="Article footer"
-              className="glass-control glass-control-read overflow-hidden rounded-2xl"
+              aria-label="Comments"
+              className="glass-control glass-control-read min-h-40 scroll-mt-24 overflow-hidden rounded-2xl"
             >
               <RawHtml html={articleBottomHtml} className="px-6 py-8 sm:px-10 sm:py-10" />
             </section>

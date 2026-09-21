@@ -231,6 +231,22 @@
   }
 
   /*
+   * Third-party embeds (Remark42, Disqus, …) are admin-authored HTML
+   * mounted by RawHtml into the article-bottom card. Their iframe starts
+   * at `height: 100%`, which resolves to 0 against an auto-height parent
+   * until the embed posts its size back — reading as "missing" on small
+   * screens. A floor height keeps the card visibly present everywhere.
+   */
+  #remark42 {
+    min-height: 12rem;
+  }
+
+  #remark42 iframe {
+    width: 100%;
+    min-height: 12rem;
+  }
+
+  /*
    * Hover glow: a rotating conic-gradient "rainbow" ring plus a blurred
    * copy for the outer glow. The ring is masked to a 2px border and drawn
    * at z-index 0, directly above the glass background; the card's content

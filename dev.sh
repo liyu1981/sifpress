@@ -35,7 +35,9 @@ inject_sifront_dev() {
   # Dev-only: push the freshly built sifpress1 bundle into the DB through the
   # same storage path the admin uses, so the served sifront is never stale.
   if [ -f "$ROOT/dist/sifpress1.bundle.js" ] && [ -f "$ROOT/dist/sifpress1.meta.json" ]; then
-    php "$ROOT/dist/index.php" inject_sifront sifpress1 >/dev/null 2>&1 || true
+    if ! php "$ROOT/dist/index.php" inject_sifront sifpress1 >/dev/null; then
+      echo "==> WARNING: inject_sifront failed; the dev server may serve a stale sifront." >&2
+    fi
   fi
 }
 
