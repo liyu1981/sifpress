@@ -98,7 +98,13 @@ function ArticleDetailPage() {
           <article className="glass-control glass-control-read overflow-hidden rounded-2xl">
             {cover !== null && (
               <div className="relative aspect-[21/9] w-full overflow-hidden bg-muted">
-                <img src={cover} alt="" className="absolute inset-0 size-full object-cover" />
+                <img
+                  src={cover}
+                  alt=""
+                  loading="eager"
+                  fetchPriority="high"
+                  className="absolute inset-0 size-full object-cover"
+                />
               </div>
             )}
 

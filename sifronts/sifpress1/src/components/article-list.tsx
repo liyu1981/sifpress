@@ -48,8 +48,8 @@ export function ArticleList({ articles }: { articles: PageListItem[] }) {
 
   return (
     <div className="flex flex-col gap-8">
-      {articles.map(article => (
-        <ArticleCard key={article.id} article={toCardData(article)} />
+      {articles.map((article, index) => (
+        <ArticleCard key={article.id} article={toCardData(article)} priority={index === 0} />
       ))}
     </div>
   );

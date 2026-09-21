@@ -25,7 +25,14 @@ function formatDate(dateStr: string): string {
   }
 }
 
-export function ArticleCard({ article }: { article: ArticleCardData }) {
+export function ArticleCard({
+  article,
+  priority = false,
+}: {
+  article: ArticleCardData;
+  /** Set on the first card so its cover is the discoverable, high-priority LCP image. */
+  priority?: boolean;
+}) {
   return (
     <article className="glass-control glass-control-read rainbow-card rounded-2xl transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5">
       {article.cover != null && article.cover !== '' && (
@@ -38,7 +45,8 @@ export function ArticleCard({ article }: { article: ArticleCardData }) {
           <img
             src={article.cover}
             alt=""
-            loading="lazy"
+            loading={priority ? 'eager' : 'lazy'}
+            fetchPriority={priority ? 'high' : 'auto'}
             className="absolute inset-0 size-full object-cover"
           />
         </Link>
