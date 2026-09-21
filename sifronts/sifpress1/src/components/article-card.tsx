@@ -32,6 +32,7 @@ export function ArticleCard({ article }: { article: ArticleCardData }) {
         <Link
           to="/article/$slug"
           params={{ slug: article.slug }}
+          aria-label={`Read article: ${article.title}`}
           className="relative block aspect-[16/9] w-full overflow-hidden rounded-t-2xl bg-muted focus:outline-none"
         >
           <img
