@@ -30,6 +30,14 @@ export function clearCustomSystemPrompt(): void {
 }
 
 /**
+ * Appended as the final section of every system prompt (built-in or custom) so
+ * the last instruction the model reads is the requirement to stage revisions
+ * instead of only describing them in chat.
+ */
+export const AGENT_GUARDRAIL = `## Guardrail — always stage revisions
+If your reply contains new or revised content for the open draft, you MUST pass that content to update_content (the full body) or update_selection (the selection only) and then call save. Never present a revision as chat text alone: a reply that shows changed content without calling the tool is incomplete. If you did not change the draft, do not call save.`;
+
+/**
  * Resolve the effective base prompt: the custom override when present,
  * otherwise the provided built-in default. `{{language}}` is interpolated in
  * both paths (the built-in default is usually already interpolated by i18n,

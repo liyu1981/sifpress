@@ -52,7 +52,7 @@ import {
   refreshModels,
 } from '@/lib/agent/models';
 import { deleteSession, listSessionsFull, saveSession, type AgentSession } from '@/lib/agent/store';
-import { resolveSystemPrompt } from '@/lib/agent/prompt';
+import { AGENT_GUARDRAIL, resolveSystemPrompt } from '@/lib/agent/prompt';
 import { skillsSystemPrompt } from '@/lib/agent/skills';
 import { buildAgentTools } from '@/lib/agent/tools';
 import { cn } from '@/lib/utils';
@@ -282,10 +282,11 @@ export function AgentChat({
 
   const buildSystemPrompt = useCallback((base: string): string => {
     const draftNow = draftRef.current;
-    if (draftNow === null) {
-      return base;
-    }
-    return `${base}\n\n## Current draft the user is editing\n- slug: ${draftNow.slug}\n- title: ${draftNow.title}\n\n\`\`\`markdown\n${draftNow.content}\n\`\`\`\n\nWhen the user asks something about their draft, answer using this draft. Edits to the draft are staged with update_frontmatter and update_content, and the commit message with set_commit_note; call save when you are done to open the review dialog — the editor is only updated after the user finishes reviewing. When the user is revising a selected chunk, read it with get_selection and return the replacement with update_selection instead of update_content.`;
+    const withDraft =
+      draftNow === null
+        ? base
+        : `${base}\n\n## Current draft the user is editing\n- slug: ${draftNow.slug}\n- title: ${draftNow.title}\n\n\`\`\`markdown\n${draftNow.content}\n\`\`\`\n\nWhen the user asks something about their draft, answer using this draft. Edits to the draft are staged with update_frontmatter and update_content, and the commit message with set_commit_note; call save when you are done to open the review dialog — the editor is only updated after the user finishes reviewing. When the user is revising a selected chunk, read it with get_selection and return the replacement with update_selection instead of update_content.`;
+    return `${withDraft}\n\n${AGENT_GUARDRAIL}`;
   }, []);
 
   /**
