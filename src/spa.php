@@ -66,9 +66,11 @@ const SIFRONT_FALLBACK_HTML = '<!DOCTYPE html>'
 function base_url_meta(): string
 {
     $base = base_url();
+    $version = defined('UI_SDK_VERSION') ? (string) UI_SDK_VERSION : '';
 
     return '<meta name="sifpress-base-url" content="' . seo_esc($base) . '">'
-        . '<script>window.SIFPRESS_BASE_URL=' . json_encode($base) . ';</script>';
+        . '<script>window.SIFPRESS_BASE_URL=' . json_encode($base) . ';'
+        . 'window.SIFPRESS_UI_VERSION=' . json_encode($version) . ';</script>';
 }
 
 /**
@@ -230,8 +232,7 @@ function serve_sifront_page(): never
         $html = SIFRONT_FALLBACK_HTML;
     }
 
-    echo apply_ui_sdk_version(inject_into_head($html, base_url_meta()));
-    exit;
+    serve_encoded_text(apply_ui_sdk_version(inject_into_head($html, base_url_meta())));
 }
 
 /**
@@ -274,8 +275,7 @@ function serve_sifront_bundle(): never
             : 'public, max-age=31536000, immutable')
     );
 
-    echo $bundle;
-    exit;
+    serve_encoded_text($bundle);
 }
 
 function serve_spa(string $route): never
@@ -366,6 +366,5 @@ function serve_spa(string $route): never
         }
     }
 
-    echo apply_ui_sdk_version(inject_into_head($html, $meta));
-    exit;
+    serve_encoded_text(apply_ui_sdk_version(inject_into_head($html, $meta)));
 }

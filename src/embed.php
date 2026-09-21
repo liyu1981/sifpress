@@ -8,6 +8,6 @@
 const EMBEDDED_HTML = '';
 // ___END_EMBEDDED___
 // ___BEGIN_UI_SDK___
-const UI_SDK_JS = '';
+const UI_SDK_CHUNKS = [];
 const UI_SDK_VERSION = '';
 // ___END_UI_SDK___

@@ -38,6 +38,7 @@ import * as MilkdownUtils from '@milkdown/kit/utils';
 
 export interface SifpressUI {
   sdk: typeof sdk;
+  Libs?: Record<string, unknown>;
   React: typeof React;
   ReactJSXRuntime: typeof ReactJSXRuntime;
   ReactDOM: typeof ReactDOM;
@@ -108,6 +109,8 @@ const api: SifpressUI = {
   },
 };
 
-Object.assign(window, { SifpressUI: api });
+Object.assign(window, {
+  SifpressUI: window.SifpressUI === undefined ? api : { ...api, Libs: window.SifpressUI.Libs },
+});
 
 export default api;

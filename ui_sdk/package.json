@@ -5,9 +5,9 @@
 		"typecheck": "tsc --noEmit",
 		"format": "biome format --write .",
 		"format:check": "biome format .",
-		"build": "vite build",
-		"build:dev": "vite build --mode dev",
-		"build:release": "vite build --mode release"
+		"build": "node build.mjs release",
+		"build:dev": "node build.mjs dev",
+		"build:release": "node build.mjs release"
 	},
 	"private": true,
 	"type": "module",

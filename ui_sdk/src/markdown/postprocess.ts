@@ -1,7 +1,16 @@
-import hljs from 'highlight.js/lib/common';
-import katex from 'katex';
+import { getUiLib, loadUiChunk } from '../lazy-chunks';
 import { nextDiagramId, renderMermaidChart } from './mermaid';
 import { buildVideoElement } from './video-element';
+
+interface KatexApi {
+  renderToString(input: string, options?: Record<string, unknown>): string;
+}
+
+interface HljsApi {
+  getLanguage(name: string): unknown;
+  highlight(code: string, options: { language: string }): { value: string };
+  highlightAuto(code: string): { value: string };
+}
 
 /**
  * Language of a fenced code block. Milkdown serializes code blocks as
@@ -20,14 +29,25 @@ function codeLanguage(pre: Element, code: Element | null): string | null {
   return match === null ? null : match[1].toLowerCase();
 }
 
-function convertLatexBlocks(body: HTMLElement): void {
-  for (const pre of Array.from(body.querySelectorAll('pre'))) {
+async function convertLatexBlocks(body: HTMLElement): Promise<void> {
+  const blocks = Array.from(body.querySelectorAll('pre')).filter(
+    pre => codeLanguage(pre, pre.querySelector(':scope > code')) === 'latex',
+  );
+
+  if (blocks.length === 0) {
+    return;
+  }
+
+  await loadUiChunk('ui-sdk-katex.mjs', () => getUiLib<KatexApi>('katex') !== null);
+
+  const katex = getUiLib<KatexApi>('katex');
+
+  if (katex === null) {
+    return;
+  }
+
+  for (const pre of blocks) {
     const code = pre.querySelector(':scope > code');
-
-    if (codeLanguage(pre, code) !== 'latex') {
-      continue;
-    }
-
     const source = code?.textContent ?? '';
     const wrapper = document.createElement('div');
     wrapper.className = 'md-math-display my-6 overflow-x-auto';
@@ -70,10 +90,28 @@ async function renderMermaidDivs(body: HTMLElement): Promise<void> {
 
 /**
  * Highlight every fenced code block and wrap it in the `.md-codeblock`
- * shell (language label + copy button) the article CSS styles.
+ * shell (language label + copy button) the article CSS styles. Loads
+ * highlight.js on demand so articles without code never pay for it.
  */
-function highlightCodeBlocks(body: HTMLElement): void {
-  for (const pre of Array.from(body.querySelectorAll('pre'))) {
+async function highlightCodeBlocks(body: HTMLElement): Promise<void> {
+  const blocks = Array.from(body.querySelectorAll('pre')).filter(pre => {
+    const language = codeLanguage(pre, pre.querySelector(':scope > code'));
+    return language !== 'mermaid' && language !== 'latex';
+  });
+
+  if (blocks.length === 0) {
+    return;
+  }
+
+  await loadUiChunk('ui-sdk-highlight.mjs', () => getUiLib<HljsApi>('hljs') !== null);
+
+  const hljs = getUiLib<HljsApi>('hljs');
+
+  if (hljs === null) {
+    return;
+  }
+
+  for (const pre of blocks) {
     const code = pre.querySelector(':scope > code');
 
     if (code === null) {
@@ -81,11 +119,6 @@ function highlightCodeBlocks(body: HTMLElement): void {
     }
 
     const language = codeLanguage(pre, code);
-
-    if (language === 'mermaid' || language === 'latex') {
-      continue;
-    }
-
     const source = code.textContent ?? '';
 
     try {
@@ -165,14 +198,17 @@ function externalizeLinks(body: HTMLElement): void {
  * editor (and the old react-markdown pipeline) did: block math → KaTeX
  * display, mermaid divs → SVG, fenced code → highlighted `.md-codeblock`,
  * video images → players, external links → new tab.
+ *
+ * KaTeX, mermaid and highlight.js are loaded on demand, only when the
+ * article actually contains math, a diagram or a code block.
  */
 export async function postProcessHtml(html: string): Promise<string> {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const body = doc.body;
 
-  convertLatexBlocks(body);
+  await convertLatexBlocks(body);
   await renderMermaidDivs(body);
-  highlightCodeBlocks(body);
+  await highlightCodeBlocks(body);
   convertVideoImages(body);
   externalizeLinks(body);
 

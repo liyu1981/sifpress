@@ -137,9 +137,21 @@ if (!is_file($uiSdkBundle)) {
     throw new RuntimeException('ui-sdk bundle was not generated at ui_sdk/dist/ui-sdk.mjs');
 }
 
-$uiSdkJs = file_get_contents($uiSdkBundle);
+$uiSdkChunks = [];
 
-if ($uiSdkJs === false) {
+foreach (glob($uiSdkDir . '/dist/*.mjs') ?: [] as $chunkPath) {
+    $chunkJs = file_get_contents($chunkPath);
+
+    if ($chunkJs === false) {
+        throw new RuntimeException("Could not read $chunkPath");
+    }
+
+    $uiSdkChunks[basename($chunkPath)] = $chunkJs;
+}
+
+$uiSdkJs = $uiSdkChunks['ui-sdk.mjs'] ?? '';
+
+if ($uiSdkJs === '') {
     throw new RuntimeException('Could not read ui_sdk/dist/ui-sdk.mjs');
 }
 
@@ -279,14 +291,14 @@ foreach ($parts as $part) {
          * single-quoted PHP string, so the JS (which contains both quote
          * types and $/backslashes) is safe.
          */
-        $uiSdkJsPhp = var_export($uiSdkJs, true);
+        $uiSdkChunksPhp = var_export($uiSdkChunks, true);
         $uiSdkVersion = substr(md5($uiSdkJs), 0, 12);
         $count = 0;
         $content = preg_replace_callback(
             '#// ___BEGIN_UI_SDK___\n.*?// ___END_UI_SDK___#s',
-            function () use ($uiSdkJsPhp, $uiSdkVersion): string {
-                return "// ___BEGIN_UI_SDK___\nconst UI_SDK_JS = " .
-                    $uiSdkJsPhp . ";\nconst UI_SDK_VERSION = " .
+            function () use ($uiSdkChunksPhp, $uiSdkVersion): string {
+                return "// ___BEGIN_UI_SDK___\nconst UI_SDK_CHUNKS = " .
+                    $uiSdkChunksPhp . ";\nconst UI_SDK_VERSION = " .
                     var_export($uiSdkVersion, true) . ";\n// ___END_UI_SDK___";
             },
             $content,

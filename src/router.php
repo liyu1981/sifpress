@@ -27,8 +27,8 @@ if (str_starts_with($p, 'sifpress/')) {
         handle_api((string) request_param('action', ''), $method);
     }
 
-    if ($inner === 'asset/js/ui-sdk.mjs') {
-        serve_ui_sdk();
+    if (str_starts_with($inner, 'asset/js/') && str_ends_with($inner, '.mjs')) {
+        serve_ui_sdk(substr($inner, strlen('asset/js/')));
     }
 
     if ($inner === 'migration') {
