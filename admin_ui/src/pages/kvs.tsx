@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { ApiError, kvsApi, type KvGrant, type KvPair } from 'ui-sdk';
 import { useAuth } from 'ui-sdk';
@@ -88,6 +89,10 @@ function KvForm({ pair, onDone }: KvFormProps) {
   const [key, setKey] = useState(pair?.key ?? '');
   const [content, setContent] = useState<Content>({ json: pair?.value ?? {} });
   const [formKey, setFormKey] = useState(0);
+  const [valueMode, setValueMode] = useState<'json' | 'text'>(
+    typeof pair?.value === 'string' ? 'text' : 'json',
+  );
+  const [textValue, setTextValue] = useState(typeof pair?.value === 'string' ? pair.value : '');
   const [error, setError] = useState<string | null>(null);
   const [schemaOpen, setSchemaOpen] = useState(pair?.schema != null);
   const [schemaContent, setSchemaContent] = useState<Content>({ json: pair?.schema ?? {} });
@@ -126,7 +131,8 @@ function KvForm({ pair, onDone }: KvFormProps) {
   }, [schemaValidation.valid, schemaValue]);
 
   const validateContent = () => {
-    const parsed = contentToJson(content);
+    const parsed =
+      valueMode === 'text' ? { ok: true as const, value: textValue } : contentToJson(content);
     if (!parsed.ok) {
       throw new ApiError(422, { error: t('kvs.invalidJson') });
     }
@@ -154,6 +160,8 @@ function KvForm({ pair, onDone }: KvFormProps) {
       setKey('');
       setContent({ json: {} });
       setFormKey(value => value + 1);
+      setValueMode('json');
+      setTextValue('');
       setSchemaOpen(false);
       setSchemaContent({ json: {} });
       setSchemaFormKey(value => value + 1);
@@ -253,18 +261,43 @@ function KvForm({ pair, onDone }: KvFormProps) {
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-value`}>{t('kvs.valueLabel')}</Label>
-        <JsonEditor
-          key={formKey}
-          id={`${idPrefix}-value`}
-          initialValue={pair !== undefined ? pair.value : {}}
-          validator={validator}
-          onChange={setContent}
-          className="h-[480px]"
-          ariaLabel={t('kvs.valueLabel')}
-        />
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor={`${idPrefix}-value`}>
+            {valueMode === 'text' ? t('kvs.valueLabelText') : t('kvs.valueLabel')}
+          </Label>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">{t('kvs.valueModeText')}</span>
+            <Switch
+              checked={valueMode === 'text'}
+              onCheckedChange={checked => setValueMode(checked ? 'text' : 'json')}
+              aria-label={t('kvs.valueModeText')}
+            />
+          </div>
+        </div>
+        {valueMode === 'text' ? (
+          <Textarea
+            id={`${idPrefix}-value`}
+            value={textValue}
+            onChange={event => setTextValue(event.target.value)}
+            placeholder={t('kvs.valueTextPlaceholder')}
+            className="h-[480px]"
+            aria-label={t('kvs.valueLabel')}
+          />
+        ) : (
+          <JsonEditor
+            key={formKey}
+            id={`${idPrefix}-value`}
+            initialValue={pair !== undefined ? pair.value : {}}
+            validator={validator}
+            onChange={setContent}
+            className="h-[480px]"
+            ariaLabel={t('kvs.valueLabel')}
+          />
+        )}
         {pair === undefined && (
-          <p className="text-xs text-muted-foreground">{t('kvs.valueHint')}</p>
+          <p className="text-xs text-muted-foreground">
+            {valueMode === 'text' ? t('kvs.valueTextHint') : t('kvs.valueHint')}
+          </p>
         )}
       </div>
       {error !== null && <p className="text-sm text-destructive">{error}</p>}
