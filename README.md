@@ -77,6 +77,7 @@ Source is split into fragments for maintainability:
 
 ```text
 src/
+├── env.php         PHP version/extension/FTS5 requirements (assembled first)
 ├── bootstrap.php   constants + core helpers
 ├── db.php          SQLite open, pragmas, migration detection/runner, seeds
 ├── migration.php   ?p=migration handler (status / run)
@@ -140,6 +141,23 @@ www/
 ```
 
 That's it. No `.htaccess`, no Nginx config, no directory structure.
+
+### Server requirements
+
+The first thing the artifact does on every request is verify the PHP
+environment (before loading config or touching the database). It requires:
+
+- **PHP 8.1+**
+- the **pdo_sqlite** extension (with **FTS5** support in the underlying
+  SQLite library)
+- the **mbstring** extension
+- the **fileinfo** extension
+
+When any of these is missing the app answers **503 Service Unavailable** with
+an HTML page listing what is missing and how to install it (`apt`, `dnf`,
+Homebrew); the CLI prints the same to stderr and exits non-zero. Install the
+missing pieces, restart PHP-FPM/Apache, and reload. `curl` and `zlib` are
+optional (their features degrade gracefully).
 
 The same file works at `/`, `/myapp/`, or any deeper path. The browser makes
 exactly **one HTTP request** per page load, because the JS and CSS are inlined.

@@ -37,7 +37,7 @@ php buildfront.php release
   (`run()`, `inline_assets()`); each drives its own pipeline.
 - `build.php` runs `pnpm run build` in `admin_ui/`, inlines the built
   JS/CSS into the HTML, embeds it as `EMBEDDED_HTML`, and assembles the
-  PHP fragments from `src/` (in order: `bootstrap.php`, `db.php`,
+  PHP fragments from `src/` (in order: `env.php`, `bootstrap.php`, `db.php`,
   `migration.php`, `auth.php`, `api.php`, `asset.php`, `sifront.php`,
   `spa.php`, `embed.php`, `migrations.php`, `backup.php`, `dev.php`,
   `router.php`)
@@ -139,6 +139,8 @@ SIFPRESS_PORT=8080 ./dev.sh
 migrations/         SQL migration scripts (authoring source of truth, embedded
   NNNN_*.sql        at build time; never edited once applied — add new ones)
 src/                PHP source fragments (edit these)
+  env.php           PHP version/extension/FTS5 requirements (assembled first,
+                    before config + DB; fails with an install message)
   bootstrap.php     constants + core helpers
   db.php            SQLite open, pragmas, migration detect/runner, seeds
   migration.php     ?p=migration handler (status / run)

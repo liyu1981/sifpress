@@ -28,6 +28,7 @@ declare(strict_types=1);
  *
  * Source layout:
  *
+ *   src/env.php          PHP version/extension/FTS5 requirements (assembled first)
  *   src/bootstrap.php    constants + core helpers
  *   src/db.php           SQLite open, pragmas, migration detection/runner, seeds
  *   src/migration.php    ?p=sifpress/migration handler
@@ -71,6 +72,7 @@ $output = $outputDir . ($isRelease ? '/sifpress.php' : '/index.php');
  * must sit before router.php, which dispatches to handle_dev().
  */
 $parts = [
+    'env.php',
     'bootstrap.php',
     'db.php',
     'migration.php',
