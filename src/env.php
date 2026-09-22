@@ -7,13 +7,14 @@
  * actionable message instead of an obscure fatal error buried in a request
  * handler.
  *
- * The rest of the artifact is written in PHP 8.1 syntax (the `never` return
- * type), so 8.1 is the hard floor regardless of this check.
+ * The artifact's syntax floor is PHP 8.1 (the `never` return type), but the
+ * supported, tested baseline is PHP 8.3 — the version shipped by the current
+ * Ubuntu LTS and used in CI — so 8.3 is the required minimum.
  * ------------------------------------------------------------
  */
 
 /** Minimum supported PHP version. */
-const SIFPRESS_MIN_PHP_VERSION = '8.1.0';
+const SIFPRESS_MIN_PHP_VERSION = '8.3.0';
 
 /**
  * Required PHP extensions: name => what the app uses it for. Extensions

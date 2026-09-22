@@ -147,7 +147,7 @@ That's it. No `.htaccess`, no Nginx config, no directory structure.
 The first thing the artifact does on every request is verify the PHP
 environment (before loading config or touching the database). It requires:
 
-- **PHP 8.1+**
+- **PHP 8.3+**
 - the **pdo_sqlite** extension (with **FTS5** support in the underlying
   SQLite library)
 - the **mbstring** extension
