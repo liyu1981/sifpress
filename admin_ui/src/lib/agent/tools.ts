@@ -61,7 +61,7 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
     description: 'List all tags in use and how many pages each has.',
     parameters: Type.Object({}),
     execute: async () => {
-      const tags = await tagsApi.list();
+      const tags = await tagsApi.list({ include_hidden: true });
       if (tags.length === 0) {
         return textBlocks('No tags yet.');
       }

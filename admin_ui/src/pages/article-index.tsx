@@ -16,6 +16,7 @@ import { DeletePageMenu } from '@/components/delete-page-menu';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useAuth } from 'ui-sdk';
 import { estimateReadingMinutes, excerptFromMarkdown, formatDate } from '@/lib/format';
@@ -46,6 +47,9 @@ function SearchCard({ result, locale }: { result: SearchResult; locale: string }
           {t('article.reading', { min: estimateReadingMinutes(result.excerpt) })}
         </span>
         {result.status === 'draft' && <Badge variant="outline">{t('article.draft')}</Badge>}
+        {result.hide_from_search && (
+          <Badge variant="secondary">{t('article.hiddenFromSearch')}</Badge>
+        )}
       </div>
       <h2 className="font-heading text-xl leading-snug font-semibold tracking-tight">
         <Link
@@ -110,6 +114,9 @@ function ArticleCard({ article, locale }: { article: PageListItem; locale: strin
           </span>
           {article.created_by_name !== '' && <span>{article.created_by_name}</span>}
           {article.status === 'draft' && <Badge variant="outline">{t('article.draft')}</Badge>}
+          {article.hide_from_search && (
+            <Badge variant="secondary">{t('article.hiddenFromSearch')}</Badge>
+          )}
           {article.current_revision_id !== null && article.current_revision_id !== undefined && (
             <span className="inline-flex items-center gap-1.5 font-mono text-[0.65rem] text-muted-foreground/70">
               <GitCommitHorizontal className="size-3" />
@@ -192,6 +199,7 @@ export function ArticleIndexPage({ tag, page }: { tag?: string; page: number }) 
 
   type StatusFilter = 'all' | 'published' | 'draft';
   const [filter, setFilter] = useState<StatusFilter>('all');
+  const [showHidden, setShowHidden] = useState(false);
   const canSeeDrafts = has('pages.write');
 
   const statusOptions: { value: StatusFilter; label: string }[] = [
@@ -201,25 +209,31 @@ export function ArticleIndexPage({ tag, page }: { tag?: string; page: number }) 
   ];
 
   const list = useQuery({
-    queryKey: ['pages', { tag, filter, page, user: user?.id ?? null }],
+    queryKey: ['pages', { tag, filter, page, showHidden, user: user?.id ?? null }],
     queryFn: () =>
       pagesApi.list({
         per_page: ARTICLE_PER_PAGE,
         page,
         tag,
+        include_hidden: showHidden,
         ...(filter !== 'all' ? { status: filter } : {}),
       }),
   });
 
   const search = useQuery({
-    queryKey: ['pages', 'search', q, page, user?.id ?? null],
-    queryFn: () => pagesApi.search(q, { page, per_page: ARTICLE_PER_PAGE }),
+    queryKey: ['pages', 'search', q, page, showHidden, user?.id ?? null],
+    queryFn: () =>
+      pagesApi.search(q, {
+        page,
+        per_page: ARTICLE_PER_PAGE,
+        include_hidden: showHidden,
+      }),
     enabled: q.length >= 3,
   });
 
   const allTags = useQuery({
     queryKey: ['tags'],
-    queryFn: tagsApi.list,
+    queryFn: () => tagsApi.list({ include_hidden: true }),
   });
 
   const searching = q.length >= 3;
@@ -314,6 +328,30 @@ export function ArticleIndexPage({ tag, page }: { tag?: string; page: number }) 
                 />
               </div>
             </section>
+
+            {canSeeDrafts && (
+              <section className="glass-control rounded-2xl p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <label
+                    htmlFor="article-show-hidden"
+                    className="cursor-pointer text-sm font-medium"
+                  >
+                    {t('article.showHidden')}
+                  </label>
+                  <Switch
+                    id="article-show-hidden"
+                    checked={showHidden}
+                    onCheckedChange={next => {
+                      setShowHidden(next);
+                      if (page !== 1) {
+                        goToPage(1);
+                      }
+                    }}
+                    aria-label={t('article.showHidden')}
+                  />
+                </div>
+              </section>
+            )}
 
             {!searching && canSeeDrafts && (
               <section className="glass-control rounded-2xl p-4">

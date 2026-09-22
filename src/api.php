@@ -233,6 +233,7 @@ function page_payload(array $page): array
         'content_md' => $page['content_md'],
         'tags' => front_matter_tags($page['content_md']),
         'status' => $page['status'],
+        'hide_from_search' => (int) ($page['hide_from_search'] ?? 0) === 1,
         'current_revision_id' => $page['current_revision_id'] ?? null,
         'created_by' => $page['created_by'] !== null ? (int) $page['created_by'] : null,
         'created_by_name' => (string) $page['created_by_name'],
@@ -249,8 +250,13 @@ function page_payload(array $page): array
  * FTS5 search over pages. Returns a page_payload-shaped list with an
  * excerpt, or an empty list for short/empty queries.
  */
-function search_pages(string $q, ?string $status, int $page = 1, int $perPage = 20): array
-{
+function search_pages(
+    string $q,
+    ?string $status,
+    int $page = 1,
+    int $perPage = 20,
+    bool $includeHidden = false,
+): array {
     $match = build_match($q);
 
     if ($match === '') {
@@ -263,6 +269,10 @@ function search_pages(string $q, ?string $status, int $page = 1, int $perPage = 
     if ($status !== null) {
         $where .= ' AND p.status = :status';
         $params['status'] = $status;
+    }
+
+    if (!$includeHidden) {
+        $where .= ' AND p.hide_from_search = 0';
     }
 
     $view = view_filter_sql();
@@ -278,7 +288,7 @@ function search_pages(string $q, ?string $status, int $page = 1, int $perPage = 
     $countStmt->execute($params);
     $total = (int) $countStmt->fetchColumn();
 
-    $sql = 'SELECT p.id, p.slug, p.title, p.status, p.created_by, p.updated_by,
+    $sql = 'SELECT p.id, p.slug, p.title, p.status, p.hide_from_search, p.created_by, p.updated_by,
                    p.created_at, p.updated_at, cu.name AS created_by_name,
                    uu.name AS updated_by_name,
                    snippet(pages_fts, 1, \'<mark>\', \'</mark>\', \'…\', 12) AS excerpt
@@ -310,6 +320,7 @@ function search_pages(string $q, ?string $status, int $page = 1, int $perPage = 
             'title' => $page['title'],
             'excerpt' => (string) $page['excerpt'],
             'status' => $page['status'],
+            'hide_from_search' => (int) $page['hide_from_search'] === 1,
             'created_by_name' => (string) $page['created_by_name'],
             'created_at' => $page['created_at'],
             'updated_at' => $page['updated_at'],
@@ -358,8 +369,8 @@ function create_revision(
     $stmt = db()->prepare(
         'INSERT INTO page_revisions
             (page_id, revision_id, parent_ids, slug, title, content_md,
-             status, created_by, created_at, committed_at, commit_message)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+             created_by, created_at, committed_at, commit_message)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     $stmt->execute([
         $pageId,
@@ -368,7 +379,6 @@ function create_revision(
         $pageFields['slug'],
         $pageFields['title'],
         $pageFields['content_md'],
-        $pageFields['status'],
         $pageFields['created_by'],
         $pageFields['created_at'],
         $committedAt ?? date('Y-m-d H:i:s'),
@@ -407,7 +417,6 @@ function revision_payload(array $revision): array
         'slug' => $revision['slug'],
         'title' => $revision['title'],
         'content_md' => $revision['content_md'],
-        'status' => $revision['status'],
         'created_by' => $revision['created_by'] !== null ? (int) $revision['created_by'] : null,
         'created_by_name' => (string) ($revision['created_by_name'] ?? ''),
         'created_at' => $revision['created_at'],
@@ -836,9 +845,10 @@ function api_pages_list(string $method): never
     $tag = request_param('tag');
 
     $q = request_param('q');
+    $includeHidden = api_include_hidden_param();
 
     if ($q !== null && trim($q) !== '') {
-        json_response(search_pages(trim($q), $status, $page, $perPage));
+        json_response(search_pages(trim($q), $status, $page, $perPage, $includeHidden));
     }
 
     $view = view_filter_sql();
@@ -848,6 +858,10 @@ function api_pages_list(string $method): never
     if ($status !== null) {
         $whereParts[] = 'p.status = :status';
         $params['status'] = $status;
+    }
+
+    if (!$includeHidden) {
+        $whereParts[] = 'p.hide_from_search = 0';
     }
 
     if ($view['clause'] !== '') {
@@ -955,6 +969,25 @@ function api_status_param(): ?string
     return $user !== null && can((int) $user['id'], 'pages.write') ? null : 'published';
 }
 
+/**
+ * Whether the caller opted into listing hidden-from-search articles via
+ * ?include_hidden=1. Only users who may write pages can opt in; everyone
+ * else is always filtered, so the flag can never be used to unlist-bypass
+ * a page.
+ */
+function api_include_hidden_param(): bool
+{
+    $raw = request_param('include_hidden');
+
+    if ($raw === null || !in_array(strtolower($raw), ['1', 'true'], true)) {
+        return false;
+    }
+
+    $user = current_user();
+
+    return $user !== null && can((int) $user['id'], 'pages.write');
+}
+
 function api_pages_get(string $method): never
 {
     if ($method !== 'GET') {
@@ -1011,6 +1044,7 @@ function api_pages_create(string $method): never
     $title = trim((string) ($body['title'] ?? ''));
     $content = (string) ($body['content_md'] ?? '');
     $status = (string) ($body['status'] ?? 'draft');
+    $hideFromSearch = !empty($body['hide_from_search']);
     $createdAt = normalize_datetime($body['created_at'] ?? '');
     $commitMessage = trim((string) ($body['commit_message'] ?? ''));
 
@@ -1059,14 +1093,16 @@ function api_pages_create(string $method): never
     $createdAtValue = $createdAt !== '' ? $createdAt : date('Y-m-d H:i:s');
 
     $stmt = db()->prepare(
-        'INSERT INTO pages (slug, title, content_md, status, created_by, updated_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO pages (slug, title, content_md, status, hide_from_search,
+                created_by, updated_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     $stmt->execute([
         $slug,
         $title,
         $content,
         $status,
+        $hideFromSearch ? 1 : 0,
         $user['id'],
         $user['id'],
         $createdAtValue,
@@ -1080,7 +1116,6 @@ function api_pages_create(string $method): never
         'slug' => $slug,
         'title' => $title,
         'content_md' => $content,
-        'status' => $status,
         'created_by' => $user['id'],
         'created_at' => $createdAtValue,
     ];
@@ -1116,9 +1151,9 @@ function api_pages_update(string $method): never
     $title = array_key_exists('title', $body) ? trim((string) $body['title']) : $page['title'];
     $content = array_key_exists('content_md', $body) ? (string) $body['content_md'] : $page['content_md'];
     /*
-     * Publish status is owned by the current revision and mutated only via
-     * pages.revision.setStatus; a content save always inherits the page's
-     * existing status so editing never republishes or unpublishes an article.
+     * Publish state is a page-level flag (pages.status); a content save
+     * always inherits it so editing never republishes or unpublishes an
+     * article. It is mutated only via pages.setFlags.
      */
     $status = $page['status'];
     $createdAt = array_key_exists('created_at', $body)
@@ -1182,7 +1217,6 @@ function api_pages_update(string $method): never
         'slug' => $slug,
         'title' => $title,
         'content_md' => $content,
-        'status' => $status,
         'created_by' => $page['created_by'],
         'created_at' => $createdAt,
     ];
@@ -1219,7 +1253,12 @@ function api_pages_update(string $method): never
     json_response(['page' => page_payload(fetch_page($id))]);
 }
 
-function api_pages_revision_set_status(string $method): never
+/**
+ * Toggle page-level flags (publish state, hide-from-search). Flags are page
+ * attributes, not content, so this never creates a revision and never
+ * touches updated_at/updated_by.
+ */
+function api_pages_set_flags(string $method): never
 {
     if ($method !== 'PATCH') {
         json_response(['error' => 'Method not allowed'], 405);
@@ -1228,24 +1267,8 @@ function api_pages_revision_set_status(string $method): never
     require_permission('pages.write');
     $body = read_json_body();
 
-    $revisionId = (string) ($body['revision_id'] ?? '');
-    $status = (string) ($body['status'] ?? '');
-
-    if ($revisionId === '') {
-        json_response(['error' => 'revision_id required'], 422);
-    }
-
-    if (!in_array($status, ['draft', 'published'], true)) {
-        json_response(['error' => 'validation failed', 'errors' => ['status' => ['must be draft or published']]], 422);
-    }
-
-    $revision = fetch_revision($revisionId);
-
-    if ($revision === null) {
-        json_response(['error' => 'revision not found'], 404);
-    }
-
-    $page = fetch_page((int) $revision['page_id']);
+    $id = (int) ($body['id'] ?? request_param('id', '0'));
+    $page = fetch_page($id);
 
     if ($page === null) {
         json_response(['error' => 'page not found'], 404);
@@ -1253,27 +1276,39 @@ function api_pages_revision_set_status(string $method): never
 
     require_page_edit($page);
 
-    /*
-     * Publish state belongs to the active revision. A historical revision is
-     * not directly editable; restore it first (pages.revision.restore), then
-     * toggle its status.
-     */
-    if ($revisionId !== ($page['current_revision_id'] ?? '')) {
-        json_response(['error' => 'revision is not active'], 409);
+    $status = $page['status'];
+    $hideFromSearch = (int) ($page['hide_from_search'] ?? 0) === 1;
+    $touched = false;
+
+    if (array_key_exists('status', $body)) {
+        $status = (string) $body['status'];
+
+        if (!in_array($status, ['draft', 'published'], true)) {
+            json_response(
+                ['error' => 'validation failed', 'errors' => ['status' => ['must be draft or published']]],
+                422
+            );
+        }
+
+        $touched = true;
     }
 
-    if ($status !== $revision['status'] || $status !== $page['status']) {
-        db()->prepare('UPDATE page_revisions SET status = ? WHERE revision_id = ?')
-            ->execute([$status, $revisionId]);
-        /* Toggling publish is not a content update: leave updated_at/updated_by. */
-        db()->prepare('UPDATE pages SET status = ? WHERE id = ?')
-            ->execute([$status, $page['id']]);
+    if (array_key_exists('hide_from_search', $body)) {
+        $hideFromSearch = !empty($body['hide_from_search']);
+        $touched = true;
     }
 
-    json_response([
-        'revision' => revision_payload(fetch_revision($revisionId)),
-        'page' => page_payload(fetch_page((int) $page['id'])),
-    ]);
+    if (!$touched) {
+        json_response(
+            ['error' => 'validation failed', 'errors' => ['flags' => ['no flags provided']]],
+            422
+        );
+    }
+
+    db()->prepare('UPDATE pages SET status = ?, hide_from_search = ? WHERE id = ?')
+        ->execute([$status, $hideFromSearch ? 1 : 0, $page['id']]);
+
+    json_response(['page' => page_payload(fetch_page((int) $page['id']))]);
 }
 
 function api_pages_delete(string $method): never
@@ -1318,7 +1353,13 @@ function api_pages_search(string $method): never
     $perPage = min(100, max(1, (int) request_param('per_page', '20')));
 
     json_response(
-        search_pages(trim((string) request_param('q', '')), api_status_param(), $page, $perPage)
+        search_pages(
+            trim((string) request_param('q', '')),
+            api_status_param(),
+            $page,
+            $perPage,
+            api_include_hidden_param()
+        )
     );
 }
 
@@ -1500,19 +1541,21 @@ function api_pages_revision_restore(string $method): never
         json_response(['error' => 'page not found'], 404);
     }
 
-    // Simply point the page back to this existing revision.
+    /*
+     * Restore content only. Publish state and hide-from-search are page-level
+     * flags, so a content restore deliberately leaves them untouched.
+     */
     $now = date('Y-m-d H:i:s');
     $user = current_user();
 
     db()->prepare(
-        'UPDATE pages SET slug = ?, title = ?, content_md = ?, status = ?,
+        'UPDATE pages SET slug = ?, title = ?, content_md = ?,
                created_at = ?, updated_at = ?, updated_by = ?, current_revision_id = ?
          WHERE id = ?'
     )->execute([
         $revision['slug'],
         $revision['title'],
         $revision['content_md'],
-        $revision['status'],
         $revision['created_at'],
         $now,
         $user['id'],
@@ -2073,7 +2116,17 @@ function api_tags_list(string $method): never
     }
 
     $view = view_filter_sql();
-    $where = $view['clause'] !== '' ? 'WHERE ' . $view['clause'] : '';
+    $whereParts = [];
+
+    if ($view['clause'] !== '') {
+        $whereParts[] = $view['clause'];
+    }
+
+    if (!api_include_hidden_param()) {
+        $whereParts[] = 'p.hide_from_search = 0';
+    }
+
+    $where = $whereParts === [] ? '' : 'WHERE ' . implode(' AND ', $whereParts);
     $stmt = db()->prepare('SELECT content_md FROM pages p ' . $where);
     $stmt->execute($view['params']);
 
@@ -3969,6 +4022,7 @@ function handle_api(string $action, string $method): never
                     'settings.get', 'settings.update',
                     'tracking.get', 'tracking.update',
                     'pages.list', 'pages.get', 'pages.create', 'pages.update',
+                    'pages.setFlags',
                     'pages.delete', 'pages.search', 'pages.revisions', 'pages.revision.get', 'pages.revision.diff', 'pages.revision.restore',
                     'pages.grants', 'pages.grant', 'pages.revokeGrant',
                     'users.list', 'users.create', 'users.update', 'users.setRoles',
@@ -4030,8 +4084,8 @@ function handle_api(string $action, string $method): never
         case 'pages.update':
             api_pages_update($method);
 
-        case 'pages.revision.setStatus':
-            api_pages_revision_set_status($method);
+        case 'pages.setFlags':
+            api_pages_set_flags($method);
 
         case 'pages.delete':
             api_pages_delete($method);

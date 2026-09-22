@@ -57,7 +57,7 @@ export function TagsInput({ value, onChange, placeholder, className }: TagsInput
     const handle = setTimeout(async () => {
       const q = trimmedQuery.toLowerCase();
       const selected = valueRef.current.map(tag => tag.toLowerCase());
-      const matches = (await tagsApi.list())
+      const matches = (await tagsApi.list({ include_hidden: true }))
         .map(tag => tag.name)
         .filter(name => name.toLowerCase().includes(q))
         .filter(name => !selected.includes(name.toLowerCase()));

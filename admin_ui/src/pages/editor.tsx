@@ -59,6 +59,7 @@ import {
   assetsApi,
   type Grant,
   type DiffLine,
+  type Page,
   type PageStatus,
   pagesApi,
 } from 'ui-sdk';
@@ -79,6 +80,7 @@ interface SavePayload {
   slug: string;
   title: string;
   status: 'published' | 'draft';
+  hide_from_search: boolean;
   content_md: string;
   created_at: string;
   updated_at: string;
@@ -316,6 +318,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
   const [seoNoindex, setSeoNoindex] = useState(false);
   const [seoOpen, setSeoOpen] = useState(false);
   const [published, setPublished] = useState(false);
+  const [hideFromSearch, setHideFromSearch] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [saveError, setSaveError] = useState<ApiError | null>(null);
   const [commitNote, setCommitNote] = useState(editing ? 'Update article' : 'Initial version');
@@ -418,7 +421,8 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
       setExtraOpen(extras.length > 0);
       setBody(escapeTableCodePipes(meta.content));
       setSourceBody(escapeTableCodePipes(meta.content));
-      setPublished(rev.status === 'published');
+      setPublished(pageQuery.data?.status === 'published');
+      setHideFromSearch(pageQuery.data?.hide_from_search === true);
       setLoaded(true);
     }
 
@@ -462,6 +466,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
       setBody(escapeTableCodePipes(meta.content));
       setSourceBody(escapeTableCodePipes(meta.content));
       setPublished(page.status === 'published');
+      setHideFromSearch(page.hide_from_search === true);
       setLoaded(true);
     }
   }, [editing, loaded, pageQuery.data, isRevisionPreview, revisionQuery.data]);
@@ -500,6 +505,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
         slug: meta.slug,
         title: meta.title,
         status: meta.status,
+        hide_from_search: meta.hide_from_search,
         content_md: meta.content_md,
         created_at: meta.created_at,
         commit_message: meta.commit_message,
@@ -518,26 +524,26 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
     },
   });
 
-  const setRevisionStatus = useMutation({
-    mutationFn: (next: PageStatus) => {
+  const setFlags = useMutation({
+    mutationFn: (flags: { status?: PageStatus; hide_from_search?: boolean }) => {
       const existing = pageQuery.data;
-      const revisionId = existing?.current_revision_id;
 
-      if (existing == null || revisionId == null) {
-        throw new Error('No current revision');
+      if (existing == null) {
+        throw new Error('No page');
       }
 
-      return pagesApi.setRevisionStatus(revisionId, next);
+      return pagesApi.setFlags({ id: existing.id, ...flags });
     },
-    onSuccess: ({ page: updatedPage }) => {
+    onSuccess: (updatedPage: Page) => {
       queryClient.setQueryData(['page', updatedPage.slug], updatedPage);
       queryClient.invalidateQueries({ queryKey: ['pages'] });
-      queryClient.invalidateQueries({ queryKey: ['page-revisions', updatedPage.id] });
       setPublished(updatedPage.status === 'published');
+      setHideFromSearch(updatedPage.hide_from_search);
     },
     onError: err => {
       if (pageQuery.data != null) {
         setPublished(pageQuery.data.status === 'published');
+        setHideFromSearch(pageQuery.data.hide_from_search);
       }
       setSaveError(err instanceof ApiError ? err : null);
     },
@@ -546,11 +552,21 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
   const handlePublishedChange = (next: boolean): void => {
     setPublished(next);
 
-    if (!editing || isRevisionPreview || pageQuery.data?.current_revision_id == null) {
+    if (!editing || isRevisionPreview || pageQuery.data == null) {
       return;
     }
 
-    setRevisionStatus.mutate(next ? 'published' : 'draft');
+    setFlags.mutate({ status: next ? 'published' : 'draft' });
+  };
+
+  const handleHideFromSearchChange = (next: boolean): void => {
+    setHideFromSearch(next);
+
+    if (!editing || isRevisionPreview || pageQuery.data == null) {
+      return;
+    }
+
+    setFlags.mutate({ hide_from_search: next });
   };
 
   const buildFrontMatterFromFields = (): string =>
@@ -698,6 +714,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
       slug: cleanSlug,
       title: cleanTitle,
       status: published ? 'published' : 'draft',
+      hide_from_search: hideFromSearch,
       content_md: frontBlock + bodyMd,
       created_at: cleanDate !== '' ? `${cleanDate} 00:00:00` : '',
       updated_at: cleanUpdatedDate !== '' ? `${cleanUpdatedDate} 00:00:00` : '',
@@ -1207,11 +1224,26 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
                   id="editor-published"
                   checked={published}
                   onCheckedChange={handlePublishedChange}
-                  disabled={setRevisionStatus.isPending || isRevisionPreview}
+                  disabled={setFlags.isPending || isRevisionPreview}
                   aria-label={t('editor.statusField')}
                 />
                 <label htmlFor="editor-published" className="cursor-pointer text-sm font-medium">
                   {published ? t('editor.statusPublished') : t('editor.statusDraft')}
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="editor-hide-from-search"
+                  checked={hideFromSearch}
+                  onCheckedChange={handleHideFromSearchChange}
+                  disabled={setFlags.isPending || isRevisionPreview}
+                  aria-label={t('editor.hideFromSearchField')}
+                />
+                <label
+                  htmlFor="editor-hide-from-search"
+                  className="cursor-pointer text-sm font-medium"
+                >
+                  {t('editor.hideFromSearchField')}
                 </label>
               </div>
               {editing &&
@@ -1616,14 +1648,6 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
                                 <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                                   {rev.commit_message}
                                 </span>
-                                <Badge
-                                  variant={rev.status === 'published' ? 'secondary' : 'outline'}
-                                  className="shrink-0"
-                                >
-                                  {rev.status === 'published'
-                                    ? t('editor.statusPublished')
-                                    : t('editor.statusDraft')}
-                                </Badge>
                                 <div className="flex shrink-0 items-center gap-1">
                                   {!isCurrent && (
                                     <>

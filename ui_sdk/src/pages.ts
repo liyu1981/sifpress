@@ -30,6 +30,7 @@ export interface Page {
   content_md: string;
   tags: string[];
   status: PageStatus;
+  hide_from_search: boolean;
   current_revision_id: string | null;
   created_by: number | null;
   created_by_name: string;
@@ -48,7 +49,6 @@ export interface Revision {
   slug: string;
   title: string;
   content_md: string;
-  status: PageStatus;
   created_by: number | null;
   created_by_name: string;
   created_at: string;
@@ -87,6 +87,7 @@ export interface PageListItem {
   content_md: string;
   tags: string[];
   status: PageStatus;
+  hide_from_search: boolean;
   current_revision_id: string | null;
   created_by: number | null;
   created_by_name: string;
@@ -101,6 +102,7 @@ export interface SearchResult {
   title: string;
   excerpt: string;
   status: PageStatus;
+  hide_from_search: boolean;
   created_by_name: string;
   created_at: string;
   updated_at: string;
@@ -185,12 +187,14 @@ export interface PageInput {
   title: string;
   content_md: string;
   status: PageStatus;
+  hide_from_search?: boolean;
   created_at?: string;
   updated_at?: string;
   commit_message: string;
 }
 
-export interface PageUpdateInput extends Partial<Omit<PageInput, 'commit_message' | 'status'>> {
+export interface PageUpdateInput
+  extends Partial<Omit<PageInput, 'commit_message' | 'status' | 'hide_from_search'>> {
   id: number;
   commit_message: string;
 }
@@ -283,13 +287,22 @@ export const authApi = {
 };
 
 export const pagesApi = {
-  list: (params: { status?: PageStatus; page?: number; per_page?: number; tag?: string } = {}) =>
+  list: (
+    params: {
+      status?: PageStatus;
+      page?: number;
+      per_page?: number;
+      tag?: string;
+      include_hidden?: boolean;
+    } = {},
+  ) =>
     apiRequest<PageListResult>('pages.list', {
       params: {
         ...(params.status ? { status: params.status } : {}),
         ...(params.page ? { page: String(params.page) } : {}),
         ...(params.per_page ? { per_page: String(params.per_page) } : {}),
         ...(params.tag ? { tag: params.tag } : {}),
+        ...(params.include_hidden ? { include_hidden: '1' } : {}),
       },
     }),
 
@@ -301,12 +314,16 @@ export const pagesApi = {
       },
     }).then(r => r.page),
 
-  search: (q: string, params: { page?: number; per_page?: number } = {}) =>
+  search: (
+    q: string,
+    params: { page?: number; per_page?: number; include_hidden?: boolean } = {},
+  ) =>
     apiRequest<SearchResultSet>('pages.search', {
       params: {
         q,
         ...(params.page ? { page: String(params.page) } : {}),
         ...(params.per_page ? { per_page: String(params.per_page) } : {}),
+        ...(params.include_hidden ? { include_hidden: '1' } : {}),
       },
     }),
 
@@ -322,11 +339,11 @@ export const pagesApi = {
       body: input,
     }).then(r => r.page),
 
-  setRevisionStatus: (revision_id: string, status: PageStatus) =>
-    apiRequest<{ revision: Revision; page: Page }>('pages.revision.setStatus', {
+  setFlags: (input: { id: number; status?: PageStatus; hide_from_search?: boolean }) =>
+    apiRequest<{ page: Page }>('pages.setFlags', {
       method: 'PATCH',
-      body: { revision_id, status },
-    }),
+      body: input,
+    }).then(r => r.page),
 
   revisions: (page_id: number) =>
     apiRequest<RevisionListResult>('pages.revisions', {
@@ -432,7 +449,12 @@ export interface TagCount {
 }
 
 export const tagsApi = {
-  list: () => apiRequest<{ tags: TagCount[] }>('tags.list').then(r => r.tags),
+  list: (params: { include_hidden?: boolean } = {}) =>
+    apiRequest<{ tags: TagCount[] }>('tags.list', {
+      params: {
+        ...(params.include_hidden ? { include_hidden: '1' } : {}),
+      },
+    }).then(r => r.tags),
 };
 
 export type AssetKind = 'image' | 'video';

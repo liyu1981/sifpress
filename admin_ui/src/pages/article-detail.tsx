@@ -121,8 +121,8 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
   const activeId = useScrollSpy(headings);
 
   const prevNext = useQuery({
-    queryKey: ['pages', { per_page: 50 }],
-    queryFn: () => pagesApi.list({ per_page: 50 }),
+    queryKey: ['pages', { per_page: 50, include_hidden: true }],
+    queryFn: () => pagesApi.list({ per_page: 50, include_hidden: true }),
   });
 
   const items = prevNext.data?.items ?? [];

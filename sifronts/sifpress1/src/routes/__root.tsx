@@ -37,7 +37,7 @@ function RootLayout() {
 
   const tags = useQuery({
     queryKey: ['tags'],
-    queryFn: tagsApi.list,
+    queryFn: () => tagsApi.list(),
     staleTime: 60_000,
   });
 

@@ -221,7 +221,6 @@ function handle_dev(string $action, string $method): never
                     'slug' => DEMO_PAGE['slug'],
                     'title' => DEMO_PAGE['title'],
                     'content_md' => '# Hello, Sifpress\n\nWelcome to your new site.',
-                    'status' => DEMO_PAGE['status'],
                     'created_by' => $user['id'],
                     'created_at' => DEMO_PAGE['created_at'] ?? date('Y-m-d H:i:s', $now - 7200),
                 ];
@@ -229,7 +228,6 @@ function handle_dev(string $action, string $method): never
                     'slug' => DEMO_PAGE['slug'],
                     'title' => DEMO_PAGE['title'],
                     'content_md' => DEMO_PAGE['content_md'],
-                    'status' => DEMO_PAGE['status'],
                     'created_by' => $user['id'],
                     'created_at' => DEMO_PAGE['created_at'] ?? date('Y-m-d H:i:s', $now - 3600),
                 ];
@@ -237,7 +235,6 @@ function handle_dev(string $action, string $method): never
                     'slug' => DEMO_PAGE['slug'],
                     'title' => DEMO_PAGE['title'],
                     'content_md' => DEMO_PAGE['content_md'] . '\n\n> Updated with a quote block.',
-                    'status' => DEMO_PAGE['status'],
                     'created_by' => $user['id'],
                     'created_at' => DEMO_PAGE['created_at'] ?? date('Y-m-d H:i:s', $now),
                 ];
