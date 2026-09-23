@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Sifpress — Single-file PHP + React SPA, rewrite-free routing</title>
+    <meta
+      name="description"
+      content="Sifpress packages a PHP JSON API, an admin React app, its CSS and the SPA HTML into one dist/index.php artifact. No rewrite rules, no asset folder, no Node.js on the server."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Sifpress" />
+    <meta property="og:title" content="Sifpress — Single-file PHP + React SPA" />
+    <meta
+      property="og:description"
+      content="One rewrite-free dist/index.php: PHP API + React admin UI + inlined JS/CSS. Works at any install path with no .htaccess, no try_files, no hash routing."
+    />
+    <meta property="og:url" content="https://liyu1981.github.io/sifpress/" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Sifpress — Single-file PHP + React SPA" />
+    <meta
+      name="twitter:description"
+      content="One rewrite-free dist/index.php: PHP API + React admin UI + inlined JS/CSS. No .htaccess, no try_files, no hash routing."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%230b0b0c'/%3E%3Ctext x='32' y='43' font-family='ui-monospace,Menlo,monospace' font-size='30' font-weight='700' fill='%23f4f4f5' text-anchor='middle'%3E%26lt%3B%3F%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="preload" href="assets/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('theme') || 'system';
+          var dark =
+            t === 'dark' ||
+            (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+          document.documentElement.dataset.theme = t;
+          document.documentElement.classList.add('js');
+        } catch (e) {}
+      })();
+    </script>
+    <link rel="stylesheet" href="assets/site.css" />
+  </head>
+  <body>
+    <svg class="icon-defs" aria-hidden="true" focusable="false">
+      <defs>
+        <symbol id="i-file" viewBox="0 0 24 24">
+          <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+          <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+          <path d="M16 13H8" /><path d="M16 17H8" /><path d="M10 9H8" />
+        </symbol>
+        <symbol id="i-route" viewBox="0 0 24 24">
+          <circle cx="6" cy="19" r="3" />
+          <path
+            d="M12 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"
+          />
+          <circle cx="18" cy="5" r="3" />
+        </symbol>
+        <symbol id="i-server" viewBox="0 0 24 24">
+          <rect width="20" height="8" x="2" y="2" rx="2" ry="2" />
+          <rect width="20" height="8" x="2" y="14" rx="2" ry="2" />
+          <line x1="6" x2="6.01" y1="6" y2="6" />
+          <line x1="6" x2="6.01" y1="18" y2="18" />
+        </symbol>
+        <symbol id="i-db" viewBox="0 0 24 24">
+          <ellipse cx="12" cy="5" rx="9" ry="3" />
+          <path d="M3 5v14a9 3 0 0 0 18 0V5" />
+          <path d="M3 12a9 3 0 0 0 18 0" />
+        </symbol>
+        <symbol id="i-shield" viewBox="0 0 24 24">
+          <path
+            d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
+          />
+          <path d="m9 12 2 2 4-4" />
+        </symbol>
+        <symbol id="i-layers" viewBox="0 0 24 24">
+          <path
+            d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"
+          />
+          <path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65" />
+          <path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65" />
+        </symbol>
+        <symbol id="i-refresh" viewBox="0 0 24 24">
+          <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+          <path d="M21 3v5h-5" />
+          <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+          <path d="M8 16H3v5" />
+        </symbol>
+        <symbol id="i-terminal" viewBox="0 0 24 24">
+          <path d="m4 17 6-6-6-6" />
+          <path d="M12 19h8" />
+        </symbol>
+        <symbol id="i-sun" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="4" />
+          <path
+            d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"
+          />
+        </symbol>
+        <symbol id="i-moon" viewBox="0 0 24 24">
+          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+        </symbol>
+        <symbol id="i-monitor" viewBox="0 0 24 24">
+          <rect width="20" height="14" x="2" y="3" rx="2" />
+          <path d="M8 21h8" />
+          <path d="M12 17v4" />
+        </symbol>
+        <symbol id="i-github" viewBox="0 0 24 24">
+          <path
+            d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"
+          />
+          <path d="M9 18c-4.51 2-5-2-7-2" />
+        </symbol>
+        <symbol id="i-copy" viewBox="0 0 24 24">
+          <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+          <path
+            d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"
+          />
+        </symbol>
+        <symbol id="i-check" viewBox="0 0 24 24">
+          <path d="M20 6 9 17l-5-5" />
+        </symbol>
+        <symbol id="i-arrow-right" viewBox="0 0 24 24">
+          <path d="M5 12h14" />
+          <path d="m12 5 7 7-7 7" />
+        </symbol>
+        <symbol id="i-external" viewBox="0 0 24 24">
+          <path d="M7 7h10v10" />
+          <path d="M7 17 17 7" />
+        </symbol>
+        <symbol id="i-box" viewBox="0 0 24 24">
+          <path d="m7.5 4.27 9 5.15" />
+          <path
+            d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"
+          />
+          <path d="m3.3 7 8.7 5 8.7-5" />
+          <path d="M12 22V12" />
+        </symbol>
+      </defs>
+    </svg>
+
+    <div class="ambient-bg">
+      <canvas id="ambient" aria-hidden="true"></canvas>
+
+      <header class="site-header" id="site-header">
+        <div class="nav-pill apple-panel">
+          <a class="brand" href="#top">
+            <span class="brand-mark" aria-hidden="true">&lt;?</span>
+            <span class="brand-name">sifpress</span>
+          </a>
+          <nav class="nav-links" aria-label="Sections">
+            <a href="#features" data-spy="features">Features</a>
+            <a href="#routing" data-spy="routing">Routing</a>
+            <a href="#quickstart" data-spy="quickstart">Quick start</a>
+            <a href="#inside" data-spy="inside">Stack</a>
+          </nav>
+          <div class="nav-actions">
+            <button
+              class="icon-btn"
+              id="theme-toggle"
+              type="button"
+              aria-label="Theme: system"
+              title="Theme: system — click to cycle"
+            >
+              <svg class="icon ic ic-sun" aria-hidden="true"><use href="#i-sun" /></svg>
+              <svg class="icon ic ic-moon" aria-hidden="true"><use href="#i-moon" /></svg>
+              <svg class="icon ic ic-monitor" aria-hidden="true"><use href="#i-monitor" /></svg>
+            </button>
+            <a
+              class="btn btn-ghost btn-sm"
+              href="https://github.com/liyu1981/sifpress"
+              rel="noopener"
+            >
+              <svg class="icon" aria-hidden="true"><use href="#i-github" /></svg>
+              <span>GitHub</span>
+            </a>
+          </div>
+        </div>
+      </header>
+
+      <main id="top">
+        <section class="hero shell">
+          <div class="hero-copy reveal">
+            <p class="eyebrow"><span class="eyebrow-rule" aria-hidden="true"></span>single-file · rewrite-free</p>
+            <h1 class="display">
+              One PHP file.<br />
+              <em class="serif-accent">The whole site.</em>
+            </h1>
+            <p class="lead">
+              Sifpress folds a PHP JSON API, a full React admin app, its styles and the SPA HTML
+              into one <code class="inline-code">dist/index.php</code> artifact — migrations
+              included. Drop it into any directory of any PHP host: no
+              <code class="inline-code">.htaccess</code>, no <code class="inline-code">try_files</code>,
+              no <code class="inline-code">#/</code> hash routing, no Node.js on the server.
+            </p>
+            <div class="cta-row">
+              <a class="btn btn-primary" href="#quickstart">
+                Quick start
+                <svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg>
+              </a>
+              <a class="btn btn-ghost" href="https://github.com/liyu1981/sifpress" rel="noopener">
+                <svg class="icon" aria-hidden="true"><use href="#i-github" /></svg>
+                View source
+              </a>
+            </div>
+            <p class="require-line">
+              Requires <span>PHP 8.3+</span><span>pdo_sqlite + FTS5</span><span>mbstring</span
+              ><span>fileinfo</span>
+            </p>
+          </div>
+
+          <div class="hero-visual reveal">
+            <div class="file-card rainbow-card glass-control">
+              <div class="file-card-inner">
+                <div class="file-card-head">
+                <svg class="icon file-ic" aria-hidden="true"><use href="#i-file" /></svg>
+                <span class="file-name">dist/index.php</span>
+                <span class="pill">one artifact</span>
+              </div>
+              <ul class="file-list">
+                <li>
+                  <span class="file-tag">PHP core</span>
+                  <span class="file-desc">env · bootstrap · db · router</span>
+                </li>
+                <li>
+                  <span class="file-tag">JSON API</span>
+                  <span class="file-desc">auth, RBAC, pages, assets, SEO</span>
+                </li>
+                <li>
+                  <span class="file-tag">Migrations</span>
+                  <span class="file-desc">migrations/*.sql embedded, run on demand</span>
+                </li>
+                <li>
+                  <span class="file-tag">SPA HTML</span>
+                  <span class="file-desc">admin UI shell + meta injection</span>
+                </li>
+                <li>
+                  <span class="file-tag">JS</span>
+                  <span class="file-desc">React 19 bundle, inlined</span>
+                </li>
+                <li>
+                  <span class="file-tag">CSS</span>
+                  <span class="file-desc">Tailwind build, inlined</span>
+                </li>
+              </ul>
+              <div class="file-card-foot">
+                <span class="pill pill-mono">?p=api</span>
+                <span class="pill pill-mono">?p=/editor/123</span>
+                <span class="pill pill-mono">?p=migration</span>
+                <span class="file-foot-note">one HTTP request per page load</span>
+              </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="stats-wrap shell reveal" aria-label="Highlights">
+          <div class="stats glass-control">
+            <div class="stat">
+              <span class="stat-value">1</span>
+              <span class="stat-label">production file</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">0</span>
+              <span class="stat-label">rewrite rules</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">1 req</span>
+              <span class="stat-label">per page load, JS+CSS inlined</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">8.3+</span>
+              <span class="stat-label">PHP required to run</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="section shell" id="features">
+          <div class="section-head reveal">
+            <p class="eyebrow"><span class="eyebrow-rule" aria-hidden="true"></span>why sifpress</p>
+            <h2>Everything ships inside the artifact</h2>
+            <p class="section-lede">
+              One build assembles the API, the app, the styles, the HTML and the schema into a
+              single PHP file that behaves identically at any install path.
+            </p>
+          </div>
+          <div class="feature-grid">
+            <article class="card rainbow-card glass-control reveal">
+              <span class="card-ic"><svg class="icon" aria-hidden="true"><use href="#i-box" /></svg></span>
+              <h3>Single-file artifact</h3>
+              <p>
+                <code class="inline-code">php build.php</code> type-checks, bundles the React app,
+                inlines every script and stylesheet, embeds the SQL migrations and writes
+                <code class="inline-code">dist/index.php</code>. Idempotent and repeatable.
+              </p>
+            </article>
+            <article class="card rainbow-card glass-control reveal">
+              <span class="card-ic"><svg class="icon" aria-hidden="true"><use href="#i-route" /></svg></span>
+              <h3>Rewrite-free routing</h3>
+              <p>
+                Routes are plain query parameters — <code class="inline-code">?p=/editor/123</code>,
+                <code class="inline-code">?p=api&amp;action=hello</code> — that every web server
+                already understands. URLs stay real, shareable and crawler-friendly.
+              </p>
+            </article>
+            <article class="card rainbow-card glass-control reveal">
+              <span class="card-ic"><svg class="icon" aria-hidden="true"><use href="#i-server" /></svg></span>
+              <h3>Just works anywhere</h3>
+              <p>
+                The same file works at <code class="inline-code">/</code>,
+                <code class="inline-code">/myapp/</code> or four levels deep, with no rebuild and
+                no server config. Production never needs Node.js — only PHP.
+              </p>
+            </article>
+            <article class="card rainbow-card glass-control reveal">
+              <span class="card-ic"><svg class="icon" aria-hidden="true"><use href="#i-db" /></svg></span>
+              <h3>SQLite + FTS5</h3>
+              <p>
+                WAL-mode database with a pending-migration detector, per-migration
+                <code class="inline-code">BEGIN IMMEDIATE</code> transactions and full-text search.
+                The schema lives in <code class="inline-code">migrations/*.sql</code>.
+              </p>
+            </article>
+            <article class="card rainbow-card glass-control reveal">
+              <span class="card-ic"><svg class="icon" aria-hidden="true"><use href="#i-shield" /></svg></span>
+              <h3>Admin with RBAC</h3>
+              <p>
+                DB-backed sessions with HttpOnly cookies, roles and permissions, page-level
+                grants, and a Milkdown WYSIWYG markdown editor in a TanStack Router admin UI.
+              </p>
+            </article>
+            <article class="card rainbow-card glass-control reveal">
+              <span class="card-ic"><svg class="icon" aria-hidden="true"><use href="#i-layers" /></svg></span>
+              <h3>Themes as bundles</h3>
+              <p>
+                Public-facing sifront SPAs are built into two-file <code class="inline-code">.sifront</code>
+                ZIPs, uploaded from the admin, stored in the DB and served through the artifact’s
+                own shell.
+              </p>
+            </article>
+            <article class="card rainbow-card glass-control reveal">
+              <span class="card-ic"><svg class="icon" aria-hidden="true"><use href="#i-refresh" /></svg></span>
+              <h3>Self-updating</h3>
+              <p>
+                Point the app at a <code class="inline-code">latest.json</code> manifest and
+                upgrades become one click: download the release artifact, verify its md5, swap
+                it in.
+              </p>
+            </article>
+            <article class="card rainbow-card glass-control reveal">
+              <span class="card-ic"><svg class="icon" aria-hidden="true"><use href="#i-terminal" /></svg></span>
+              <h3>CLI &amp; backups</h3>
+              <p>
+                <code class="inline-code">setup</code>, <code class="inline-code">migrate</code>,
+                <code class="inline-code">backup</code>, <code class="inline-code">config</code>,
+                <code class="inline-code">cron</code> — WAL-safe <code class="inline-code">VACUUM INTO</code>
+                snapshots, tarred and pruned on a schedule.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section shell" id="routing">
+          <div class="section-head reveal">
+            <p class="eyebrow"><span class="eyebrow-rule" aria-hidden="true"></span>routing model</p>
+            <h2>The <code class="inline-code">?p=</code> protocol</h2>
+            <p class="section-lede">
+              One query parameter does all of the dispatching. Nothing to configure on the
+              server, nothing lost to hash routing, back/forward works out of the box.
+            </p>
+          </div>
+          <div class="routing-grid">
+            <div class="panel glass-control reveal">
+              <h3 class="panel-title">The protocol</h3>
+              <ul class="proto-list">
+                <li>
+                  <code class="proto-key">p=api</code>
+                  <svg class="icon proto-arrow" aria-hidden="true"><use href="#i-arrow-right" /></svg>
+                  <span>server-side JSON API <em>(action required)</em></span>
+                </li>
+                <li>
+                  <code class="proto-key">p=/...</code>
+                  <svg class="icon proto-arrow" aria-hidden="true"><use href="#i-arrow-right" /></svg>
+                  <span>client-side SPA route <em>(any other value)</em></span>
+                </li>
+                <li>
+                  <code class="proto-key">anything</code>
+                  <svg class="icon proto-arrow" aria-hidden="true"><use href="#i-arrow-right" /></svg>
+                  <span>application parameters</span>
+                </li>
+              </ul>
+              <p class="panel-note">
+                No <code class="inline-code">.htaccess</code>, no <code class="inline-code">#/</code>
+                hash routing, no history-mode server rewrites — the SPA maps browser URLs back to
+                internal routes with TanStack Router’s rewrite layer and moves with
+                <code class="inline-code">history.pushState</code>.
+              </p>
+            </div>
+            <div class="panel glass-control reveal">
+              <h3 class="panel-title">Example URLs</h3>
+              <ul class="url-list">
+                <li>
+                  <code>/index.php</code>
+                  <span class="tag tag-spa">React route /</span>
+                </li>
+                <li>
+                  <code>/index.php?p=/editor/123</code>
+                  <span class="tag tag-spa">React route /editor/123</span>
+                </li>
+                <li>
+                  <code>/index.php?p=/settings</code>
+                  <span class="tag tag-spa">React route /settings</span>
+                </li>
+                <li>
+                  <code>/index.php?p=api&amp;action=hello</code>
+                  <span class="tag tag-api">JSON API</span>
+                </li>
+                <li>
+                  <code>/index.php?p=api&amp;action=projects</code>
+                  <span class="tag tag-api">JSON API</span>
+                </li>
+              </ul>
+              <p class="panel-note">
+                Because <code class="inline-code">p</code> is a real parameter, every link is
+                copyable, bookmarkable and indexable — no server ever has to be told how to
+                serve it.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section shell" id="architecture">
+          <div class="section-head section-head-center reveal">
+            <p class="eyebrow eyebrow-center"><span class="eyebrow-rule" aria-hidden="true"></span>how it works</p>
+            <h2>One request, one fork</h2>
+            <p class="section-lede">
+              The browser asks for a single PHP file; the artifact decides between JSON and the
+              inlined SPA on its own.
+            </p>
+          </div>
+          <div class="arch reveal">
+            <div class="arch-box arch-browser">
+              <span class="arch-label">Browser</span>
+              <span class="arch-sub">one request — JS + CSS inlined</span>
+            </div>
+            <span class="arch-arrow" aria-hidden="true">↓</span>
+            <div class="arch-box arch-entry">
+              <span class="arch-label">index.php</span>
+              <span class="arch-sub">dist/index.php, deployed as index.php</span>
+            </div>
+            <span class="arch-fork" aria-hidden="true"></span>
+            <div class="arch-split">
+              <div class="arch-branch">
+                <div class="arch-box">
+                  <span class="arch-label arch-mono">?p=api</span>
+                  <span class="arch-sub">action=…</span>
+                </div>
+                <span class="arch-arrow" aria-hidden="true">↓</span>
+                <div class="arch-box arch-end">
+                  <span class="arch-label">PHP JSON API</span>
+                  <span class="arch-sub">auth · pages · assets · migration</span>
+                </div>
+              </div>
+              <div class="arch-branch">
+                <div class="arch-box">
+                  <span class="arch-label arch-mono">?p=/…</span>
+                  <span class="arch-sub">anything else</span>
+                </div>
+                <span class="arch-arrow" aria-hidden="true">↓</span>
+                <div class="arch-box arch-end">
+                  <span class="arch-label">React SPA</span>
+                  <span class="arch-sub">admin UI or active sifront</span>
+                </div>
+              </div>
+            </div>
+            <p class="arch-caption">
+              The production server needs only <strong>one index.php</strong> — no rewrite rules,
+              no separate assets, no Node.js.
+            </p>
+          </div>
+        </section>
+
+        <section class="section shell" id="quickstart">
+          <div class="section-head reveal">
+            <p class="eyebrow"><span class="eyebrow-rule" aria-hidden="true"></span>quick start</p>
+            <h2>From clone to production in three steps</h2>
+            <p class="section-lede">
+              Building needs PHP CLI, Node.js and pnpm. Running it needs nothing but PHP.
+            </p>
+          </div>
+
+          <div class="qs-grid">
+            <div class="codeblock reveal">
+              <div class="codeblock-head">
+                <span class="codeblock-title"><span class="step-no">01</span> Build</span>
+                <button class="copy-btn" type="button" data-copy="qs-build" aria-label="Copy build commands">
+                  <svg class="icon ic-copy" aria-hidden="true"><use href="#i-copy" /></svg>
+                  <svg class="icon ic-check" aria-hidden="true"><use href="#i-check" /></svg>
+                </button>
+              </div>
+              <pre id="qs-build"><code>git clone https://github.com/liyu1981/sifpress.git
+cd sifpress
+pnpm install
+php build.php          <span class="cmt"># dev  -&gt; dist/index.php</span>
+php build.php release  <span class="cmt"># prod -&gt; dist/sifpress.php</span></code></pre>
+            </div>
+
+            <div class="codeblock reveal">
+              <div class="codeblock-head">
+                <span class="codeblock-title"><span class="step-no">02</span> Deploy</span>
+                <button class="copy-btn" type="button" data-copy="qs-deploy" aria-label="Copy deploy commands">
+                  <svg class="icon ic-copy" aria-hidden="true"><use href="#i-copy" /></svg>
+                  <svg class="icon ic-check" aria-hidden="true"><use href="#i-check" /></svg>
+                </button>
+              </div>
+              <pre id="qs-deploy"><code><span class="cmt"># that's the whole directory structure</span>
+mkdir -p /var/www/html
+cp dist/index.php /var/www/html/
+<span class="cmt"># no .htaccess, no try_files, no asset folder</span></code></pre>
+            </div>
+          </div>
+
+          <div class="codeblock codeblock-wide reveal">
+            <div class="codeblock-head">
+              <span class="codeblock-title"><span class="step-no">03</span> Migrate &amp; sign in</span>
+              <button class="copy-btn" type="button" data-copy="qs-run" aria-label="Copy migration command">
+                <svg class="icon ic-copy" aria-hidden="true"><use href="#i-copy" /></svg>
+                <svg class="icon ic-check" aria-hidden="true"><use href="#i-check" /></svg>
+              </button>
+            </div>
+            <pre id="qs-run"><code><span class="cmt"># apply embedded migrations (or run `php sifpress.php migrate`)</span>
+curl -X POST <span class="str">'https://example.com/index.php?p=migration&amp;action=run'</span>
+<span class="cmt"># open /index.php -- first login: admin / admin (password change is forced)</span></code></pre>
+          </div>
+
+          <div class="req-panel glass-control reveal">
+            <div class="req-item">
+              <span class="req-title">Server</span>
+              <span class="req-value">PHP 8.3+ · pdo_sqlite (FTS5) · mbstring · fileinfo</span>
+            </div>
+            <div class="req-item">
+              <span class="req-title">Optional</span>
+              <span class="req-value">curl, zlib — features degrade gracefully</span>
+            </div>
+            <div class="req-item">
+              <span class="req-title">Build only</span>
+              <span class="req-value">Node.js + pnpm — never on production</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="section shell" id="inside">
+          <div class="section-head reveal">
+            <p class="eyebrow"><span class="eyebrow-rule" aria-hidden="true"></span>inside the repo</p>
+            <h2>Fragments in, one artifact out</h2>
+            <p class="section-lede">
+              The source stays readable as small PHP fragments and typed React workspaces; the
+              build does the packing.
+            </p>
+          </div>
+          <div class="inside-grid">
+            <div class="panel glass-control reveal">
+              <h3 class="panel-title">PHP fragments — <code class="inline-code">src/</code></h3>
+              <ul class="frag-list">
+                <li><code>env.php</code><span>version &amp; extension checks</span></li>
+                <li><code>bootstrap.php</code><span>constants + core helpers</span></li>
+                <li><code>db.php</code><span>SQLite open, pragmas, migrations</span></li>
+                <li><code>auth.php</code><span>sessions, RBAC, page grants</span></li>
+                <li><code>api.php</code><span>JSON API handler</span></li>
+                <li><code>spa.php</code><span>SPA serving + meta injection</span></li>
+                <li><code>backup.php</code><span>snapshot, tar, prune, cron</span></li>
+                <li><code>router.php</code><span>assembled last — dispatches</span></li>
+              </ul>
+            </div>
+            <div class="panel glass-control reveal">
+              <h3 class="panel-title">Frontend — pnpm workspace</h3>
+              <ul class="frag-list">
+                <li><code>admin_ui/</code><span>React 19 + TanStack Router/Query</span></li>
+                <li><code>ui_sdk/</code><span>typed APIs, auth, rewrite layer</span></li>
+                <li><code>sifronts/</code><span>public themes → .sifront ZIPs</span></li>
+                <li class="frag-cont"><span class="frag-bullet" aria-hidden="true">·</span><span>Tailwind CSS v4 + shadcn/ui</span></li>
+                <li class="frag-cont"><span class="frag-bullet" aria-hidden="true">·</span><span>Milkdown WYSIWYG markdown editor</span></li>
+                <li class="frag-cont"><span class="frag-bullet" aria-hidden="true">·</span><span>TypeScript strict, Biome formatted</span></li>
+                <li class="frag-cont"><span class="frag-bullet" aria-hidden="true">·</span><span>light / dark / system theming</span></li>
+                <li class="frag-cont"><span class="frag-bullet" aria-hidden="true">·</span><span>en / zh i18n, route-aware titles</span></li>
+              </ul>
+            </div>
+            <div class="panel glass-control reveal">
+              <h3 class="panel-title">In the box</h3>
+              <ul class="frag-list frag-plain">
+                <li><span class="frag-bullet" aria-hidden="true">·</span>Articles with tags, search &amp; front matter</li>
+                <li><span class="frag-bullet" aria-hidden="true">·</span>Assets with browser-generated thumbnails</li>
+                <li><span class="frag-bullet" aria-hidden="true">·</span>SEO settings, sitemap &amp; robots</li>
+                <li><span class="frag-bullet" aria-hidden="true">·</span>Analytics head tags (gtag / Plausible)</li>
+                <li><span class="frag-bullet" aria-hidden="true">·</span>Roles: admin / editor / viewer</li>
+                <li><span class="frag-bullet" aria-hidden="true">·</span>Self-update from a release manifest</li>
+                <li><span class="frag-bullet" aria-hidden="true">·</span>CLI: setup · migrate · backup · config</li>
+                <li><span class="frag-bullet" aria-hidden="true">·</span>GitHub Actions release pipeline</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="section cta-section shell reveal">
+          <div class="cta-panel glass-control rainbow-card">
+            <div class="cta-copy">
+              <h2>Ship a whole site as one file</h2>
+              <p>
+                Read the source, grab the latest release artifact, or clone it and make it your
+                own — the build is a single command.
+              </p>
+            </div>
+            <div class="cta-row">
+              <a class="btn btn-primary" href="https://github.com/liyu1981/sifpress" rel="noopener">
+                <svg class="icon" aria-hidden="true"><use href="#i-github" /></svg>
+                liyu1981/sifpress
+              </a>
+              <a
+                class="btn btn-ghost"
+                href="https://github.com/liyu1981/sifpress/releases"
+                rel="noopener"
+              >
+                Releases
+                <svg class="icon" aria-hidden="true"><use href="#i-external" /></svg>
+              </a>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer shell">
+        <div class="footer-inner">
+          <div class="footer-brand">
+            <span class="brand-mark brand-mark-sm" aria-hidden="true">&lt;?</span>
+            <span>
+              <strong>sifpress</strong> — single-file PHP + React SPA, rewrite-free routing.
+            </span>
+          </div>
+          <nav class="footer-links" aria-label="Footer">
+            <a href="https://github.com/liyu1981/sifpress" rel="noopener">GitHub</a>
+            <a href="https://github.com/liyu1981/sifpress/releases" rel="noopener">Releases</a>
+            <a href="https://github.com/liyu1981/sifpress#readme" rel="noopener">Docs</a>
+            <a href="https://github.com/liyu1981/sifpress/blob/master/AGENTS.md" rel="noopener">AGENTS.md</a>
+          </nav>
+        </div>
+      </footer>
+    </div>
+
+    <script src="assets/site.js" defer></script>
+  </body>
+</html>

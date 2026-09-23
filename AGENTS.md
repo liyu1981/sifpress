@@ -203,6 +203,9 @@ sifronts/           public-facing sifront SPAs (each a pnpm workspace package,
   sifpress1/        built by build.php into dist/sifpress1.sifront)
   src/routes/       file-based routes: / (home + tag filter), /article/$slug, $ (404)
   src/components/   site-header/footer, article-card/list, sidebar, glass system
+website/           static project website for GitHub Pages (plain HTML/CSS/JS,
+  no build step; published by .github/workflows/pages.yml; see
+  website/README.md)
 pnpm-workspace.yaml workspace root (packages: admin_ui, ui_sdk, sifronts/sifpress1)
 pnpm-lock.yaml      workspace lockfile
 ```
