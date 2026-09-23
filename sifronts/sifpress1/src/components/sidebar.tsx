@@ -90,6 +90,26 @@ export function Sidebar({ tags, settings }: { tags: TagCount[]; settings?: SeoSe
           <p className="mt-1 text-center text-sm text-muted-foreground">{siteDescription}</p>
         </div>
 
+        {config.pinned.length > 0 && (
+          <nav aria-label="Pinned articles">
+            <ul className="flex flex-col gap-1 py-1">
+              {config.pinned.map(item => (
+                <li key={item.slug}>
+                  <Link
+                    to="/article/$slug"
+                    params={{ slug: item.slug }}
+                    className="flex items-center py-0.5 text-sm text-foreground transition-colors hover:text-muted-foreground"
+                  >
+                    <span className="underline decoration-foreground/40 underline-offset-4 transition-colors hover:decoration-muted-foreground/40">
+                      {item.label}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        )}
+
         <form
           onSubmit={onSubmit}
           className="flex items-center gap-2 border-b border-foreground/70 py-1.5"

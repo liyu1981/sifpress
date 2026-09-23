@@ -10,10 +10,16 @@ export interface LinkItem {
   color?: string;
 }
 
+export interface PinnedItem {
+  slug: string;
+  label: string;
+}
+
 export interface ThemeConfig {
   sidebarWelcome: string;
   sidebarAbout: string;
   sidebarAvatar: string;
+  pinned: PinnedItem[];
   links: LinkItem[];
   footerText: string;
   footerCopyright: string;
@@ -92,6 +98,31 @@ function asLinkArray(value: unknown): LinkItem[] | null {
   return out;
 }
 
+function asPinnedArray(value: unknown): PinnedItem[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const out: PinnedItem[] = [];
+
+  for (const item of value) {
+    if (
+      item !== null &&
+      typeof item === 'object' &&
+      asString((item as Record<string, unknown>).slug) &&
+      asString((item as Record<string, unknown>).label)
+    ) {
+      const record = item as Record<string, unknown>;
+      out.push({
+        slug: record.slug as string,
+        label: record.label as string,
+      });
+    }
+  }
+
+  return out;
+}
+
 function buildConfig(
   data: Record<string, unknown>,
   defaults: Record<string, unknown>,
@@ -123,10 +154,16 @@ function buildConfig(
     return asLinkArray(value) ?? asLinkArray(defaults['sifpress1.sidebar.links']) ?? [];
   })();
 
+  const pinned = ((): PinnedItem[] => {
+    const value = pick('sifpress1.sidebar.pinned');
+    return asPinnedArray(value) ?? asPinnedArray(defaults['sifpress1.sidebar.pinned']) ?? [];
+  })();
+
   return {
     sidebarWelcome: str('sifpress1.sidebar.welcome'),
     sidebarAbout: str('sifpress1.sidebar.about'),
     sidebarAvatar: str('sifpress1.sidebar.avatar'),
+    pinned,
     links,
     footerText: str('sifpress1.footer.text') || 'Powered by Sifpress',
     footerCopyright: str('sifpress1.footer.copyright') || '© {year}',
@@ -139,6 +176,7 @@ const ThemeConfigContext = createContext<ThemeConfig>({
   sidebarWelcome: '',
   sidebarAbout: '',
   sidebarAvatar: '',
+  pinned: [],
   links: [],
   footerText: 'Powered by Sifpress',
   footerCopyright: '© {year}',

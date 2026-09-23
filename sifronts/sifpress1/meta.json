@@ -3,6 +3,7 @@
     { "sifpress1.sidebar.welcome": "" },
     { "sifpress1.sidebar.about": "" },
     { "sifpress1.sidebar.avatar": "" },
+    { "sifpress1.sidebar.pinned": [] },
     {
       "sifpress1.sidebar.links": [
         { "label": "Instagram", "href": "https://instagram.com/liyu1981", "icon": "instagram", "color": "#E4405F" },
