@@ -78,6 +78,28 @@ function parseValue(input: string): unknown {
 }
 
 /**
+ * Extract the per-key example strings a sifront declares under meta.examples,
+ * used as hints in the value editor dialog.
+ */
+function themeExamples(meta: Record<string, unknown> | null): Record<string, string> {
+  const raw = meta?.examples;
+
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return {};
+  }
+
+  const out: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === 'string' && value !== '') {
+      out[key] = value;
+    }
+  }
+
+  return out;
+}
+
+/**
  * Larger editor for one theme key, opened from the expand icon in the row.
  * It edits the row's draft so the inline input and the dialog stay in sync;
  * Save persists the value (valid JSON is parsed, anything else stays text).
@@ -87,6 +109,7 @@ function ValueEditorDialog({
   onOpenChange,
   keyName,
   value,
+  example,
   canEdit,
   saving,
   onChange,
@@ -96,6 +119,7 @@ function ValueEditorDialog({
   onOpenChange: (open: boolean) => void;
   keyName: string;
   value: string;
+  example?: string;
   canEdit: boolean;
   saving: boolean;
   onChange: (value: string) => void;
@@ -119,6 +143,23 @@ function ValueEditorDialog({
           className="h-[50vh] font-mono text-sm"
           autoFocus
         />
+        {example !== undefined && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                {t('sifront.valueExample')}
+              </span>
+              {canEdit && (
+                <Button type="button" variant="ghost" size="xs" onClick={() => onChange(example)}>
+                  {t('sifront.useExample')}
+                </Button>
+              )}
+            </div>
+            <pre className="max-h-40 overflow-auto rounded-md border border-border/60 bg-muted/40 p-2 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
+              {example}
+            </pre>
+          </div>
+        )}
         <DialogFooter>
           <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
             {canEdit ? t('common.cancel') : t('common.close')}
@@ -143,6 +184,7 @@ function KeyRow({
   keyName,
   current,
   fallback,
+  example,
   saving,
   canEdit,
   onSave,
@@ -150,6 +192,7 @@ function KeyRow({
   keyName: string;
   current: unknown;
   fallback: unknown;
+  example?: string;
   saving: boolean;
   canEdit: boolean;
   onSave: (key: string, value: unknown) => void;
@@ -191,6 +234,7 @@ function KeyRow({
       onOpenChange={setDialogOpen}
       keyName={keyName}
       value={draft}
+      example={example}
       canEdit={canEdit}
       saving={saving}
       onChange={setDraft}
@@ -306,6 +350,7 @@ function MetaTable({
     meta !== null && Array.isArray(meta.require_keys)
       ? (meta.require_keys as Record<string, unknown>[])
       : [];
+  const examples = themeExamples(meta);
 
   if (requireKeys.length === 0) {
     return <p className="text-sm text-muted-foreground">No theme keys declared.</p>;
@@ -339,6 +384,7 @@ function MetaTable({
                 keyName={key}
                 current={values?.[key]}
                 fallback={def}
+                example={examples[key]}
                 saving={savingKey === key}
                 canEdit={canEdit}
                 onSave={onSave}

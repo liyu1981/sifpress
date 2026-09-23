@@ -65,6 +65,8 @@ const en = {
     valueFailed: 'Could not save "{{key}}": {{detail}}',
     saveValue: 'Save',
     expandValue: 'Open large editor',
+    valueExample: 'Example',
+    useExample: 'Use example',
     valueDialogDescription:
       'Edit the value in a larger editor. Valid JSON is saved as-is; anything else is saved as text.',
   },
@@ -801,6 +803,8 @@ const zh = {
     valueFailed: '无法保存「{{key}}」：{{detail}}',
     saveValue: '保存',
     expandValue: '打开大编辑器',
+    valueExample: '示例',
+    useExample: '使用示例',
     valueDialogDescription:
       '在更大的编辑器中编辑该值。合法 JSON 会原样保存，其余内容作为文本保存。',
   },

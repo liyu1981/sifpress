@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { ArrowLeft, Calendar, Clock, Loader2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, Loader2, Pencil, RefreshCw } from 'lucide-react';
 import { useRef } from 'react';
 import { MarkdownView, pagesApi, parseFrontMatter } from 'ui-sdk';
 import { RawHtml } from '@/components/raw-html';
@@ -28,6 +28,11 @@ function estimateReadingMinutes(md: string): number {
   const body = md.replace(/^---[\s\S]*?---\s*/, '');
   const words = body.trim().split(/\s+/).length;
   return Math.max(1, Math.round(words / 200));
+}
+
+/** Admin editor URL for a page slug (?p=sifpress/admin/editor/<slug>). */
+function adminEditorUrl(slug: string): string {
+  return `?p=sifpress/admin/editor/${encodeURIComponent(slug)}`;
 }
 
 function TagPill({ tag }: { tag: string }) {
@@ -109,13 +114,24 @@ function ArticleDetailPage() {
             )}
 
             <div className="px-6 py-8 sm:px-10 sm:py-10">
-              <Link
-                to="/"
-                className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <ArrowLeft className="size-4" />
-                Back to home
-              </Link>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Link
+                  to="/"
+                  className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <ArrowLeft className="size-4" />
+                  Back to home
+                </Link>
+                {page.can_edit && (
+                  <a
+                    href={adminEditorUrl(page.slug)}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border/60 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <Pencil className="size-3.5" />
+                    Edit this page
+                  </a>
+                )}
+              </div>
 
               <header className="mt-6 mb-8 space-y-4">
                 <h1 className="font-heading text-3xl leading-tight font-bold tracking-tight text-foreground sm:text-4xl">

@@ -17,5 +17,16 @@
     { "sifpress1.footer.copyright": "© {year}" },
     { "sifpress1.background.kind": "ambient" },
     { "sifpress1.article.bottom": "" }
-  ]
+  ],
+  "examples": {
+    "sifpress1.sidebar.welcome": "Welcome, I am Jane",
+    "sifpress1.sidebar.about": "Notes on code, design, and side projects.",
+    "sifpress1.sidebar.avatar": "https://example.com/avatar.jpg",
+    "sifpress1.sidebar.pinned": "[\n  { \"slug\": \"my-side-projects\", \"label\": \"My Projects\" },\n  { \"slug\": \"another-post\", \"label\": \"Another Post\" }\n]",
+    "sifpress1.sidebar.links": "[\n  { \"label\": \"GitHub\", \"href\": \"https://github.com/you\", \"icon\": \"github\" },\n  { \"label\": \"Email\", \"href\": \"mailto:you@example.com\", \"icon\": \"email\" }\n]",
+    "sifpress1.footer.text": "Powered by Sifpress",
+    "sifpress1.footer.copyright": "© {year} Jane Doe",
+    "sifpress1.background.kind": "ambient",
+    "sifpress1.article.bottom": "<div class=\"note\">Thanks for reading.</div>"
+  }
 }
