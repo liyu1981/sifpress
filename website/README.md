@@ -20,6 +20,7 @@ website/
     ├── site.css        tokens + glass system + layout (ported from sifpress1)
     ├── site.js         theme cycling, ambient canvas, copy buttons,
     │                   scroll reveal, scroll-spy
+    ├── logo.svg        project logo (sage badge; repo assets/favicon_optimized.svg)
     └── fonts/          Geist Variable woff2 subsets
 ```
 

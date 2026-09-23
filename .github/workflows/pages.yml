@@ -36,7 +36,7 @@ jobs:
       - name: Validate local references
         run: |
           cd website
-          for f in assets/site.css assets/site.js assets/fonts/geist-latin-wght-normal.woff2; do
+          for f in assets/site.css assets/site.js assets/logo.svg assets/fonts/geist-latin-wght-normal.woff2; do
             test -s "$f" || { echo "::error::missing $f"; exit 1; }
           done
 

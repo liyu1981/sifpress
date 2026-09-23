@@ -7,26 +7,23 @@
     <title>Sifpress — Single-file PHP + React SPA, rewrite-free routing</title>
     <meta
       name="description"
-      content="Sifpress packages a PHP JSON API, an admin React app, its CSS and the SPA HTML into one dist/index.php artifact. No rewrite rules, no asset folder, no Node.js on the server."
+      content="Sifpress packages a PHP JSON API, an admin React app, its CSS and the SPA HTML into a single sifpress.php artifact. No rewrite rules, no asset folder, no Node.js on the server."
     />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Sifpress" />
     <meta property="og:title" content="Sifpress — Single-file PHP + React SPA" />
     <meta
       property="og:description"
-      content="One rewrite-free dist/index.php: PHP API + React admin UI + inlined JS/CSS. Works at any install path with no .htaccess, no try_files, no hash routing."
+      content="One rewrite-free sifpress.php: PHP API + React admin UI + inlined JS/CSS. Works at any install path with no .htaccess, no try_files, no hash routing."
     />
     <meta property="og:url" content="https://liyu1981.github.io/sifpress/" />
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="Sifpress — Single-file PHP + React SPA" />
     <meta
       name="twitter:description"
-      content="One rewrite-free dist/index.php: PHP API + React admin UI + inlined JS/CSS. No .htaccess, no try_files, no hash routing."
+      content="One rewrite-free sifpress.php: PHP API + React admin UI + inlined JS/CSS. No .htaccess, no try_files, no hash routing."
     />
-    <link
-      rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%230b0b0c'/%3E%3Ctext x='32' y='43' font-family='ui-monospace,Menlo,monospace' font-size='30' font-weight='700' fill='%23f4f4f5' text-anchor='middle'%3E%26lt%3B%3F%3C/text%3E%3C/svg%3E"
-    />
+    <link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
     <link rel="preload" href="assets/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
     <script>
       (function () {
@@ -146,7 +143,7 @@
       <header class="site-header" id="site-header">
         <div class="nav-pill apple-panel">
           <a class="brand" href="#top">
-            <span class="brand-mark" aria-hidden="true">&lt;?</span>
+            <img class="brand-logo" src="assets/logo.svg" alt="" width="32" height="32" />
             <span class="brand-name">sifpress</span>
           </a>
           <nav class="nav-links" aria-label="Sections">
@@ -189,7 +186,7 @@
             </h1>
             <p class="lead">
               Sifpress folds a PHP JSON API, a full React admin app, its styles and the SPA HTML
-              into one <code class="inline-code">dist/index.php</code> artifact — migrations
+              into one <code class="inline-code">sifpress.php</code> artifact — migrations
               included. Drop it into any directory of any PHP host: no
               <code class="inline-code">.htaccess</code>, no <code class="inline-code">try_files</code>,
               no <code class="inline-code">#/</code> hash routing, no Node.js on the server.
@@ -215,7 +212,7 @@
               <div class="file-card-inner">
                 <div class="file-card-head">
                 <svg class="icon file-ic" aria-hidden="true"><use href="#i-file" /></svg>
-                <span class="file-name">dist/index.php</span>
+                <span class="file-name">sifpress.php</span>
                 <span class="pill">one artifact</span>
               </div>
               <ul class="file-list">
@@ -291,8 +288,9 @@
               <h3>Single-file artifact</h3>
               <p>
                 <code class="inline-code">php build.php</code> type-checks, bundles the React app,
-                inlines every script and stylesheet, embeds the SQL migrations and writes
-                <code class="inline-code">dist/index.php</code>. Idempotent and repeatable.
+                inlines every script and stylesheet, embeds the SQL migrations and writes one
+                artifact: <code class="inline-code">dist/sifpress.php</code>. Idempotent and
+                repeatable.
               </p>
             </article>
             <article class="card rainbow-card glass-control reveal">
@@ -401,23 +399,23 @@
               <h3 class="panel-title">Example URLs</h3>
               <ul class="url-list">
                 <li>
-                  <code>/index.php</code>
+                  <code>/sifpress.php</code>
                   <span class="tag tag-spa">React route /</span>
                 </li>
                 <li>
-                  <code>/index.php?p=/editor/123</code>
+                  <code>/sifpress.php?p=/editor/123</code>
                   <span class="tag tag-spa">React route /editor/123</span>
                 </li>
                 <li>
-                  <code>/index.php?p=/settings</code>
+                  <code>/sifpress.php?p=/settings</code>
                   <span class="tag tag-spa">React route /settings</span>
                 </li>
                 <li>
-                  <code>/index.php?p=api&amp;action=hello</code>
+                  <code>/sifpress.php?p=api&amp;action=hello</code>
                   <span class="tag tag-api">JSON API</span>
                 </li>
                 <li>
-                  <code>/index.php?p=api&amp;action=projects</code>
+                  <code>/sifpress.php?p=api&amp;action=projects</code>
                   <span class="tag tag-api">JSON API</span>
                 </li>
               </ul>
@@ -446,8 +444,8 @@
             </div>
             <span class="arch-arrow" aria-hidden="true">↓</span>
             <div class="arch-box arch-entry">
-              <span class="arch-label">index.php</span>
-              <span class="arch-sub">dist/index.php, deployed as index.php</span>
+              <span class="arch-label">sifpress.php</span>
+              <span class="arch-sub">one file in your document root</span>
             </div>
             <span class="arch-fork" aria-hidden="true"></span>
             <div class="arch-split">
@@ -475,7 +473,7 @@
               </div>
             </div>
             <p class="arch-caption">
-              The production server needs only <strong>one index.php</strong> — no rewrite rules,
+              The production server needs only <strong>one PHP file</strong> — no rewrite rules,
               no separate assets, no Node.js.
             </p>
           </div>
@@ -484,54 +482,101 @@
         <section class="section shell" id="quickstart">
           <div class="section-head reveal">
             <p class="eyebrow"><span class="eyebrow-rule" aria-hidden="true"></span>quick start</p>
-            <h2>From clone to production in three steps</h2>
+            <h2>From download to admin UI in four steps</h2>
             <p class="section-lede">
-              Building needs PHP CLI, Node.js and pnpm. Running it needs nothing but PHP.
+              Grab <code class="inline-code">sifpress.php</code> from the releases page, run two
+              CLI commands, sign in — the server only needs PHP. Building from source is for
+              local development (below).
             </p>
           </div>
 
           <div class="qs-grid">
             <div class="codeblock reveal">
               <div class="codeblock-head">
-                <span class="codeblock-title"><span class="step-no">01</span> Build</span>
-                <button class="copy-btn" type="button" data-copy="qs-build" aria-label="Copy build commands">
+                <span class="codeblock-title"><span class="step-no">01</span> Download &amp; place</span>
+                <button class="copy-btn" type="button" data-copy="qs-download" aria-label="Copy download commands">
                   <svg class="icon ic-copy" aria-hidden="true"><use href="#i-copy" /></svg>
                   <svg class="icon ic-check" aria-hidden="true"><use href="#i-check" /></svg>
                 </button>
               </div>
-              <pre id="qs-build"><code>git clone https://github.com/liyu1981/sifpress.git
-cd sifpress
-pnpm install
-php build.php          <span class="cmt"># dev  -&gt; dist/index.php</span>
-php build.php release  <span class="cmt"># prod -&gt; dist/sifpress.php</span></code></pre>
+              <pre id="qs-download"><code><span class="cmt"># grab the newest sifpress.php from the releases page</span>
+curl -LO https://github.com/liyu1981/sifpress/releases/latest/download/sifpress.php
+
+mkdir -p /var/www/html
+cp sifpress.php /var/www/html/</code></pre>
             </div>
 
             <div class="codeblock reveal">
               <div class="codeblock-head">
-                <span class="codeblock-title"><span class="step-no">02</span> Deploy</span>
-                <button class="copy-btn" type="button" data-copy="qs-deploy" aria-label="Copy deploy commands">
+                <span class="codeblock-title"><span class="step-no">02</span> Create the config</span>
+                <button class="copy-btn" type="button" data-copy="qs-config" aria-label="Copy setup commands">
                   <svg class="icon ic-copy" aria-hidden="true"><use href="#i-copy" /></svg>
                   <svg class="icon ic-check" aria-hidden="true"><use href="#i-check" /></svg>
                 </button>
               </div>
-              <pre id="qs-deploy"><code><span class="cmt"># that's the whole directory structure</span>
-mkdir -p /var/www/html
-cp dist/index.php /var/www/html/
-<span class="cmt"># no .htaccess, no try_files, no asset folder</span></code></pre>
+              <pre id="qs-config"><code><span class="cmt"># writes sifpress_config.php + creates ./var/sifpress (DB folder)</span>
+cd /var/www/html
+php sifpress.php setup
+
+<span class="cmt"># keep the DB elsewhere -- at creation, or adjust later:</span>
+php sifpress.php setup --db-dir=/srv/sifpress-db --force
+php sifpress.php config --set SIFPRESS_DB_DIR=/srv/sifpress-db</code></pre>
             </div>
+
+            <div class="codeblock reveal">
+              <div class="codeblock-head">
+                <span class="codeblock-title"><span class="step-no">03</span> Migrate</span>
+                <button class="copy-btn" type="button" data-copy="qs-migrate" aria-label="Copy migrate command">
+                  <svg class="icon ic-copy" aria-hidden="true"><use href="#i-copy" /></svg>
+                  <svg class="icon ic-check" aria-hidden="true"><use href="#i-check" /></svg>
+                </button>
+              </div>
+              <pre id="qs-migrate"><code><span class="cmt"># applies the embedded migrations, seeds the first admin</span>
+cd /var/www/html
+php sifpress.php migrate</code></pre>
+            </div>
+
+            <div class="codeblock reveal">
+              <div class="codeblock-head">
+                <span class="codeblock-title"><span class="step-no">04</span> Open the admin UI</span>
+                <button class="copy-btn" type="button" data-copy="qs-admin" aria-label="Copy admin URL">
+                  <svg class="icon ic-copy" aria-hidden="true"><use href="#i-copy" /></svg>
+                  <svg class="icon ic-check" aria-hidden="true"><use href="#i-check" /></svg>
+                </button>
+              </div>
+              <pre id="qs-admin"><code><span class="cmt"># sign in at</span>
+https://example.com/sifpress.php?p=/admin
+
+<span class="cmt"># first login: admin / admin -- password change is forced</span></code></pre>
+            </div>
+          </div>
+
+          <div class="subhead reveal">
+            <p class="eyebrow"><span class="eyebrow-rule" aria-hidden="true"></span>local development</p>
+            <h3>Building from source instead</h3>
+            <p class="section-lede">
+              Hacking on Sifpress itself needs Node.js, pnpm and the PHP CLI. The dev server
+              rebuilds on save, and a release build produces the same
+              <code class="inline-code">sifpress.php</code> the releases page ships.
+            </p>
           </div>
 
           <div class="codeblock codeblock-wide reveal">
             <div class="codeblock-head">
-              <span class="codeblock-title"><span class="step-no">03</span> Migrate &amp; sign in</span>
-              <button class="copy-btn" type="button" data-copy="qs-run" aria-label="Copy migration command">
+              <span class="codeblock-title">clone · install · serve</span>
+              <button class="copy-btn" type="button" data-copy="dev-build" aria-label="Copy dev workflow">
                 <svg class="icon ic-copy" aria-hidden="true"><use href="#i-copy" /></svg>
                 <svg class="icon ic-check" aria-hidden="true"><use href="#i-check" /></svg>
               </button>
             </div>
-            <pre id="qs-run"><code><span class="cmt"># apply embedded migrations (or run `php sifpress.php migrate`)</span>
-curl -X POST <span class="str">'https://example.com/index.php?p=migration&amp;action=run'</span>
-<span class="cmt"># open /index.php -- first login: admin / admin (password change is forced)</span></code></pre>
+            <pre id="dev-build"><code>git clone https://github.com/liyu1981/sifpress.git
+cd sifpress
+pnpm install
+
+php build.php          <span class="cmt"># dev artifact  -&gt; dist/index.php</span>
+./dev.sh               <span class="cmt"># http://localhost:5000, rebuilds on change</span>
+
+php build.php release  <span class="cmt"># release       -&gt; dist/sifpress.php</span></code></pre>
           </div>
 
           <div class="req-panel glass-control reveal">
@@ -632,7 +677,7 @@ curl -X POST <span class="str">'https://example.com/index.php?p=migration&amp;ac
       <footer class="site-footer shell">
         <div class="footer-inner">
           <div class="footer-brand">
-            <span class="brand-mark brand-mark-sm" aria-hidden="true">&lt;?</span>
+            <img class="brand-logo brand-logo-sm" src="assets/logo.svg" alt="" width="26" height="26" />
             <span>
               <strong>sifpress</strong> — single-file PHP + React SPA, rewrite-free routing.
             </span>
