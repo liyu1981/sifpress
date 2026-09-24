@@ -944,6 +944,7 @@ html:not([data-theme]) .icon-btn .ic-monitor {
 
 .proto-list li {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.85rem;
   padding: 0.85rem 0;
@@ -1129,6 +1130,60 @@ html:not([data-theme]) .icon-btn .ic-monitor {
 }
 
 .arch-caption strong {
+  color: var(--foreground);
+}
+
+/* ---------- sifront pipeline ---------- */
+
+.flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: clamp(2rem, 4vw, 3rem);
+}
+
+.flow-arrow {
+  font-family: var(--font-mono);
+  color: var(--muted-foreground);
+}
+
+.flow .arch-box {
+  min-width: 0;
+  padding: 0.8rem 1.1rem;
+  text-align: left;
+}
+
+@media (max-width: 700px) {
+  .flow-arrow {
+    display: none;
+  }
+}
+
+.panel-copy {
+  margin: -0.2rem 0 1rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+
+.kv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.kv-chips code {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  padding: 0.22rem 0.6rem;
+  border: 1px solid color-mix(in oklch, var(--border), transparent 25%);
+  border-radius: 9999px;
+  background: color-mix(in oklch, var(--muted) 60%, transparent);
   color: var(--foreground);
 }
 

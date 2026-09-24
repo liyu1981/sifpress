@@ -149,6 +149,7 @@
           <nav class="nav-links" aria-label="Sections">
             <a href="#features" data-spy="features">Features</a>
             <a href="#routing" data-spy="routing">Routing</a>
+            <a href="#sifronts" data-spy="sifronts">Sifronts</a>
             <a href="#quickstart" data-spy="quickstart">Quick start</a>
             <a href="#inside" data-spy="inside">Stack</a>
           </nav>
@@ -242,9 +243,9 @@
                 </li>
               </ul>
               <div class="file-card-foot">
-                <span class="pill pill-mono">?p=api</span>
-                <span class="pill pill-mono">?p=/editor/123</span>
-                <span class="pill pill-mono">?p=migration</span>
+                <span class="pill pill-mono">?p=sifpress/api</span>
+                <span class="pill pill-mono">?p=sifpress/admin</span>
+                <span class="pill pill-mono">?p=sifpress/migration</span>
                 <span class="file-foot-note">one HTTP request per page load</span>
               </div>
               </div>
@@ -297,9 +298,9 @@
               <span class="card-ic"><svg class="icon" aria-hidden="true"><use href="#i-route" /></svg></span>
               <h3>Rewrite-free routing</h3>
               <p>
-                Routes are plain query parameters — <code class="inline-code">?p=/editor/123</code>,
-                <code class="inline-code">?p=api&amp;action=hello</code> — that every web server
-                already understands. URLs stay real, shareable and crawler-friendly.
+                Routes are plain query parameters — <code class="inline-code">?p=sifpress/admin</code>,
+                <code class="inline-code">?p=sifpress/api&amp;action=auth.login</code> — that every
+                web server already understands. URLs stay real, shareable and crawler-friendly.
               </p>
             </article>
             <article class="card rainbow-card glass-control reveal">
@@ -373,19 +374,19 @@
               <h3 class="panel-title">The protocol</h3>
               <ul class="proto-list">
                 <li>
-                  <code class="proto-key">p=api</code>
+                  <code class="proto-key">p=sifpress/api</code>
                   <svg class="icon proto-arrow" aria-hidden="true"><use href="#i-arrow-right" /></svg>
                   <span>server-side JSON API <em>(action required)</em></span>
                 </li>
                 <li>
-                  <code class="proto-key">p=/...</code>
+                  <code class="proto-key">p=sifpress/admin</code>
                   <svg class="icon proto-arrow" aria-hidden="true"><use href="#i-arrow-right" /></svg>
-                  <span>client-side SPA route <em>(any other value)</em></span>
+                  <span>admin SPA <em>(React)</em></span>
                 </li>
                 <li>
-                  <code class="proto-key">anything</code>
+                  <code class="proto-key">anything else</code>
                   <svg class="icon proto-arrow" aria-hidden="true"><use href="#i-arrow-right" /></svg>
-                  <span>application parameters</span>
+                  <span>the active sifront <em>(viewer routes like ?p=/article/x)</em></span>
                 </li>
               </ul>
               <p class="panel-note">
@@ -400,22 +401,22 @@
               <ul class="url-list">
                 <li>
                   <code>/sifpress.php</code>
-                  <span class="tag tag-spa">React route /</span>
+                  <span class="tag tag-spa">active sifront</span>
                 </li>
                 <li>
-                  <code>/sifpress.php?p=/editor/123</code>
-                  <span class="tag tag-spa">React route /editor/123</span>
+                  <code>/sifpress.php?p=/article/hello-world</code>
+                  <span class="tag tag-spa">sifront route</span>
                 </li>
                 <li>
-                  <code>/sifpress.php?p=/settings</code>
-                  <span class="tag tag-spa">React route /settings</span>
+                  <code>/sifpress.php?p=sifpress/admin</code>
+                  <span class="tag tag-spa">admin UI</span>
                 </li>
                 <li>
-                  <code>/sifpress.php?p=api&amp;action=hello</code>
-                  <span class="tag tag-api">JSON API</span>
+                  <code>/sifpress.php?p=sifpress/admin/articles</code>
+                  <span class="tag tag-spa">admin route</span>
                 </li>
                 <li>
-                  <code>/sifpress.php?p=api&amp;action=projects</code>
+                  <code>/sifpress.php?p=sifpress/api&amp;action=auth.login</code>
                   <span class="tag tag-api">JSON API</span>
                 </li>
               </ul>
@@ -451,7 +452,7 @@
             <div class="arch-split">
               <div class="arch-branch">
                 <div class="arch-box">
-                  <span class="arch-label arch-mono">?p=api</span>
+                  <span class="arch-label arch-mono">?p=sifpress/api</span>
                   <span class="arch-sub">action=…</span>
                 </div>
                 <span class="arch-arrow" aria-hidden="true">↓</span>
@@ -462,8 +463,8 @@
               </div>
               <div class="arch-branch">
                 <div class="arch-box">
-                  <span class="arch-label arch-mono">?p=/…</span>
-                  <span class="arch-sub">anything else</span>
+                  <span class="arch-label">anything else</span>
+                  <span class="arch-sub">?p=sifpress/admin · ?p=/…</span>
                 </div>
                 <span class="arch-arrow" aria-hidden="true">↓</span>
                 <div class="arch-box arch-end">
@@ -476,6 +477,142 @@
               The production server needs only <strong>one PHP file</strong> — no rewrite rules,
               no separate assets, no Node.js.
             </p>
+          </div>
+        </section>
+
+        <section class="section shell" id="sifronts">
+          <div class="section-head reveal">
+            <p class="eyebrow"><span class="eyebrow-rule" aria-hidden="true"></span>front system</p>
+            <h2>Meet the sifronts</h2>
+            <p class="section-lede">
+              The public face of a Sifpress site is a <em>sifront</em> — a self-contained React
+              theme built into a two-file <code class="inline-code">.sifront</code> archive,
+              stored in the database and served by the artifact itself. Swap it without touching
+              the PHP.
+            </p>
+          </div>
+
+          <div class="flow reveal">
+            <div class="arch-box flow-box">
+              <span class="arch-label arch-mono">sifronts/&lt;name&gt;</span>
+              <span class="arch-sub">React theme · pnpm package</span>
+            </div>
+            <span class="flow-arrow" aria-hidden="true">→</span>
+            <div class="arch-box flow-box">
+              <span class="arch-label arch-mono">php buildfront.php</span>
+              <span class="arch-sub">dev or release build</span>
+            </div>
+            <span class="flow-arrow" aria-hidden="true">→</span>
+            <div class="arch-box flow-box">
+              <span class="arch-label arch-mono">&lt;name&gt;.sifront</span>
+              <span class="arch-sub">meta.json + bundle.js</span>
+            </div>
+            <span class="flow-arrow" aria-hidden="true">→</span>
+            <div class="arch-box flow-box">
+              <span class="arch-label">upload &amp; activate</span>
+              <span class="arch-sub">admin UI · CLI</span>
+            </div>
+            <span class="flow-arrow" aria-hidden="true">→</span>
+            <div class="arch-box flow-box">
+              <span class="arch-label arch-mono">?p=/…</span>
+              <span class="arch-sub">served by the artifact</span>
+            </div>
+          </div>
+
+          <div class="routing-grid">
+            <div class="panel glass-control reveal">
+              <h3 class="panel-title">Inside a .sifront</h3>
+              <ul class="frag-list">
+                <li>
+                  <code>meta.json</code>
+                  <span>name, title, version + the theme contract
+                    (<code class="inline-code">require_keys</code>)</span>
+                </li>
+                <li>
+                  <code>bundle.js</code>
+                  <span>the whole app — styles injected, fonts inlined as data URIs</span>
+                </li>
+                <li class="frag-cont">
+                  <span class="frag-bullet" aria-hidden="true">·</span>
+                  <span>exactly two entries — the admin unpacks the ZIP in the browser;
+                    the backend stores bundle/meta/version and never opens a ZIP</span>
+                </li>
+              </ul>
+            </div>
+            <div class="panel glass-control reveal">
+              <h3 class="panel-title">sifpress1 — the default theme</h3>
+              <ul class="frag-list frag-plain">
+                <li><span class="frag-bullet" aria-hidden="true">·</span>Home, /article/$slug and a 404 route (TanStack Router)</li>
+                <li><span class="frag-bullet" aria-hidden="true">·</span>Glass surfaces, light / dark / system themes</li>
+                <li><span class="frag-bullet" aria-hidden="true">·</span>Ambient &amp; matrix canvas backgrounds (KV-swappable)</li>
+                <li><span class="frag-bullet" aria-hidden="true">·</span>Sidebar with avatar frame, pinned posts, tags, search</li>
+                <li><span class="frag-bullet" aria-hidden="true">·</span>KaTeX math, syntax highlighting, reading progress + TOC</li>
+              </ul>
+            </div>
+            <div class="panel glass-control reveal">
+              <h3 class="panel-title">Customize without code</h3>
+              <p class="panel-copy">
+                The theme's identity lives in namespaced KV keys — declared with defaults in
+                <code class="inline-code">meta.json</code>, overridden from Admin → KVs,
+                guest-readable for visitors.
+              </p>
+              <ul class="kv-chips">
+                <li><code>sifpress1.sidebar.welcome</code></li>
+                <li><code>sifpress1.sidebar.about</code></li>
+                <li><code>sifpress1.sidebar.avatar</code></li>
+                <li><code>sifpress1.sidebar.pinned</code></li>
+                <li><code>sifpress1.sidebar.links</code></li>
+                <li><code>sifpress1.footer.text</code></li>
+                <li><code>sifpress1.background.kind</code></li>
+                <li><code>sifpress1.article.bottom</code></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="subhead reveal">
+            <p class="eyebrow"><span class="eyebrow-rule" aria-hidden="true"></span>agent-assisted theming</p>
+            <h3>Restyle it with skills</h3>
+            <p class="section-lede">
+              Deeper changes — layout, motion, a whole new look — are a coding task, and the repo
+              hands your AI agent the design rules as <em>skills</em>: knowledge files it loads
+              before touching the theme, so restyles stay faithful to the design system.
+            </p>
+          </div>
+
+          <div class="routing-grid">
+            <div class="panel glass-control reveal">
+              <h3 class="panel-title">Bundled skills — .agents/skills/</h3>
+              <ul class="frag-list">
+                <li>
+                  <code>apple-design</code>
+                  <span>fluid motion, springs, materials, reduced-motion rules</span>
+                </li>
+                <li>
+                  <code>my-glass-webui-design</code>
+                  <span>glass-control / apple-panel / ambient-bg — why each rule exists</span>
+                </li>
+              </ul>
+              <p class="panel-note">
+                Pi and opencode both read <code class="inline-code">.agents/skills/</code>
+                automatically. Ask for the restyle, review the diff, build and upload.
+              </p>
+            </div>
+            <div class="codeblock reveal">
+              <div class="codeblock-head">
+                <span class="codeblock-title">restyle &amp; ship</span>
+                <button class="copy-btn" type="button" data-copy="sifront-loop" aria-label="Copy sifront workflow">
+                  <svg class="icon ic-copy" aria-hidden="true"><use href="#i-copy" /></svg>
+                  <svg class="icon ic-check" aria-hidden="true"><use href="#i-check" /></svg>
+                </button>
+              </div>
+              <pre id="sifront-loop"><code><span class="cmt"># restyle with live reload</span>
+cd siffronts/sifpress1 &amp;&amp; pnpm dev
+
+php buildfront.php                           <span class="cmt"># -&gt; dist/sifpress1.sifront</span>
+php dist/index.php inject_sifront sifpress1  <span class="cmt"># dev: push into the DB</span>
+<span class="cmt"># ship: admin UI -&gt; Sifronts -&gt; Update, or</span>
+<span class="cmt"># php sifpress.php update_sifront dist/sifpress1.sifront --activate</span></code></pre>
+            </div>
           </div>
         </section>
 
@@ -545,7 +682,7 @@ php sifpress.php migrate</code></pre>
                 </button>
               </div>
               <pre id="qs-admin"><code><span class="cmt"># sign in at</span>
-https://example.com/sifpress.php?p=/admin
+https://example.com/sifpress.php?p=sifpress/admin
 
 <span class="cmt"># first login: admin / admin -- password change is forced</span></code></pre>
             </div>
