@@ -1,354 +1,222 @@
-# Sifpress — Single‑File PHP + React SPA (Rewrite‑Free Routing)
+<p align="center">
+  <img src="assets/logo.svg" width="112" height="112" alt="Sifpress logo">
+</p>
 
-This project creates a **single `dist/index.php` production artifact**
-containing:
+<h1 align="center">Sifpress</h1>
 
-- PHP API routing
-- React production JavaScript (inlined)
-- React CSS (inlined)
-- SPA HTML
-- No separate asset files
+<p align="center">
+  <b>One PHP file. The whole site.</b><br>
+  A single-file PHP + React SPA with rewrite-free routing — no <code>.htaccess</code>,
+  no <code>try_files</code>, no <code>#/</code> hash routes, no Node.js on the server.
+</p>
 
-The result is completely **independent of its installation path** and requires
-**no rewrite rules at all** — no `.htaccess`, no Nginx `try_files`.
+<p align="center">
+  <a href="https://liyu1981.github.io/sifpress/">Website</a> ·
+  <a href="https://github.com/liyu1981/sifpress/releases">Releases</a> ·
+  <a href="AGENTS.md">Development guide</a>
+</p>
 
-The exact same `dist/index.php` can be copied to:
+---
 
-```text
-https://example.com/index.php
-https://example.com/myapp/index.php
-https://example.com/tools/myapp/index.php
-https://example.com/a/b/c/myapp/index.php
-```
+## What it is
 
-No rebuild is required.
+Sifpress compiles a PHP JSON API, a full React admin app, its styles and the
+SPA HTML into a single **`sifpress.php`** artifact — migrations included. Drop
+it into any directory of any PHP host and it just runs.
 
-## Routing model
+| | |
+| --- | --- |
+| **1** production file | everything inlined — no asset folder |
+| **0** rewrite rules | routing is a query parameter (`?p=…`) every server passes natively |
+| **1 request** per page load | JS + CSS are embedded in the HTML |
+| **PHP 8.3+** + SQLite | the production server never needs Node.js |
 
-Routing is done entirely with **query parameters**, which every web server
-handles natively. There is nothing to configure.
+The same file works at `/`, `/myapp/` or four levels deep — no rebuild, no
+server configuration.
 
-| URL                                                    | Behavior              |
-| ------------------------------------------------------ | --------------------- |
-| `/index.php`                                           | React route `/`       |
-| `/index.php?p=/editor/123`                            | React route `/editor/123` |
-| `/index.php?p=/settings`                              | React route `/settings`  |
-| `/index.php?p=api&action=hello`                       | JSON API              |
-| `/index.php?p=api&action=projects`                    | JSON API              |
+## Why
 
-The protocol is strict and predictable:
+- **A deployment is one file.** Copy `sifpress.php`, point PHP at it. A backup
+  is that file plus one small DB folder.
+- **Nothing to configure on the server.** No `.htaccess`, no Nginx
+  `try_files`, no history-mode rewrites, no hash routing. Every URL is real,
+  shareable and crawler-friendly.
+- **Nothing to keep in sync.** API, admin UI, styles, HTML and SQL migrations
+  ship together and upgrade together — including one-click self-update from a
+  release manifest.
+- **No toolchain in production.** Build on your machine or in CI; production
+  is plain PHP.
 
-```text
-p=api  -> server-side JSON API (action required)
-p=/... -> client-side SPA route (any other value)
-anything -> application parameters (handled by the app)
-```
+## Features
 
-Because `p` is just a query parameter, the URLs are real and shareable:
+- **Admin UI** — React 19 + TanStack Router/Query + Tailwind v4 + shadcn/ui,
+  DB-backed sessions, roles (admin / editor / viewer), page-level grants and a
+  Milkdown WYSIWYG markdown editor.
+- **Content** — articles with tags, front matter and full-text search (SQLite
+  FTS5 in WAL mode), asset uploads with browser-generated thumbnails, SEO
+  settings with sitemap/robots, analytics head tags.
+- **Sifronts** — the public front end is a swappable React theme shipped as a
+  two-file `.sifront` archive, uploaded from the admin and served by the
+  artifact itself (see [The front: sifronts](#the-front-sifronts)).
+- **Operations** — migrations applied on demand, CLI
+  (`setup · migrate · change_password · backup · config · cron · status`),
+  WAL-safe `VACUUM INTO` backups pruned on a schedule, self-update from a
+  `latest.json` manifest.
+- **DX** — TypeScript strict, pnpm workspace, Biome, `./dev.sh` live reload,
+  releases cut by tags through GitHub Actions.
 
-```text
-/index.php?p=/editor/123
-/index.php?p=/settings
-```
+## Quick start — deploy a release
 
-No `.htaccess`, no `#/` hash routing, no history-mode server rewrites.
-
-## Build
-
-Requirements:
-
-- PHP CLI
-- Node.js
-- pnpm
-
-Run:
+**Server requirements:** PHP **8.3+** with `pdo_sqlite` (SQLite built with
+FTS5), `mbstring` and `fileinfo`. Optional: `curl` and `zlib` (features
+degrade gracefully).
 
 ```bash
-php build.php
+# 1 — download the release artifact
+curl -LO https://github.com/liyu1981/sifpress/releases/latest/download/sifpress.php
+#    (or take sifpress.php from the Releases page)
+mkdir -p /var/www/html
+cp sifpress.php /var/www/html/
+
+# 2 — create the config + DB folder (run next to the artifact)
+cd /var/www/html
+php sifpress.php setup
+# want the DB somewhere else? choose the path up front, or adjust later:
+php sifpress.php setup --db-dir=/srv/sifpress-db --force
+php sifpress.php config --set SIFPRESS_DB_DIR=/srv/sifpress-db
+
+# 3 — apply the embedded migrations and seed the first admin
+php sifpress.php migrate
 ```
 
-The script runs the Vite production build (`pnpm run build`, which first
-type-checks with `tsc --noEmit`), **inlines all JavaScript and CSS into the
-HTML**, embeds that HTML into the PHP source, and assembles the fragments from
-`src/` into **`dist/index.php`**. The build is idempotent — you can run it
-repeatedly.
-
-Source is split into fragments for maintainability:
+Then open the admin UI:
 
 ```text
-src/
-├── env.php         PHP version/extension/FTS5 requirements (assembled first)
-├── bootstrap.php   constants + core helpers
-├── db.php          SQLite open, pragmas, migration detection/runner, seeds
-├── migration.php   ?p=migration handler (status / run)
-├── auth.php        sessions, RBAC, page grants
-├── api.php         JSON API handler
-├── spa.php         SPA serving / meta injection
-├── embed.php       EMBEDDED_HTML region (regenerated by build.php)
-├── migrations.php  MIGRATIONS region (SQL scripts embedded by build.php)
-└── router.php      main router
+https://example.com/sifpress.php?p=sifpress/admin
 ```
 
-SQL schema migrations live in `migrations/*.sql` (authoring source of truth)
-and are embedded into `dist/index.php` at build time. The app detects pending
-migrations on bootstrap and applies them on demand via
-`POST ?p=migration&action=run`.
+Sign in with `admin` / `admin` — a password change is forced on first login.
 
-## Releases
+> Run `php sifpress.php setup` from a shell as the user that owns the
+> docroot: it writes `sifpress_config.php` as you (and chowns to the web user
+> when run as root), which sidesteps a read-only document root.
 
-Releases are cut by pushing a version tag; GitHub Actions does the rest
-(`.github/workflows/release.yml`):
+### Deployment notes
 
-1. Bump `APP_VERSION` in `src/bootstrap.php` and merge to `master`.
-2. Tag and push:
+- The artifact auto-generates `sifpress_config.php` on first request if it is
+  missing, but CLI `setup` is the reliable path on locked-down hosts.
+- Behind a reverse proxy, CDN or canonical host, set
+  `define('SIFPRESS_BASE_URL', 'https://example.com/sifpress.php');` in
+  `sifpress_config.php` — all generated links (admin, sifront, API, assets,
+  sitemap) derive from it.
+- `php sifpress.php status` prints paths, version and migration state.
+  `php sifpress.php backup --dir=/srv/backups` snapshots and prunes
+  (`php sifpress.php cron install` schedules it).
 
-   ```bash
-   git tag v0.2.0 && git push origin v0.2.0
-   ```
+## Routing — the `?p=` protocol
 
-3. The workflow verifies the tag matches `APP_VERSION`, builds
-   `dist/sifpress.php` (`php build.php release`) and
-   `dist/sifpress1.sifront` (`php buildfront.php release`), sanity-checks
-   the artifact (lint, `<?php` header, no dev-only code), then publishes a
-   **GitHub Release** with both files attached.
-4. Finally it writes an updated **`latest.json`** to `master` — the update
-   manifest consumed by the in-app self-updater
-   (`UPDATE_MANIFEST_URL`, see `src/update.php`):
+| URL | What you get |
+| --- | --- |
+| `/sifpress.php` | the active sifront (public site) |
+| `/sifpress.php?p=/article/hello-world` | sifront route `/article/hello-world` |
+| `/sifpress.php?p=sifpress/admin` | admin UI (redirects to `?p=sifpress/admin/sifront`) |
+| `/sifpress.php?p=sifpress/api&action=auth.login` | JSON API |
+| `/sifpress.php?p=sifpress/migration&action=run` | apply migrations over HTTP |
 
-   ```json
-   { "version": "0.2.0", "md5": "…",
-     "url": "https://github.com/liyu1981/sifpress/releases/download/v0.2.0/sifpress.php",
-     "size_bytes": 2710345,
-     "notes": "https://github.com/liyu1981/sifpress/releases/tag/v0.2.0" }
-   ```
+Anything starting with `p=sifpress/` is handled server-side (`api`,
+`migration`, `asset`, `update`, `seo`, `favicon`, `admin/…`); everything else
+belongs to the active sifront. There are no `.htaccess` rules and no `#/`
+hash routes — route changes go through `history.pushState`, so back/forward
+work out of the box and every link is real.
 
-Running instances check that manifest and offer a one-click upgrade
-(admin-only), downloading the attached `sifpress.php` and verifying its md5.
+## The front: sifronts
 
-Notes:
+Sifronts are the public-facing SPAs under `sifronts/`. The default theme,
+**sifpress1**, ships a glass design system, ambient canvas backgrounds, a
+sidebar with pinned posts / tags / search, and KaTeX + syntax-highlighted
+article rendering.
 
-- The tag must equal `"v" + APP_VERSION`; otherwise the workflow fails fast.
-- Committing `latest.json` back to `master` requires an unprotected default
-  branch (or a branch rule allowing `github-actions[bot]`).
+`php buildfront.php` packs a theme into `dist/<name>.sifront` — a ZIP with
+exactly two entries: `meta.json` (identity, version and the `require_keys`
+theme contract) and `bundle.js` (styles injected, fonts inlined). Upload it
+from **Admin → Sifronts** (or `php sifpress.php update_sifront
+dist/sifpress1.sifront --activate`); the backend stores it in the database and
+serves it — it never opens a ZIP itself.
 
-## Production deployment
+- **Customize without code:** the theme's identity lives in namespaced KV
+  keys declared in `meta.json` (`sifpress1.sidebar.welcome`,
+  `sifpress1.sidebar.links`, `sifpress1.background.kind`, …) — edit them from
+  **Admin → KVs**; visitors read them guest-safe.
+- **Customize with an agent:** the repo ships design skills in
+  [`/.agents/skills/`](.agents/skills/) (`apple-design`,
+  `my-glass-webui-design`) that your coding agent loads before touching the
+  theme, so restyles stay faithful to the design system. Then
+  `php buildfront.php` and upload.
 
-After building, only one file is required:
+## Local development
 
-```text
-www/
-└── index.php   # copy of dist/index.php
+```bash
+git clone https://github.com/liyu1981/sifpress.git
+cd sifpress
+pnpm install
+php build.php           # dev artifact -> dist/index.php
+./dev.sh                # http://localhost:5000, rebuilds on change
 ```
 
-That's it. No `.htaccess`, no Nginx config, no directory structure.
-
-### Server requirements
-
-The first thing the artifact does on every request is verify the PHP
-environment (before loading config or touching the database). It requires:
-
-- **PHP 8.3+**
-- the **pdo_sqlite** extension (with **FTS5** support in the underlying
-  SQLite library)
-- the **mbstring** extension
-- the **fileinfo** extension
-
-When any of these is missing the app answers **503 Service Unavailable** with
-an HTML page listing what is missing and how to install it (`apt`, `dnf`,
-Homebrew); the CLI prints the same to stderr and exits non-zero. Install the
-missing pieces, restart PHP-FPM/Apache, and reload. `curl` and `zlib` are
-optional (their features degrade gracefully).
-
-The same file works at `/`, `/myapp/`, or any deeper path. The browser makes
-exactly **one HTTP request** per page load, because the JS and CSS are inlined.
-
-### Base URL
-
-All generated links (admin UI, sifront, API, assets, canonical/sitemap URLs)
-are built from a single base URL. Set `SIFPRESS_BASE_URL` in
-`sifpress_config.php` when the artifact sits behind a reverse proxy or CDN, or
-when links must use a canonical host that differs from the incoming request:
-
-```php
-define('SIFPRESS_BASE_URL', 'https://example.com/myapp/index.php');
-```
-
-Leave it empty to derive the base from the request. The value is resolved by
-`base_url()` in `src/seo.php` in this order:
-
-1. `SIFPRESS_BASE_URL` in `sifpress_config.php`
-2. the `SIFPRESS_BASE_URL` environment variable
-3. the `site_url` SEO setting
-4. the request (`scheme://host` + script name)
-
-## How it works
-
-### Server side (`dist/index.php`)
-
-The entry point (assembled from `src/router.php`) checks `?module`:
-
-```php
-$module = request_param('module');
-
-if ($module === 'api') {
-    handle_api((string) request_param('action', ''), $method);
-}
-
-$route = (string) request_param('u', '/');
-serve_spa($route);
-```
-
-The API is a switch on `action`:
-
-```php
-case 'hello':
-    json_response(['message' => 'Hello from PHP!']);
-
-case 'projects':
-    // GET list / POST create
-
-default:
-    json_response(['error' => 'Unknown action'], 404);
-```
-
-`serve_spa()` injects route-aware `<meta>`/`<title>` tags (optional SEO) and
-echoes the fully inlined HTML.
-
-### Client side (React)
-
-The React app uses **TanStack Router** with a URL-rewrite layer that maps the
-browser URL to the internal route tree and back. The `rewrite` option is built
-by `createQueryRewrite()` in `ui_sdk/src/rewrite.ts` and wired into
-`admin_ui/src/router.tsx`:
-
-- **`input`** (browser → router): reads `?p=/editor/123` and turns it into the
-  internal path `/editor/123` (missing `p` → `/`).
-- **`output`** (router → browser): turns the internal path back into
-  `index.php?p=...` (re-rooted at the current document), so `<Link>` hrefs
-  and the URL bar always show real, shareable URLs.
-
-Route changes go through `history.pushState`, so the browser back/forward
-buttons work out of the box.
-
-### API URLs
-
-Because the API lives behind the same `index.php`, the fetch wrappers in
-`ui_sdk/src/api.ts` (consumed as `ui-sdk`) address it through a single base
-URL. The PHP artifact injects the resolved base into every served page
-(`<meta name="sifpress-base-url">` plus `window.SIFPRESS_BASE_URL`), so the
-bundle builds correct links even behind a proxy/CDN:
-
-```ts
-import { appBaseUrl } from 'ui-sdk'
-
-const url = `${appBaseUrl()}?p=api&action=hello`
-```
-
-`appBaseUrl()` (and `appBasePath()` for router hrefs) falls back to
-`window.location.pathname` when nothing is injected, which is why the identical
-bundle still works at any mount depth with no configuration.
-
-## API
-
-API routing lives directly in `src/api.php` (compiled into `dist/index.php`). For example:
-
-```php
-case 'hello':
-    json_response([
-        'message' => 'Hello from PHP!',
-        'time'    => date(DATE_ATOM),
-    ]);
-```
-
-You can replace this with:
-
-- PDO / SQLite / MySQL / PostgreSQL
-- authentication and sessions
-- CRUD and file uploads
-- background-job dispatch
-- etc.
-
-The architecture does not require a PHP framework.
-
-## Adding a new SPA route
-
-The admin UI is a TypeScript + TanStack Router app in `admin_ui/`, with the
-reusable API/SDK layer in the `ui_sdk/` workspace package:
-
-```text
-ui_sdk/src/
-├── api.ts          fetch wrappers (?p=api&action=...)
-├── base-url.ts     appBaseUrl()/appBasePath() from the injected base
-├── pages.ts        typed API objects + shared types
-├── assets.ts       browser thumbnail/avatar generation
-├── auth.tsx        AuthProvider + useAuth (React context)
-├── update.ts       updateApi (version check / self-upgrade)
-└── rewrite.ts      createQueryRewrite() — the TanStack Router ?p= rewrite
-
-admin_ui/src/
-├── main.tsx          React entry (QueryClientProvider + RouterProvider)
-├── router.tsx        route tree + ?p= rewrite mapping (via ui-sdk)
-├── pages/            one component per route
-├── lib/              UI libs (marked, agent, theme, i18n, utils, ...)
-├── hooks/            usePageTitle, ...
-└── components/ui/    shadcn/ui components
-```
-
-Add a route by:
-
-1. creating a page component in `admin_ui/src/pages/`,
-2. declaring it in `admin_ui/src/router.tsx` with `createRoute` (static paths,
-   dynamic params like `$id`, or the `$` catch-all for 404),
-3. rebuilding with `php build.php`.
-
-Rebuilding is required because the bundle is inlined into `dist/index.php`.
-
-## Important security considerations
-
-Before using this as a real production application:
-
-- validate API input
-- use PDO prepared statements
-- implement authentication
-- protect state-changing endpoints against CSRF where applicable
-- use secure, HttpOnly cookies for sessions
-- configure Content-Security-Policy
-- configure appropriate CORS policy if needed
-- disable PHP error display in production
-- configure upload limits
-- rate-limit sensitive endpoints
-- never put secrets in the React bundle
-
-The React bundle is public.
-
-## SEO note
-
-`/index.php?p=/editor/123` is a real URL and is more crawler-friendly than a
-hash route. PHP already injects a route-aware `<title>` and `<meta
-name="description">`. For full SEO the PHP entry point can generate
-route-specific open-graph tags while still serving the same React
-application.
+- Building needs PHP CLI, Node.js and pnpm — never on production.
+- `php build.php release` → `dist/sifpress.php` (what Releases ship);
+  `php buildfront.php [release]` → `dist/<name>.sifront` theme bundles.
+  `./dev.sh` injects `sifpress1` into the DB after every rebuild.
+- Layout: `src/` (PHP fragments), `migrations/*.sql`, `admin_ui/` + `ui_sdk/`
+  (pnpm workspace), `sifronts/` (themes). Full conventions live in
+  [AGENTS.md](AGENTS.md).
+- **Cutting a release:** bump `APP_VERSION`, tag `vX.Y.Z`, push — GitHub
+  Actions builds `sifpress.php` + `sifpress1.sifront`, publishes the release
+  and updates `latest.json` for the in-app updater.
 
 ## Architecture
 
 ```text
-                         Browser
-                            │  (one request: JS + CSS inlined)
-                            ▼
-                    ┌───────────────┐
-                    │   index.php   │   (dist/index.php, deployed as index.php)
-                    └───────┬───────┘
-                            │
-                    ┌───────┴───────┐
-                    │               │
-         ?p=api        ?p=/... (and anything else)
-              │                   │
-              ▼                   ▼
-         PHP JSON API          React SPA
-
-The production server needs only:
-    ONE index.php
-    (no rewrite rules, no separate assets)
+                        Browser
+                           │  one request (JS + CSS inlined)
+                           ▼
+                    ┌──────────────┐
+                    │ sifpress.php │    one file, works at any path
+                    └──────┬───────┘
+              ┌────────────┴────────────┐
+       p=sifpress/api             anything else
+              │                          │
+              ▼                          ▼
+       PHP JSON API               React SPA
+  auth · pages · assets ·     admin UI (?p=sifpress/admin)
+  migration · update …        or the active sifront (?p=/…)
 ```
 
-The production server does **not** need Node.js.
+- Assembled from readable fragments in `src/` (env → bootstrap → db → auth →
+  api → spa → router); `migrations/*.sql` are embedded at build time, detected
+  as pending and applied one at a time in `BEGIN IMMEDIATE` transactions.
+- SQLite + FTS5 in WAL mode at `<db-dir>/sys.db`; sessions are DB-backed with
+  hashed tokens and HttpOnly cookies.
+- The frontend is one pnpm workspace: `admin_ui` (admin app), `ui_sdk`
+  (shared fetch / `?p=` rewrite / auth / markdown), `sifronts/*` (themes).
+
+## Before production
+
+Sifpress gives you sessions, RBAC and sane defaults, but the React bundle is
+public and the API is yours:
+
+- validate API input and use PDO prepared statements
+- keep the forced admin password change; use strong session cookies (HttpOnly,
+  `SameSite=Lax` — the defaults)
+- configure a Content-Security-Policy (and CORS if the API is consumed
+  elsewhere), disable `display_errors`, rate-limit sensitive endpoints
+- never put secrets in frontend code
+
+---
+
+<p align="center">
+  <a href="https://liyu1981.github.io/sifpress/">Website</a> ·
+  <a href="https://github.com/liyu1981/sifpress/releases">Releases</a> ·
+  <a href="https://github.com/liyu1981/sifpress">Source</a> ·
+  <a href="AGENTS.md">Development guide</a>
+</p>
