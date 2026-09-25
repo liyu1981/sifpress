@@ -9,6 +9,9 @@ name: Release
 # Release with the artifact (and the sifpress1 sifront bundle) attached,
 # then commits an updated latest.json to master so in-app update checks
 # (?p=sifpress/update&action=status) see the new release.
+#
+# Release notes: add .github/release-notes/<tag>.md (e.g. v0.1.0.md) and it is
+# used verbatim; otherwise GitHub's generated notes are used.
 
 on:
   push:
@@ -102,11 +105,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          # Curated notes live in .github/release-notes/<tag>.md; without one,
+          # fall back to GitHub's generated notes.
+          notes_file=".github/release-notes/${GITHUB_REF_NAME}.md"
+          if [ -f "$notes_file" ]; then
+            notes_args=(--notes-file "$notes_file")
+          else
+            notes_args=(--generate-notes)
+          fi
           gh release create "$GITHUB_REF_NAME" \
             dist/sifpress.php \
             dist/sifpress1.sifront \
             --title "$GITHUB_REF_NAME" \
-            --generate-notes
+            "${notes_args[@]}"
 
       - name: Publish update manifest to master
         env:
