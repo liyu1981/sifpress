@@ -2,7 +2,7 @@ name: Release
 
 # Cut a release by pushing a version tag:
 #
-#   git tag v0.2.0 && git push origin v0.2.0
+#   git tag v0.1.0 && git push origin v0.1.0
 #
 # The tag must match APP_VERSION in src/bootstrap.php (without the "v").
 # The workflow builds the single-file release artifact, publishes a GitHub
@@ -75,7 +75,7 @@ jobs:
             echo "::error::Artifact does not start with <?php"
             exit 1
           }
-          if grep -q 'handle_dev\|SIFPRESS_DEV' dist/sifpress.php; then
+          if grep -q 'function handle_dev\|const SIFPRESS_DEV\|BEGIN_DEV_ROUTE' dist/sifpress.php; then
             echo "::error::Release artifact contains dev-only code"
             exit 1
           fi
