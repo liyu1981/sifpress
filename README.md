@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" width="112" height="112" alt="Sifpress logo">
+  <img src="https://github.com/liyu1981/sifpress/raw/refs/heads/master/assets/favicon.svg" width="112" height="112" alt="Sifpress logo">
 </p>
 
 <h1 align="center">Sifpress</h1>
@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://liyu1981.github.io/sifpress/">Website</a> ·
+  <a href="https://sifpress.liyu1981.xyz/">Website</a> ·
   <a href="https://github.com/liyu1981/sifpress/releases">Releases</a> ·
   <a href="AGENTS.md">Development guide</a>
 </p>
