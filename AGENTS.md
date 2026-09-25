@@ -227,7 +227,12 @@ pnpm-lock.yaml      workspace lockfile
   idempotently); helpers `can()`, `require_permission()`, `is_admin()`.
 - **Page ownership**: editing needs `pages.write` AND (author OR a
   `page_grants` row OR admin); grants managed via `pages.grant` /
-  `pages.revokeGrant`.
+  `pages.revokeGrant`. Ownership itself can be transferred from the article
+  editor (admins always, otherwise only the current owner) by sending
+  `created_by` to `pages.update`; the typeahead reads `pages.ownerCandidates`
+  (active users with `pages.write`). Owner-only changes never create a
+  revision — revisions are content-addressed (see `compute_revision_hash`),
+  so ownership and flags stay page attributes.
 - **First admin**: `admin`/`admin` (override `SIFPRESS_ADMIN_PASSWORD`) seeded on
   first migration, flagged `must_change_password` — app locks to
   `auth.changePassword` until changed.

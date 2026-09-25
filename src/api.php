@@ -343,19 +343,28 @@ function search_pages(
 /**
  * Compute a SHA1 revision hash from article fields.
  */
+/**
+ * Content-addressed revision id. Ownership and flags are page attributes, not
+ * content, so they are deliberately excluded — otherwise handing an article to
+ * an owner it already had would collide with the earlier revision.
+ */
 function compute_revision_hash(array $fields): string
 {
     return sha1(implode('|', [
         $fields['slug'],
         $fields['title'],
         $fields['content_md'],
-        (string) $fields['created_by'],
         $fields['created_at'],
     ]));
 }
 
 /**
  * Create a new revision for a page. Returns the revision_id (SHA1 hash).
+ *
+ * Revisions are content-addressed, so when an article returns to a state it
+ * already had (edit, then edit back) the existing row is reused instead of
+ * violating the unique revision_id — mirroring how `pages.revision.restore`
+ * re-points current_revision_id at an existing revision.
  */
 function create_revision(
     int $pageId,
@@ -365,6 +374,13 @@ function create_revision(
     ?string $committedAt = null,
 ): string {
     $revisionId = compute_revision_hash($pageFields);
+
+    $exists = db()->prepare('SELECT 1 FROM page_revisions WHERE page_id = ? AND revision_id = ?');
+    $exists->execute([$pageId, $revisionId]);
+
+    if ($exists->fetch() !== false) {
+        return $revisionId;
+    }
 
     $stmt = db()->prepare(
         'INSERT INTO page_revisions
@@ -1168,6 +1184,56 @@ function api_pages_update(string $method): never
         : '';
     $commitMessage = trim((string) ($body['commit_message'] ?? ''));
 
+    /*
+     * Ownership transfer. An admin may hand any article over; everyone else
+     * may only transfer an article they currently own. The new owner must be
+     * an active user who can write pages, otherwise the article would be
+     * orphaned the moment it changes hands.
+     */
+    $ownerId = $page['created_by'] !== null ? (int) $page['created_by'] : null;
+    $user = current_user();
+
+    if (array_key_exists('created_by', $body)) {
+        $requested = (int) $body['created_by'];
+
+        if ($requested !== $ownerId) {
+            $isOwner = $ownerId !== null && $user !== null && (int) $user['id'] === $ownerId;
+
+            if ($user === null || (!is_admin($user) && !$isOwner)) {
+                json_response([
+                    'error' => 'forbidden',
+                    'reason' => 'only the owner or an admin can change the owner',
+                ], 403);
+            }
+
+            $ownerErrors = [];
+
+            if ($requested <= 0) {
+                $ownerErrors[] = 'required';
+            } else {
+                $stmt = db()->prepare('SELECT username, is_active FROM users WHERE id = ?');
+                $stmt->execute([$requested]);
+                $candidate = $stmt->fetch();
+
+                if ($candidate === false) {
+                    $ownerErrors[] = 'user not found';
+                } elseif ((int) $candidate['is_active'] !== 1) {
+                    $ownerErrors[] = 'user is inactive';
+                } elseif ((string) $candidate['username'] === '_guest_') {
+                    $ownerErrors[] = 'cannot be the guest user';
+                } elseif (!can($requested, 'pages.write')) {
+                    $ownerErrors[] = 'user cannot write pages';
+                }
+            }
+
+            if ($ownerErrors !== []) {
+                $errors['created_by'] = $ownerErrors;
+            } else {
+                $ownerId = $requested;
+            }
+        }
+    }
+
     if (array_key_exists('slug', $body)) {
         $slugErrors = validate_slug($slug);
         if ($slugErrors !== []) {
@@ -1217,7 +1283,7 @@ function api_pages_update(string $method): never
         'slug' => $slug,
         'title' => $title,
         'content_md' => $content,
-        'created_by' => $page['created_by'],
+        'created_by' => $ownerId,
         'created_at' => $createdAt,
     ];
 
@@ -1226,12 +1292,25 @@ function api_pages_update(string $method): never
 
     if ($newHash === $currentHash) {
         /*
-         * Content unchanged. Still honor an explicit updated-at override, but
-         * without creating a new revision (the revision id is the content hash).
+         * Content unchanged. Ownership and an explicit updated-at override are
+         * page attributes, so apply them without creating a revision (the
+         * revision id is the content hash).
          */
+        $currentOwner = $page['created_by'] !== null ? (int) $page['created_by'] : null;
+        $touched = false;
+
+        if ($ownerId !== $currentOwner) {
+            db()->prepare('UPDATE pages SET created_by = ? WHERE id = ?')->execute([$ownerId, $id]);
+            $touched = true;
+        }
+
         if ($updatedAt !== '' && $updatedAt !== $page['updated_at']) {
             db()->prepare('UPDATE pages SET updated_at = ? WHERE id = ?')
                 ->execute([$updatedAt, $id]);
+            $touched = true;
+        }
+
+        if ($touched) {
             json_response(['page' => page_payload(fetch_page($id))]);
         }
 
@@ -1246,11 +1325,77 @@ function api_pages_update(string $method): never
 
     db()->prepare(
         'UPDATE pages SET slug = ?, title = ?, content_md = ?, status = ?,
-               created_at = ?, updated_at = ?, updated_by = ?, current_revision_id = ?
+               created_by = ?, created_at = ?, updated_at = ?, updated_by = ?,
+               current_revision_id = ?
          WHERE id = ?'
-    )->execute([$slug, $title, $content, $status, $createdAt, $storedUpdatedAt, current_user()['id'], $revisionId, $id]);
+    )->execute([
+        $slug, $title, $content, $status, $ownerId, $createdAt, $storedUpdatedAt,
+        current_user()['id'], $revisionId, $id,
+    ]);
 
     json_response(['page' => page_payload(fetch_page($id))]);
+}
+
+/**
+ * Candidate owners for a page: active users who can write pages (admins,
+ * editors, or anyone holding an explicit pages.write grant). Only identity
+ * fields are exposed. GET ?p=sifpress/api&action=pages.ownerCandidates&q=…
+ */
+function api_pages_owner_candidates(string $method): never
+{
+    if ($method !== 'GET') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_permission('pages.write');
+
+    $q = trim((string) (request_param('q') ?? ''));
+    $params = [
+        'guest' => '_guest_',
+        'perm1' => 'pages.write',
+        'perm2' => 'pages.write',
+    ];
+    $like = '';
+
+    if ($q !== '') {
+        $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q);
+        $like = " AND (u.username LIKE :q ESCAPE '\\' OR u.name LIKE :q ESCAPE '\\')";
+        $params['q'] = '%' . $escaped . '%';
+    }
+
+    $stmt = db()->prepare(
+        'SELECT u.id, u.username, u.name
+           FROM users u
+          WHERE u.is_active = 1
+            AND u.username <> :guest
+            AND (
+                  EXISTS (SELECT 1 FROM user_roles ur
+                            JOIN role_permissions rp ON rp.role_id = ur.role_id
+                            JOIN permissions p ON p.id = rp.permission_id
+                           WHERE ur.user_id = u.id AND p.code = :perm1)
+               OR EXISTS (SELECT 1 FROM user_permissions up
+                            JOIN permissions p2 ON p2.id = up.permission_id
+                           WHERE up.user_id = u.id AND p2.code = :perm2)
+                )' . $like . '
+          ORDER BY COALESCE(NULLIF(u.name, \'\'), u.username) COLLATE NOCASE
+          LIMIT 20'
+    );
+    $stmt->execute($params);
+
+    $users = [];
+
+    foreach ($stmt->fetchAll() as $row) {
+        $id = (int) $row['id'];
+        $name = (string) $row['name'];
+        $users[] = [
+            'id' => $id,
+            'username' => (string) $row['username'],
+            'name' => $name !== '' ? $name : (string) $row['username'],
+            'avatar_url' => '?p=sifpress/asset&user=' . $id,
+        ];
+    }
+
+    json_response(['users' => $users]);
 }
 
 /**
@@ -1383,7 +1528,7 @@ function api_pages_revisions(string $method): never
            FROM page_revisions r
            LEFT JOIN users u ON u.id = r.created_by
           WHERE r.page_id = ?
-          ORDER BY r.committed_at DESC'
+          ORDER BY r.committed_at DESC, r.id DESC'
     );
     $stmt->execute([$pageId]);
     $rows = $stmt->fetchAll();
@@ -4025,6 +4170,7 @@ function handle_api(string $action, string $method): never
                     'pages.setFlags',
                     'pages.delete', 'pages.search', 'pages.revisions', 'pages.revision.get', 'pages.revision.diff', 'pages.revision.restore',
                     'pages.grants', 'pages.grant', 'pages.revokeGrant',
+                    'pages.ownerCandidates',
                     'users.list', 'users.create', 'users.update', 'users.setRoles',
                     'users.setPermissions',
                     'roles.list', 'tags.list',
@@ -4113,6 +4259,9 @@ function handle_api(string $action, string $method): never
 
         case 'pages.revokeGrant':
             api_pages_revoke_grant($method);
+
+        case 'pages.ownerCandidates':
+            api_pages_owner_candidates($method);
 
         case 'users.list':
             api_users_list($method);

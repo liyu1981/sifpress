@@ -197,6 +197,8 @@ export interface PageUpdateInput
   extends Partial<Omit<PageInput, 'commit_message' | 'status' | 'hide_from_search'>> {
   id: number;
   commit_message: string;
+  /** Transfer ownership (admin, or the article's current owner). */
+  created_by?: number;
 }
 
 export const systemApi = {
@@ -396,7 +398,20 @@ export const pagesApi = {
       method: 'POST',
       body: { page_id, username },
     }),
+
+  /** Users who can own a page (active, with pages.write), for the owner typeahead. */
+  ownerCandidates: (q?: string) =>
+    apiRequest<{ users: PageOwnerCandidate[] }>('pages.ownerCandidates', {
+      params: q !== undefined && q !== '' ? { q } : {},
+    }).then(r => r.users),
 };
+
+export interface PageOwnerCandidate {
+  id: number;
+  username: string;
+  name: string;
+  avatar_url: string;
+}
 
 export interface UserInput {
   username: string;

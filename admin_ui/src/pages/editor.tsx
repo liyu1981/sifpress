@@ -19,6 +19,7 @@ import type { FormEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DeletePageMenu } from '@/components/delete-page-menu';
+import { OwnerPicker, type PageOwner } from '@/components/owner-picker';
 import { AgentChat, type AgentDraft } from '@/components/agent/agent-chat';
 import { ReviewChangesDialog } from '@/components/review-changes-dialog';
 import type { EditorMutationBridge } from '@/lib/agent/editor-mutations';
@@ -85,6 +86,7 @@ interface SavePayload {
   created_at: string;
   updated_at: string;
   commit_message: string;
+  created_by: number | null;
 }
 
 interface ExtraField {
@@ -322,6 +324,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
   const [loaded, setLoaded] = useState(false);
   const [saveError, setSaveError] = useState<ApiError | null>(null);
   const [commitNote, setCommitNote] = useState(editing ? 'Update article' : 'Initial version');
+  const [owner, setOwner] = useState<PageOwner | null>(null);
   const editorRef = useRef<MilkdownEditorHandle>(null);
   const { ensureWithinLimit, optimizeDialog } = useImageOptimize();
   const reviewBaselineRef = useRef<string | null>(null);
@@ -467,6 +470,11 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
       setSourceBody(escapeTableCodePipes(meta.content));
       setPublished(page.status === 'published');
       setHideFromSearch(page.hide_from_search === true);
+      setOwner(
+        page.created_by === null
+          ? null
+          : { id: page.created_by, name: page.created_by_name, username: '' },
+      );
       setLoaded(true);
     }
   }, [editing, loaded, pageQuery.data, isRevisionPreview, revisionQuery.data]);
@@ -490,6 +498,8 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
       const existing = pageQuery.data;
 
       if (editing && existing != null) {
+        const nextOwner = meta.created_by;
+
         return pagesApi.update({
           id: existing.id,
           slug: meta.slug,
@@ -498,6 +508,9 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
           created_at: meta.created_at,
           updated_at: meta.updated_at,
           commit_message: meta.commit_message,
+          ...(nextOwner !== null && nextOwner !== existing.created_by
+            ? { created_by: nextOwner }
+            : {}),
         });
       }
 
@@ -715,6 +728,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
       title: cleanTitle,
       status: published ? 'published' : 'draft',
       hide_from_search: hideFromSearch,
+      created_by: owner?.id ?? null,
       content_md: frontBlock + bodyMd,
       created_at: cleanDate !== '' ? `${cleanDate} 00:00:00` : '',
       updated_at: cleanUpdatedDate !== '' ? `${cleanUpdatedDate} 00:00:00` : '',
@@ -743,6 +757,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
 
   const page = pageQuery.data ?? null;
   const canManageGrants = page !== null && (isAdmin || page.created_by === user?.id);
+  const canChangeOwner = page !== null && (isAdmin || page.created_by === user?.id);
 
   const grantsQuery = useQuery({
     queryKey: ['page-grants', page?.id],
@@ -1320,6 +1335,28 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
                       className="min-w-0 flex-1"
                     />
                   </label>
+                )}
+
+                {!isRevisionPreview && editing && page !== null && (
+                  <div className="glass-control flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3">
+                    <span className="shrink-0 text-sm font-medium">{t('editor.ownerTitle')}</span>
+                    <OwnerPicker
+                      owner={owner}
+                      disabled={!canChangeOwner}
+                      onChange={candidate =>
+                        setOwner({
+                          id: candidate.id,
+                          name: candidate.name,
+                          username: candidate.username,
+                        })
+                      }
+                    />
+                    {!canChangeOwner && (
+                      <span className="text-xs text-muted-foreground">
+                        {t('editor.ownerLocked')}
+                      </span>
+                    )}
+                  </div>
                 )}
 
                 <div className="glass-control overflow-hidden rounded-2xl shadow-[0_10px_24px_-8px_rgba(0,0,0,0.28)] dark:shadow-[0_10px_24px_-8px_rgba(0,0,0,0.6)]">
