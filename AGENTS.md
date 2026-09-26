@@ -90,7 +90,7 @@ php buildfront.php release
   Env vars (`SIFPRESS_DB_DIR`, `SIFPRESS_ADMIN_PASSWORD`,
   `SIFPRESS_UPDATE_MANIFEST_URL`, `SIFPRESS_BASE_URL`) are still supported as
   fallbacks for backward compatibility.
-- **CLI**: `php sifpress.php [setup|migrate|change_password|inject_sifront|update_sifront|backup|config|cron|status|help]`
+- **CLI**: `php sifpress.php [setup|migrate|change_password|inject_sifront|update_sifront|backup|config|cron|status|version|help]`
   (default `setup`). `setup` writes `sifpress_config.php` + the DB folder as the
   invoking user — the way to bootstrap when the docroot is not writable by the
   web user; when run as root the created files are chowned to the artifact's
@@ -109,7 +109,10 @@ php buildfront.php release
   `SIFPRESS_BACKUP_DIR` is unset. `config [--show-secrets]` lists values and
   `config --set KEY=VALUE` rewrites `define()` values in place with a
   tokenizer (preserves comments, writes a `.bak`). `cron install|show|remove`
-  manages a marked backup block in a user's crontab. See `src/backup.php`
+  manages a marked backup block in a user's crontab. `version` prints the
+  Sifpress version (and the artifact path) followed by every installed sifront
+  with its version and flags (`virtual`, `legacy html`, `active`) — handy to
+  confirm what a deployment is running. See `src/backup.php`
   and `src/cli.php`.
 
 ## Development server

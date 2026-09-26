@@ -13,6 +13,7 @@
  *   config           view or update sifpress_config.php
  *   cron             install/remove the backup crontab entry
  *   status           print paths, version and migration state
+ *   version          print the Sifpress version + installed sifront versions
  *   help             show usage
  *
  * Running `setup` from a shell creates the config as the current user, which
@@ -65,6 +66,10 @@ function sifpress_cli(array $argv): never
             sifpress_cli_status($configPath);
             break;
 
+        case 'version':
+            sifpress_cli_version($configPath);
+            break;
+
         case 'help':
         case '--help':
         case '-h':
@@ -106,6 +111,7 @@ function sifpress_cli_usage(): void
         '                   cron install [--schedule="0 3 * * *"] [--user=USER] [--log=PATH]',
         '                   cron show | cron remove [--user=USER]',
         '  status           print paths, version and migration state',
+        '  version          print the Sifpress version + installed sifront versions',
         '  help             show this help',
         '',
         'setup options:',
@@ -677,6 +683,86 @@ function sifpress_cli_config(string $configPath, array $options, array $argv): v
     }
 
     fwrite(STDOUT, "Updated {$configPath} (backup: {$configPath}.bak)\n");
+}
+
+/**
+ * `version`: print the Sifpress version and the version of every installed
+ * sifront. Needs an applied database (that is where sifronts live); with a
+ * missing config/DB it prints the app version plus the command to fix that.
+ */
+function sifpress_cli_version(string $configPath): void
+{
+    $bin = basename(__FILE__);
+
+    fwrite(STDOUT, APP_NAME . ' ' . APP_VERSION . "\n");
+    fwrite(STDOUT, 'Artifact: ' . dirname(__FILE__) . "/{$bin}\n");
+
+    if (!is_file($configPath)) {
+        fwrite(STDOUT, "No config found. Run: php {$bin} setup\n");
+
+        return;
+    }
+
+    require_once $configPath;
+
+    $dbFile = rtrim(db_dir(), '/\\') . '/sys.db';
+
+    if (!is_file($dbFile)) {
+        fwrite(STDOUT, "No database yet. Run: php {$bin} migrate\n");
+
+        return;
+    }
+
+    if (db_needs_migration()) {
+        fwrite(STDOUT, "Database needs migration. Run: php {$bin} migrate\n");
+
+        return;
+    }
+
+    $rows = db()->query(
+        'SELECT id, name, version, bundle_size, is_virtual, length(content) AS html_size'
+        . ' FROM sifronts ORDER BY id'
+    )->fetchAll();
+
+    if ($rows === []) {
+        fwrite(STDOUT, "Sifronts: none installed\n");
+
+        return;
+    }
+
+    $activeId = (string) setting_get('active_sifront_id', '');
+    $nameWidth = 0;
+
+    foreach ($rows as $row) {
+        $nameWidth = max($nameWidth, mb_strlen((string) $row['name']));
+    }
+
+    fwrite(STDOUT, 'Sifronts (' . count($rows) . " installed):\n");
+
+    foreach ($rows as $row) {
+        $flags = [];
+
+        if ((int) $row['is_virtual'] === 1) {
+            $flags[] = 'virtual';
+        } elseif ((int) $row['bundle_size'] === 0) {
+            $flags[] = (int) $row['html_size'] > 0 ? 'legacy html' : 'no bundle';
+        }
+
+        if ((string) $row['id'] === $activeId) {
+            $flags[] = 'active';
+        }
+
+        $name = (string) $row['name'];
+        $version = trim((string) $row['version']);
+        $padding = str_repeat(' ', max(0, $nameWidth - mb_strlen($name)));
+
+        fwrite(
+            STDOUT,
+            '  ' . $name . $padding . '  ' . ($version !== '' ? $version : '-')
+            . ($flags === [] ? '' : '  (' . implode(', ', $flags) . ')')
+            . "\n"
+        );
+    }
 }
 
 function sifpress_cli_status(string $configPath): void

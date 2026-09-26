@@ -59,7 +59,7 @@ server configuration.
   two-file `.sifront` archive, uploaded from the admin and served by the
   artifact itself (see [The front: sifronts](#the-front-sifronts)).
 - **Operations** — migrations applied on demand, CLI
-  (`setup · migrate · change_password · backup · config · cron · status`),
+  (`setup · migrate · change_password · backup · config · cron · status · version`),
   WAL-safe `VACUUM INTO` backups pruned on a schedule, self-update from a
   `latest.json` manifest.
 - **DX** — TypeScript strict, pnpm workspace, Biome, `./dev.sh` live reload,
