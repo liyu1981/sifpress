@@ -327,6 +327,32 @@
   margin-bottom: 0;
 }
 
+/*
+ * Compact tables. Markdown tables wrap each cell's content in a <p>
+ * (ProseMirror table cells hold block content) and the typography plugin
+ * gives every paragraph 1.25em block margins, which roughly doubles row
+ * height. Strip those margins and tighten cell padding/leading so tables
+ * stay scannable instead of ballooning. Unlayered, like the rhythm rules
+ * above, so these win over the typography utilities layer.
+ */
+.prose :where(th, td) > :where(p) {
+  margin: 0;
+}
+
+.prose :where(th, td) > :where(ul, ol) {
+  margin-block: 0.35em;
+}
+
+.prose :where(th, td) {
+  padding: 0.4em 0.8em;
+  line-height: 1.45;
+  vertical-align: top;
+}
+
+.prose :where(table) {
+  line-height: 1.45;
+}
+
 @layer components {
   .prose :where(a) {
     text-decoration: none;
