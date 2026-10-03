@@ -1,0 +1,60 @@
+{
+  "title": "Sifpress Editorial",
+  "require_keys": [
+    { "sifpress2.masthead.kicker": "The Daily Edition" },
+    { "sifpress2.masthead.tagline": "" },
+    { "sifpress2.announcement.text": "" },
+    { "sifpress2.announcement.href": "" },
+    { "sifpress2.announcement.cta": "Read more" },
+    { "sifpress2.featured.slugs": [] },
+    { "sifpress2.home.sectionTags": [] },
+    { "sifpress2.newsletter.heading": "The morning briefing" },
+    { "sifpress2.newsletter.body": "One email every weekday: the stories that matter, in five minutes." },
+    { "sifpress2.newsletter.cta": "Subscribe" },
+    { "sifpress2.newsletter.href": "" },
+    { "sifpress2.footer.about": "" },
+    { "sifpress2.footer.links": [] },
+    { "sifpress2.footer.socials": [] },
+    { "sifpress2.article.bottom": "" },
+    {
+      "sifpress2.copy": {
+        "latestStories": "Latest stories",
+        "topStories": "Top stories",
+        "moreFrom": "More stories",
+        "viewAll": "View all articles",
+        "minRead": "{min} min read",
+        "searchPlaceholder": "Search the archive",
+        "searchResults": "Search results for “{query}”",
+        "noResults": "No results for “{query}”.",
+        "emptyState": "No stories have been published yet.",
+        "subscribe": "Subscribe",
+        "menu": "Menu",
+        "sections": "Sections",
+        "onThisPage": "On this page",
+        "moreIn": "More in {section}",
+        "share": "Share",
+        "notFound": "Page not found",
+        "articleNotFound": "Story not found",
+        "backHome": "Back to the front page"
+      }
+    }
+  ],
+  "examples": {
+    "sifpress2.masthead.kicker": "The Daily Edition",
+    "sifpress2.masthead.tagline": "Independent reporting on design, engineering and culture.",
+    "sifpress2.announcement.text": "We have launched the new editorial edition featuring over 60 sections.",
+    "sifpress2.announcement.href": "https://example.com/editorial",
+    "sifpress2.announcement.cta": "Read more",
+    "sifpress2.featured.slugs": "[\n  \"my-side-projects\"\n]",
+    "sifpress2.home.sectionTags": "[\n  \"engineering\",\n  \"culture\"\n]",
+    "sifpress2.newsletter.heading": "The morning briefing",
+    "sifpress2.newsletter.body": "One email every weekday: the stories that matter, in five minutes.",
+    "sifpress2.newsletter.cta": "Subscribe",
+    "sifpress2.newsletter.href": "https://example.com/subscribe",
+    "sifpress2.footer.about": "A publication built on Sifpress.",
+    "sifpress2.footer.links": "[\n  { \"label\": \"About\", \"href\": \"/about\" },\n  { \"label\": \"Archive\", \"href\": \"/\" }\n]",
+    "sifpress2.footer.socials": "[\n  { \"label\": \"GitHub\", \"href\": \"https://github.com/you\", \"icon\": \"github\" },\n  { \"label\": \"Email\", \"href\": \"mailto:you@example.com\", \"icon\": \"email\" }\n]",
+    "sifpress2.article.bottom": "<div class=\"note\">Thanks for reading.</div>",
+    "sifpress2.copy": "{ \"latestStories\": \"Latest stories\", \"viewAll\": \"View all articles\" }"
+  }
+}

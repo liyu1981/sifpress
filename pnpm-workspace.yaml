@@ -2,6 +2,7 @@ packages:
   - admin_ui
   - ui_sdk
   - sifronts/sifpress1
+  - sifronts/sifpress2
 allowBuilds:
   '@google/genai': false
   esbuild: true

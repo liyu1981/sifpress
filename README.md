@@ -134,7 +134,11 @@ work out of the box and every link is real.
 Sifronts are the public-facing SPAs under `sifronts/`. The default theme,
 **sifpress1**, ships a glass design system, ambient canvas backgrounds, a
 sidebar with pinned posts / tags / search, and KaTeX + syntax-highlighted
-article rendering.
+article rendering. A second theme, **sifpress2**, ships an editorial
+newsfront instead: newsprint palette, hairline rules, Newsreader/Inter
+typography, a lead story + "Latest stories" rail, section blocks, a masthead,
+an archive, and a magazine-style article page (standfirst, byline, drop cap,
+sticky TOC and share rail).
 
 `php buildfront.php` packs a theme into `dist/<name>.sifront` — a ZIP with
 exactly two entries: `meta.json` (identity, version and the `require_keys`
@@ -145,8 +149,10 @@ serves it — it never opens a ZIP itself.
 
 - **Customize without code:** the theme's identity lives in namespaced KV
   keys declared in `meta.json` (`sifpress1.sidebar.welcome`,
-  `sifpress1.sidebar.links`, `sifpress1.background.kind`, …) — edit them from
-  **Admin → KVs**; visitors read them guest-safe.
+  `sifpress1.sidebar.links`, `sifpress1.background.kind`,
+  `sifpress2.masthead.kicker`, `sifpress2.newsletter.heading`,
+  `sifpress2.copy`, …) — edit them from **Admin → KVs**; visitors read them
+  guest-safe. Each theme owns its `<name>.` namespace.
 - **Customize with an agent:** the repo ships design skills in
   [`/.agents/skills/`](.agents/skills/) (`apple-design`,
   `my-glass-webui-design`) that your coding agent loads before touching the

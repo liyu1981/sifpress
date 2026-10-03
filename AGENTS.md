@@ -203,9 +203,17 @@ dev.sh              dev build + serve (watch) -> dist/index.php
 dist/               build artifacts (gitignored)
   sifpress_config.php  auto-generated config (NOT gitignored, persists across rebuilds)
 sifronts/           public-facing sifront SPAs (each a pnpm workspace package,
-  sifpress1/        built by build.php into dist/sifpress1.sifront)
+  sifpress1/        built by buildfront.php into dist/sifpress1.sifront
   src/routes/       file-based routes: / (home + tag filter), /article/$slug, $ (404)
   src/components/   site-header/footer, article-card/list, sidebar, glass system
+  sifpress2/        editorial/news sifront -> dist/sifpress2.sifront
+  src/routes/       / (front page + ?q= search), /archive, /section/$section,
+                    /article/$slug, $ (404)
+  src/components/   masthead, lead story + latest rail, section blocks, newsletter,
+                    story cards, article furniture (byline/share/TOC/progress)
+  src/lib/          theme-config (`sifpress2.*` KV keys), format, stories (view models)
+  Design: flat newsprint — hairline rules, Newsreader/Inter, no glass; theme keys
+  live in meta.json `require_keys` under the `sifpress2.` namespace.
 website/           static project website for GitHub Pages (plain HTML/CSS/JS,
   no build step; published by .github/workflows/pages.yml; see
   website/README.md)
@@ -327,7 +335,8 @@ pnpm-lock.yaml      workspace lockfile
   browser-based verification; rely on `pnpm run typecheck`, `php build.php`,
   curl, and code inspection instead.
 - **Biome is the formatter** for each TS package, configured per package
-  (`admin_ui/biome.json`, `ui_sdk/biome.json`, `sifronts/sifpress1/biome.json`;
+  (`admin_ui/biome.json`, `ui_sdk/biome.json`, `sifronts/sifpress1/biome.json`,
+  `sifronts/sifpress2/biome.json`;
   linter disabled — formatter only). Run `pnpm run format` in the package you
   edited. **Biome only sees files inside the config's directory**, so the
   admin_ui script does NOT format `ui_sdk` — run `pnpm run format` in `ui_sdk`
