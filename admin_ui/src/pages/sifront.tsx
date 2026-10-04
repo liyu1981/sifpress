@@ -400,19 +400,22 @@ function MetaTable({
 function SifrontCard({
   sf,
   canManage,
+  expanded,
+  onToggle,
   activate,
   remove,
   update,
 }: {
   sf: SifrontListItem;
   canManage: boolean;
+  expanded: boolean;
+  onToggle: () => void;
   activate: UseMutationResult<unknown, unknown, number>;
   remove: UseMutationResult<unknown, unknown, number>;
   update: UseMutationResult<unknown, unknown, { id: number; bundle: SifrontBundle }>;
 }) {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
-  const [expanded, setExpanded] = useState(sf.is_active);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pendingBundle, setPendingBundle] = useState<SifrontBundle | null>(null);
   const [confirmForce, setConfirmForce] = useState(false);
@@ -560,7 +563,7 @@ function SifrontCard({
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setExpanded(e => !e)}
+            onClick={onToggle}
             aria-label={expanded ? 'Collapse' : 'Expand'}
           >
             {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
@@ -634,6 +637,26 @@ export function SifrontsPage() {
     queryFn: sifrontsApi.list,
   });
 
+  /* Only one card is expanded at a time; the active sifront owns that slot. */
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const sifronts = list.data ?? [];
+  const prevActiveId = useRef<number | null>(null);
+
+  useEffect(() => {
+    const activeId = sifronts.find(sf => sf.is_active)?.id ?? null;
+    const prev = prevActiveId.current;
+    prevActiveId.current = activeId;
+
+    if (activeId === null) {
+      return;
+    }
+
+    /* First load, or the activation moved: follow the active sifront. */
+    if (prev === null || prev !== activeId) {
+      setExpandedId(activeId);
+    }
+  }, [sifronts]);
+
   const create = useMutation({
     mutationFn: async (input: { file: File }) => {
       const { name, version, meta, bundle } = await readSifrontBundle(input.file);
@@ -683,15 +706,18 @@ export function SifrontsPage() {
 
   const activate = useMutation({
     mutationFn: (id: number) => sifrontsApi.activate(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sifronts'] }),
+    onSuccess: (_data, id) => {
+      setExpandedId(id);
+      queryClient.invalidateQueries({ queryKey: ['sifronts'] });
+      queryClient.invalidateQueries({ queryKey: ['sifront', id] });
+      queryClient.invalidateQueries({ queryKey: ['sifront-values', id] });
+    },
   });
 
   const remove = useMutation({
     mutationFn: (id: number) => sifrontsApi.delete(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sifronts'] }),
   });
-
-  const sifronts = list.data ?? [];
 
   return (
     <div className="space-y-6">
@@ -739,6 +765,8 @@ export function SifrontsPage() {
           key={sf.id}
           sf={sf}
           canManage={canManage}
+          expanded={expandedId === sf.id}
+          onToggle={() => setExpandedId(cur => (cur === sf.id ? null : sf.id))}
           activate={activate}
           remove={remove}
           update={update}
