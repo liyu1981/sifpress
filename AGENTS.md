@@ -329,7 +329,9 @@ pnpm-lock.yaml      workspace lockfile
     user — so a retry sends only what is missing. 3 parts in flight, exponential
     backoff with jitter, 4xx treated as final, and progress derived from
     completed parts (`fetch` has no upload progress event).
-- **Asset bytes live in files, not the DB** (`src/storage.php`). The row keeps
+- **Asset bytes live in files, not the DB** (`src/storage.php`; the full story,
+  including what is deliberately still open, is `plan/asset-storage-plan.md` —
+  phases 1–7 shipped, object storage is the only one left). The row keeps
   owning identity (name, mime, size, md5) and access control (`is_public` +
   `asset_grants`); only bytes move. `assets.storage` is the backend id (`fs`
   today), `assets.storage_key` / `thumb_key` the opaque keys, and both are NULL
