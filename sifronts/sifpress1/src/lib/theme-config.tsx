@@ -1,6 +1,6 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { kvsApi } from 'ui-sdk';
+import { InspectOverlay, kvsApi } from 'ui-sdk';
 import fallbackMeta from '../../meta.json';
 
 export interface LinkItem {
@@ -197,7 +197,13 @@ export function ThemeConfigProvider({ children }: { children: ReactNode }) {
 
   const config = buildConfig(query.data?.data ?? {}, defaults);
 
-  return <ThemeConfigContext.Provider value={config}>{children}</ThemeConfigContext.Provider>;
+  return (
+    <ThemeConfigContext.Provider value={config}>
+      {/* Renders nothing unless the sifront is loaded with ?inspect=1. */}
+      <InspectOverlay values={query.data?.data} declaredKeys={keys} />
+      {children}
+    </ThemeConfigContext.Provider>
+  );
 }
 
 export function useThemeConfig(): ThemeConfig {

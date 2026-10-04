@@ -5,7 +5,7 @@ import { Pagination } from '@/components/pagination';
 import { StoryCard } from '@/components/story-card';
 import { EmptyBlock, ErrorBlock, LoadingBlock } from '@/components/states';
 import { useSectionStories } from '@/lib/stories';
-import { useCopy } from '@/lib/theme-config';
+import { kv, useCopy } from '@/lib/theme-config';
 
 interface ArchiveSearch {
   page?: number;
@@ -61,7 +61,7 @@ function ArchivePage() {
       </header>
 
       {items.length === 0 ? (
-        <EmptyBlock>{copy('emptyState')}</EmptyBlock>
+        <EmptyBlock inspectKey={kv('copy.emptyState')}>{copy('emptyState')}</EmptyBlock>
       ) : (
         <>
           <div className="grid gap-x-8 gap-y-10 border-t border-rule-strong pt-8 sm:grid-cols-2 lg:grid-cols-3">

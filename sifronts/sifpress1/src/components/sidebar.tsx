@@ -2,7 +2,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { Menu, Search, Settings, X } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { useState } from 'react';
-import type { SeoSettings, TagCount } from 'ui-sdk';
+import { kvAttrs, type SeoSettings, type TagCount } from 'ui-sdk';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { linkIconPath, useThemeConfig } from '@/lib/theme-config';
 import { cn } from '@/lib/utils';
@@ -35,12 +35,16 @@ export function Sidebar({ tags, settings }: { tags: TagCount[]; settings?: SeoSe
         <Link to="/" search={{}} className="flex min-w-0 items-center gap-3">
           {config.sidebarAvatar !== '' ? (
             <img
+              {...kvAttrs('sifpress1.sidebar.avatar')}
               src={config.sidebarAvatar}
               alt=""
               className="avatar-frame avatar-frame-sm size-10 shrink-0 -rotate-2 object-cover"
             />
           ) : (
-            <span className="avatar-frame avatar-frame-sm flex size-10 shrink-0 -rotate-2 items-center justify-center font-serif text-lg text-foreground">
+            <span
+              {...kvAttrs('sifpress1.sidebar.avatar')}
+              className="avatar-frame avatar-frame-sm flex size-10 shrink-0 -rotate-2 items-center justify-center font-serif text-lg text-foreground"
+            >
               {initial}
             </span>
           )}
@@ -63,12 +67,17 @@ export function Sidebar({ tags, settings }: { tags: TagCount[]; settings?: SeoSe
       {/* Full navigation: always visible on lg+, toggled on mobile. */}
       <div id="site-nav" className={cn('flex-col gap-6 lg:flex', navOpen ? 'flex' : 'hidden')}>
         {siteDescription !== '' && (
-          <p className="text-sm text-muted-foreground lg:hidden">{siteDescription}</p>
+          <p
+            {...kvAttrs('sifpress1.sidebar.about')}
+            className="text-sm text-muted-foreground lg:hidden"
+          >
+            {siteDescription}
+          </p>
         )}
 
         <div className="hidden flex-col items-center lg:flex">
           <Link to="/" search={{}} className="flex flex-col items-center focus:outline-none">
-            <div className="avatar-hang mb-4">
+            <div {...kvAttrs('sifpress1.sidebar.avatar')} className="avatar-hang mb-4">
               <div className="avatar-frame p-1.5">
                 {config.sidebarAvatar !== '' ? (
                   <img
@@ -83,15 +92,23 @@ export function Sidebar({ tags, settings }: { tags: TagCount[]; settings?: SeoSe
                 )}
               </div>
             </div>
-            <h1 className="text-center font-serif text-xl font-bold text-foreground hover:underline">
+            <h1
+              {...kvAttrs('sifpress1.sidebar.welcome')}
+              className="text-center font-serif text-xl font-bold text-foreground hover:underline"
+            >
               {welcome}
             </h1>
           </Link>
-          <p className="mt-1 text-center text-sm text-muted-foreground">{siteDescription}</p>
+          <p
+            {...kvAttrs('sifpress1.sidebar.about')}
+            className="mt-1 text-center text-sm text-muted-foreground"
+          >
+            {siteDescription}
+          </p>
         </div>
 
         {config.pinned.length > 0 && (
-          <nav aria-label="Pinned articles">
+          <nav {...kvAttrs('sifpress1.sidebar.pinned')} aria-label="Pinned articles">
             <ul className="flex flex-col gap-1 py-1">
               {config.pinned.map(item => (
                 <li key={item.slug}>
@@ -148,7 +165,7 @@ export function Sidebar({ tags, settings }: { tags: TagCount[]; settings?: SeoSe
           <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             Links
           </h2>
-          <ul className="mt-2 flex flex-col gap-1">
+          <ul {...kvAttrs('sifpress1.sidebar.links')} className="mt-2 flex flex-col gap-1">
             {config.links.map(link => (
               <li key={link.label}>
                 <a

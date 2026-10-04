@@ -1,5 +1,5 @@
 import { Megaphone } from 'lucide-react';
-import { useThemeConfig } from '@/lib/theme-config';
+import { kv, useThemeConfig } from '@/lib/theme-config';
 
 export function AnnouncementBar() {
   const { announcement } = useThemeConfig();
@@ -11,8 +11,13 @@ export function AnnouncementBar() {
   const body = (
     <>
       <Megaphone className="size-3.5 shrink-0 text-brand" />
-      <span className="truncate text-[13px] text-ink-soft">{announcement.text}</span>
-      <span className="hidden items-center gap-1 text-[13px] font-semibold text-brand sm:inline-flex">
+      <span {...kv('announcement.text')} className="truncate text-[13px] text-ink-soft">
+        {announcement.text}
+      </span>
+      <span
+        {...kv('announcement.cta')}
+        className="hidden items-center gap-1 text-[13px] font-semibold text-brand sm:inline-flex"
+      >
         {announcement.cta}
         <span aria-hidden="true">→</span>
       </span>
@@ -31,7 +36,11 @@ export function AnnouncementBar() {
   }
 
   return (
-    <a href={announcement.href} className={`${className} transition-colors hover:bg-brand/10`}>
+    <a
+      {...kv('announcement.href')}
+      href={announcement.href}
+      className={`${className} transition-colors hover:bg-brand/10`}
+    >
       {body}
     </a>
   );

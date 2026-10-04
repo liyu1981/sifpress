@@ -12,7 +12,7 @@ import { EmptyBlock, LoadingBlock } from '@/components/states';
 import { TableOfContents, useArticleHeadings, useScrollSpy } from '@/components/toc';
 import { formatDate } from '@/lib/format';
 import { useArticle, useLatestStories } from '@/lib/stories';
-import { useCopy, useThemeConfig } from '@/lib/theme-config';
+import { kv, useCopy, useThemeConfig } from '@/lib/theme-config';
 import { usePageMeta } from 'ui-sdk';
 
 export const Route = createFileRoute('/article/$slug')({
@@ -83,9 +83,12 @@ function ArticlePageRoute() {
   if (article.isError || !page) {
     return (
       <div className="mx-auto w-full max-w-3xl px-4 py-24 text-center sm:px-6">
-        <h1 className="headline text-5xl">{copy('articleNotFound')}</h1>
+        <h1 {...kv('copy.articleNotFound')} className="headline text-5xl">
+          {copy('articleNotFound')}
+        </h1>
         <p className="dek mt-4">This story doesn’t exist, or it hasn’t been published yet.</p>
         <Link
+          {...kv('copy.backHome')}
           to="/"
           className="mt-8 inline-flex items-center gap-2 text-sm font-medium text-brand transition-colors hover:text-brand-ink"
         >
@@ -175,6 +178,7 @@ function ArticlePageRoute() {
 
             {articleBottomHtml.trim() !== '' && (
               <section
+                {...kv('article.bottom')}
                 id="comments"
                 key={slug}
                 aria-label="Comments"
@@ -205,7 +209,7 @@ function ArticlePageRoute() {
       {related.length > 0 && (
         <section aria-label={copy('moreIn', { section: page.section ?? '' })} className="mt-20">
           <header className="flex items-baseline justify-between gap-4 border-b border-rule-strong pb-3">
-            <h2 className="headline-tight text-2xl">
+            <h2 {...kv('copy.moreIn')} className="headline-tight text-2xl">
               {copy('moreIn', { section: page.section ?? '' })}
             </h2>
             {page.section !== null && (

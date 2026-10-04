@@ -16,7 +16,7 @@ function BackgroundLayer() {
 
   return (
     <>
-      <BackgroundWithCanvas scene={background.scene} />
+      <BackgroundWithCanvas scene={background.scene} inspectKey="sifpress1.background.kind" />
       {background.maskClassName !== undefined && (
         <div aria-hidden="true" className={background.maskClassName} />
       )}

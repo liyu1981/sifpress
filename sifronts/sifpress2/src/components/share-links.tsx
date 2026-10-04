@@ -2,7 +2,7 @@ import { Check, Link2 } from 'lucide-react';
 import { useState } from 'react';
 import { copyText } from 'ui-sdk';
 import { BrandIcon } from '@/components/brand-icon';
-import { useCopy } from '@/lib/theme-config';
+import { kv, useCopy } from '@/lib/theme-config';
 
 export function ShareLinks({ title }: { title: string }) {
   const copy = useCopy();
@@ -36,7 +36,10 @@ export function ShareLinks({ title }: { title: string }) {
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[11px] font-semibold tracking-[0.18em] text-ink-faint uppercase">
+      <span
+        {...kv('copy.share')}
+        className="text-[11px] font-semibold tracking-[0.18em] text-ink-faint uppercase"
+      >
         {copy('share')}
       </span>
       {targets.map(target => (

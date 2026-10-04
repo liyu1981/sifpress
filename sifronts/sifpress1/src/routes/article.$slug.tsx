@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ArrowLeft, Calendar, Clock, Loader2, Pencil, RefreshCw } from 'lucide-react';
 import { useRef } from 'react';
-import { MarkdownView, pagesApi, parseFrontMatter } from 'ui-sdk';
+import { kvAttrs, MarkdownView, pagesApi, parseFrontMatter } from 'ui-sdk';
 import { RawHtml } from '@/components/raw-html';
 import { ReadingProgress } from '@/components/reading-progress';
 import { TableOfContents, useArticleHeadings, useScrollSpy } from '@/components/toc';
@@ -178,6 +178,7 @@ function ArticleDetailPage() {
 
           {articleBottomHtml.trim() !== '' && (
             <section
+              {...kvAttrs('sifpress1.article.bottom')}
               id="comments"
               key={slug}
               aria-label="Comments"

@@ -1,3 +1,4 @@
+import { kvAttrs } from 'ui-sdk';
 import { useThemeConfig } from '@/lib/theme-config';
 
 export function SiteFooter() {
@@ -7,7 +8,7 @@ export function SiteFooter() {
 
   return (
     <footer className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-6 pb-2 text-sm text-muted-foreground">
-      <span>
+      <span {...kvAttrs('sifpress1.footer.text')}>
         {config.footerText}
         <span aria-hidden="true"> · </span>
         <a
@@ -19,7 +20,7 @@ export function SiteFooter() {
           GitHub
         </a>
       </span>
-      <span>{copyright}</span>
+      <span {...kvAttrs('sifpress1.footer.copyright')}>{copyright}</span>
     </footer>
   );
 }

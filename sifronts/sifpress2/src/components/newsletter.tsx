@@ -1,5 +1,5 @@
 import { ArrowRight } from 'lucide-react';
-import { useThemeConfig } from '@/lib/theme-config';
+import { kv, useThemeConfig } from '@/lib/theme-config';
 
 export function NewsletterBand() {
   const { newsletter, mastheadTagline } = useThemeConfig();
@@ -14,15 +14,23 @@ export function NewsletterBand() {
         <p className="text-[11px] font-semibold tracking-[0.18em] text-brand/80 uppercase">
           Newsletter
         </p>
-        <h2 className="headline-tight mt-2 text-2xl text-ink sm:text-3xl">{newsletter.heading}</h2>
+        <h2
+          {...kv('newsletter.heading')}
+          className="headline-tight mt-2 text-2xl text-ink sm:text-3xl"
+        >
+          {newsletter.heading}
+        </h2>
         {(newsletter.body !== '' || mastheadTagline !== '') && (
-          <p className="dek mt-2 max-w-lg">
+          <p {...kv('newsletter.body')} className="dek mt-2 max-w-lg">
             {newsletter.body !== '' ? newsletter.body : mastheadTagline}
           </p>
         )}
       </div>
 
-      <span className="inline-flex shrink-0 items-center gap-2 rounded-[3px] bg-ink px-4 py-2.5 text-sm font-semibold text-paper">
+      <span
+        {...kv('newsletter.cta')}
+        className="inline-flex shrink-0 items-center gap-2 rounded-[3px] bg-ink px-4 py-2.5 text-sm font-semibold text-paper"
+      >
         {newsletter.cta}
         <ArrowRight className="size-4" />
       </span>
@@ -38,6 +46,7 @@ export function NewsletterBand() {
   return (
     <section className={className}>
       <a
+        {...kv('newsletter.href')}
         href={newsletter.href}
         target="_blank"
         rel="noreferrer noopener"

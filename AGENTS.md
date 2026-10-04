@@ -224,6 +224,34 @@ sifronts/           public-facing sifront SPAs (each a pnpm workspace package,
   src/lib/          theme-config (`sifpress2.*` KV keys), format, stories (view models)
   Design: flat newsprint — hairline rules, Newsreader/Inter, no glass; theme keys
   live in meta.json `require_keys` under the `sifpress2.` namespace.
+  Both sifronts annotate every KV-driven element with `kvAttrs(...)`
+  (`kv('masthead.kicker')` in sifpress2) and mount `InspectOverlay` in their
+  ThemeConfigProvider — see "KV inspect mode" below.
+- **KV inspect mode** (`ui_sdk/src/inspect.tsx`): load any sifront with
+  `?inspect=1` (any value except empty/`0`/`false`/`off`/`no`) and every
+  element that renders a KV value is outlined with its key printed on the
+  label. Stored keys are solid red; keys with **no** stored value (the theme
+  is showing its built-in default) are dashed amber with a `· default` suffix,
+  and the bottom-left legend counts what is on the page and lists declared
+  keys that are not rendered here (native tooltip).
+  - Mechanics: the overlay is a single fixed `pointer-events: none` layer
+    (`#sifront-inspect-layer`, max `z-index`) positioned from
+    `getBoundingClientRect()` in one `requestAnimationFrame` loop, so nothing
+    in the page layout moves and boxes track scroll/resize/lazy images without
+    observers. `html[data-sifront-inspect="on"]` is the styling hook.
+  - The loop re-reads `window.location.search` each frame, so the mode follows
+    SPA navigation and drops out when the param leaves the URL.
+    `createQueryRewrite(base, prefix, ['inspect'])` keeps the param in the
+    address bar (routes' `validateSearch` would otherwise drop it).
+  - `createKvInspector({ values, declaredKeys })` holds the DOM machinery
+    (framework-free, unit-testable in Node with a stub DOM);
+    `InspectOverlay` is the thin `useEffect` wrapper over it. Nested copy keys
+    resolve through their parent KV (`sifpress2.copy.viewAll`).
+  - Annotate with `{...kvAttrs('sifpress1.footer.text')}` (or sifpress2's
+    `kv('footer.text')` helper) — on the element that renders the value, never
+    on a `display: contents` wrapper, which has no box to outline.
+  - The admin sifront list has an "Inspect KV" button next to Preview that
+    opens the active sifront with the flag (`withInspect()`).
 website/           static project website for GitHub Pages (plain HTML/CSS/JS,
   no build step; published by .github/workflows/pages.yml; see
   website/README.md)

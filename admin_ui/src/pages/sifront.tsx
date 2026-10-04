@@ -12,6 +12,7 @@ import {
   Maximize2,
   Plus,
   Save,
+  ScanSearch,
   Trash2,
   Upload,
 } from 'lucide-react';
@@ -41,7 +42,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useAuth } from 'ui-sdk';
-import { appBaseUrl, kvsApi, sifrontsApi, type SifrontListItem } from 'ui-sdk';
+import { appBaseUrl, kvsApi, sifrontsApi, type SifrontListItem, withInspect } from 'ui-sdk';
 import { formatTimestamp } from '@/lib/format';
 import { readSifrontBundle, compareVersions, type SifrontBundle } from '@/lib/sifront-bundle';
 
@@ -474,12 +475,26 @@ function SifrontCard({
         </CardDescription>
         <CardAction className="flex items-center gap-2">
           {sf.is_active && (
-            <Button asChild variant="outline" size="sm">
-              <a href={appBaseUrl()} target="_blank" rel="noopener noreferrer">
-                <Eye className="size-4" />
-                {t('sifront.preview')}
-              </a>
-            </Button>
+            <>
+              <Button asChild variant="outline" size="sm">
+                <a href={appBaseUrl()} target="_blank" rel="noopener noreferrer">
+                  <Eye className="size-4" />
+                  {t('sifront.preview')}
+                </a>
+              </Button>
+              {/* Opens the sifront with ?inspect=1: outlines every KV-driven section. */}
+              <Button asChild variant="ghost" size="sm">
+                <a
+                  href={withInspect(appBaseUrl())}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={t('sifront.inspectHint')}
+                >
+                  <ScanSearch className="size-4" />
+                  {t('sifront.inspect')}
+                </a>
+              </Button>
+            </>
           )}
           {canManage && (
             <>

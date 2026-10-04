@@ -1,11 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
+import type { KvAttrs } from 'ui-sdk';
 import { settingsApi, tagsApi } from 'ui-sdk';
-import { useThemeConfig } from '@/lib/theme-config';
+import { kv, useThemeConfig } from '@/lib/theme-config';
 
-function FooterColumn({ title, children }: { title: string; children: React.ReactNode }) {
+function FooterColumn({
+  title,
+  inspectKey,
+  children,
+}: {
+  title: string;
+  inspectKey?: KvAttrs;
+  children: React.ReactNode;
+}) {
   return (
-    <div>
+    <div {...inspectKey}>
       <h3 className="text-[11px] font-semibold tracking-[0.18em] text-ink-faint uppercase">
         {title}
       </h3>
@@ -41,10 +50,14 @@ export function SiteFooter() {
             <Link to="/" className="wordmark decoration-none text-2xl">
               {siteName}
             </Link>
-            {tagline !== '' && <p className="dek mt-3 max-w-sm text-base">{tagline}</p>}
+            {tagline !== '' && (
+              <p {...kv('footer.about')} className="dek mt-3 max-w-sm text-base">
+                {tagline}
+              </p>
+            )}
 
             {footerSocials.length > 0 && (
-              <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2">
+              <div {...kv('footer.socials')} className="mt-5 flex flex-wrap gap-x-5 gap-y-2">
                 {footerSocials.map(link => (
                   <a
                     key={link.href}
@@ -76,7 +89,7 @@ export function SiteFooter() {
           )}
 
           {footerLinks.length > 0 && (
-            <FooterColumn title="Explore">
+            <FooterColumn title="Explore" inspectKey={kv('footer.links')}>
               {footerLinks.map(link => (
                 <a
                   key={link.href}

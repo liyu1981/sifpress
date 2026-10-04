@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { createContext, type ReactNode, useCallback, useContext, useMemo } from 'react';
-import { kvsApi } from 'ui-sdk';
+import { InspectOverlay, type KvAttrs, kvAttrs, kvsApi } from 'ui-sdk';
 import fallbackMeta from '../../meta.json';
 
 export interface LinkItem {
@@ -150,6 +150,16 @@ function asCopyMap(value: unknown): Record<string, string> {
   return out;
 }
 
+/**
+ * Inspect-mode annotation for a sifpress2 key, so the `sifpress2.` namespace
+ * lives in one place: `<h2 {...kv('masthead.kicker')}>`. Nested copy keys work
+ * as well — `kv('copy.viewAll')` resolves `sifpress2.copy.viewAll`, a string
+ * inside the single `sifpress2.copy` KV (see ui-sdk inspect.tsx).
+ */
+export function kv(key: string): KvAttrs {
+  return kvAttrs(`sifpress2.${key}`);
+}
+
 function interpolate(template: string, vars: Record<string, string | number>): string {
   return template.replace(/\{(\w+)\}/g, (match, key: string) =>
     key in vars ? String(vars[key]) : match,
@@ -235,7 +245,13 @@ export function ThemeConfigProvider({ children }: { children: ReactNode }) {
     [query.data, defaults],
   );
 
-  return <ThemeConfigContext.Provider value={config}>{children}</ThemeConfigContext.Provider>;
+  return (
+    <ThemeConfigContext.Provider value={config}>
+      {/* Renders nothing unless the sifront is loaded with ?inspect=1. */}
+      <InspectOverlay values={query.data?.data} declaredKeys={KEYS} />
+      {children}
+    </ThemeConfigContext.Provider>
+  );
 }
 
 export function useThemeConfig(): ThemeConfig {

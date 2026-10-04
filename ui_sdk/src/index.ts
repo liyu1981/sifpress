@@ -5,6 +5,7 @@ export * from './assets';
 export * from './update';
 export * from './auth';
 export { createQueryRewrite } from './rewrite';
+export * from './inspect';
 export * from './use-page-meta';
 export * from './markdown/light';
 export {

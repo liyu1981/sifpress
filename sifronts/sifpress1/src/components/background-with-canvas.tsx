@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { kvAttrs } from 'ui-sdk';
 import { cn } from '@/lib/utils';
 
 /** Environment the host hands to a scene so it can lay itself out. */
@@ -27,6 +28,8 @@ export interface BackgroundWithCanvasProps {
   scene: CanvasScene;
   className?: string;
   maxDpr?: number;
+  /** KV key driving the scene, shown by inspect mode (?inspect=1). */
+  inspectKey?: string;
 }
 
 /**
@@ -35,7 +38,12 @@ export interface BackgroundWithCanvasProps {
  * observation — and delegates all pixels to the supplied `scene`. Scenes never
  * touch `window`/`document`, so they can be swapped without touching this code.
  */
-export function BackgroundWithCanvas({ scene, className, maxDpr = 2 }: BackgroundWithCanvasProps) {
+export function BackgroundWithCanvas({
+  scene,
+  className,
+  maxDpr = 2,
+  inspectKey,
+}: BackgroundWithCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -132,6 +140,7 @@ export function BackgroundWithCanvas({ scene, className, maxDpr = 2 }: Backgroun
     <canvas
       ref={canvasRef}
       aria-hidden="true"
+      {...(inspectKey !== undefined ? kvAttrs(inspectKey) : {})}
       className={cn('pointer-events-none fixed inset-0 z-0', className)}
     />
   );

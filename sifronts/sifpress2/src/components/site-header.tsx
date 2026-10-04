@@ -3,7 +3,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { ChevronDown, Menu, Search, X } from 'lucide-react';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { useCopy, useThemeConfig } from '@/lib/theme-config';
+import { kv, useCopy, useThemeConfig } from '@/lib/theme-config';
 import { settingsApi, tagsApi } from 'ui-sdk';
 
 function useSiteName(): string {
@@ -75,6 +75,7 @@ function SearchPanel({ open, onClose }: { open: boolean; onClose: () => void }) 
         <Search className="size-4 shrink-0 text-ink-faint" />
         <input
           ref={inputRef}
+          {...kv('copy.searchPlaceholder')}
           name="q"
           type="search"
           autoComplete="off"
@@ -132,6 +133,7 @@ function SectionsMenu({ sections }: { sections: string[] }) {
   return (
     <div ref={wrapRef} className="relative">
       <button
+        {...kv('copy.sections')}
         type="button"
         onClick={() => setOpen(value => !value)}
         aria-expanded={open}
@@ -209,6 +211,7 @@ export function SiteHeader() {
             <SectionsMenu sections={sections} />
             {footerLinks.slice(0, 2).map(link => (
               <a
+                {...kv('footer.links')}
                 key={link.href}
                 href={link.href}
                 className="text-sm font-medium text-ink-soft transition-colors hover:text-ink"
@@ -224,7 +227,10 @@ export function SiteHeader() {
             {siteName}
           </Link>
           {mastheadKicker !== '' && (
-            <span className="meta-line hidden text-[10px] tracking-[0.2em] uppercase sm:block">
+            <span
+              {...kv('masthead.kicker')}
+              className="meta-line hidden text-[10px] tracking-[0.2em] uppercase sm:block"
+            >
               {mastheadKicker}
             </span>
           )}
@@ -245,6 +251,7 @@ export function SiteHeader() {
 
           {newsletter !== null && (
             <a
+              {...kv('newsletter.cta')}
               href={newsletter.href === '' ? undefined : newsletter.href}
               target={newsletter.href === '' ? undefined : '_blank'}
               rel={newsletter.href === '' ? undefined : 'noreferrer noopener'}
@@ -280,6 +287,7 @@ export function SiteHeader() {
             ))}
             {footerLinks.map(link => (
               <a
+                {...kv('footer.links')}
                 key={link.href}
                 href={link.href}
                 className="block border-b border-rule py-3 text-base font-medium text-ink-soft"
@@ -289,6 +297,7 @@ export function SiteHeader() {
             ))}
             {newsletter !== null && (
               <a
+                {...kv('newsletter.cta')}
                 href={newsletter.href === '' ? undefined : newsletter.href}
                 className="btn-accent mt-4 w-full justify-center"
               >

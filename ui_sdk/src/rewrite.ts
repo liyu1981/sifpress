@@ -19,14 +19,38 @@ function normalizeInternalPath(path: string): string {
  *
  * `basePath` overrides the document path used for generated hrefs; when
  * omitted it comes from the injected `SIFPRESS_BASE_URL` (see base-url.ts).
+ *
+ * `keep` lists query parameters that are not part of the route's validated
+ * search and would therefore be dropped on the next navigation — the KV
+ * inspect flag (`inspect`, see inspect.tsx) being the one that matters. They
+ * are remembered from the browser URL and written back out, so a tool mode
+ * switched on with `?inspect=1` survives clicking through the site and stays
+ * shareable from the address bar.
  */
 export function createQueryRewrite(
   basePath?: string,
   prefix: string = 'sifpress/',
+  keep: string[] = [],
 ): LocationRewrite {
+  /*
+   * Module-level on purpose: it is per-document state that has to outlive a
+   * single rewrite call, and a page only ever runs one router.
+   */
+  const kept = new Map<string, string>();
+
   return {
     input: ({ url }) => {
       const p = url.searchParams.get('p');
+
+      for (const name of keep) {
+        const value = url.searchParams.get(name);
+
+        if (value === null) {
+          kept.delete(name);
+        } else {
+          kept.set(name, value);
+        }
+      }
 
       url.searchParams.delete('p');
 
@@ -47,6 +71,12 @@ export function createQueryRewrite(
         url.searchParams.delete('p');
       } else {
         url.searchParams.set('p', prefix + internalPath.replace(/^\//, ''));
+      }
+
+      for (const [name, value] of kept) {
+        if (!url.searchParams.has(name)) {
+          url.searchParams.set(name, value);
+        }
       }
 
       return url;

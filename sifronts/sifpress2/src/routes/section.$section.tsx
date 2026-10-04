@@ -5,7 +5,7 @@ import { Pagination } from '@/components/pagination';
 import { RailItem, StoryCard } from '@/components/story-card';
 import { EmptyBlock, ErrorBlock, LoadingBlock } from '@/components/states';
 import { useSectionStories } from '@/lib/stories';
-import { useCopy } from '@/lib/theme-config';
+import { kv, useCopy } from '@/lib/theme-config';
 
 interface SectionSearch {
   page?: number;
@@ -66,7 +66,7 @@ function SectionPage() {
       </header>
 
       {items.length === 0 ? (
-        <EmptyBlock>{copy('emptyState')}</EmptyBlock>
+        <EmptyBlock inspectKey={kv('copy.emptyState')}>{copy('emptyState')}</EmptyBlock>
       ) : (
         <>
           <div className="grid gap-10 py-8 lg:grid-cols-[minmax(0,1fr)_21rem] lg:gap-12">
@@ -78,7 +78,10 @@ function SectionPage() {
               aria-label={copy('latestStories')}
               className="lg:border-l lg:border-rule lg:pl-8"
             >
-              <h2 className="border-b border-rule-strong pb-3 text-[11px] font-semibold tracking-[0.18em] text-ink-faint uppercase">
+              <h2
+                {...kv('copy.moreIn')}
+                className="border-b border-rule-strong pb-3 text-[11px] font-semibold tracking-[0.18em] text-ink-faint uppercase"
+              >
                 {copy('moreIn', { section })}
               </h2>
               {rest.map(story => (

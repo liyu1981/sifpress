@@ -50,6 +50,9 @@ const en = {
     virtual: 'Built-in',
     activate: 'Activate',
     preview: 'Preview',
+    inspect: 'Inspect KV',
+    inspectHint:
+      'Opens the sifront with ?inspect=1: every KV-driven section is outlined and labelled with its key. Keys with no stored value are drawn dashed, so you can see which one drives what.',
     version: 'v{{version}}',
     deleteConfirm: 'Delete "{{name}}" permanently?',
     empty: 'No sifronts yet.',
@@ -795,6 +798,9 @@ const zh = {
     virtual: '内置',
     activate: '启用',
     preview: '预览',
+    inspect: '检查 KV',
+    inspectHint:
+      '以 ?inspect=1 打开前台页面：每个由 KV 驱动的区块都会描边并标出键名。未设置存储值的键会显示为虚线，方便看清哪个键控制哪里的内容。',
     version: 'v{{version}}',
     deleteConfirm: '永久删除 "{{name}}"？',
     empty: '暂无前台页面。',
