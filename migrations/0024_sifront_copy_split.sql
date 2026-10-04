@@ -1,0 +1,15 @@
+-- sifpress2 kept every UI string in one `sifpress2.copy` JSON blob. Each string
+-- is its own key now (`sifpress2.copy.<name>`), so a theme can edit and inspect
+-- them one at a time and the admin KV list shows a row per string.
+--
+-- The expansion itself runs in PHP: db_migrate_and_seed() calls
+-- normalize_sifront_copy_kv(), which rewrites the blob into per-key rows while
+-- carrying its kv_grants over (the guest view grant is what lets the sifront
+-- read them) and then drops the blob. Doing it in PHP keeps it independent of
+-- the SQLite JSON1 version and lets a malformed blob be skipped without
+-- failing the migration.
+--
+-- This file carries no statement of its own; it exists so the migration runner
+-- reaches the PHP step on every install, including ones whose schema is already
+-- up to date but which still hold a pre-split blob.
+SELECT 1;

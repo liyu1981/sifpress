@@ -9,7 +9,36 @@ export interface LinkItem {
   icon?: string;
 }
 
-const KEYS = [
+/**
+ * Built-in UI copy. It is also the single source of truth for the copy key
+ * names: each entry becomes its own `sifpress2.copy.<name>` KV (so every string
+ * is editable and inspectable on its own), and the value here is the last
+ * fallback when neither the KV store nor `meta.json` carries a string.
+ */
+const DEFAULT_COPY: Record<string, string> = {
+  latestStories: 'Latest stories',
+  topStories: 'Top stories',
+  moreStories: 'More stories',
+  viewAll: 'View all articles',
+  minRead: '{min} min read',
+  searchPlaceholder: 'Search the archive',
+  searchResults: 'Search results for “{query}”',
+  noResults: 'No results for “{query}”.',
+  emptyState: 'No stories have been published yet.',
+  subscribe: 'Subscribe',
+  menu: 'Menu',
+  close: 'Close',
+  sections: 'Sections',
+  onThisPage: 'On this page',
+  moreIn: 'More in {section}',
+  share: 'Share',
+  notFound: 'Page not found',
+  articleNotFound: 'Story not found',
+  backHome: 'Back to the front page',
+  featured: 'Featured',
+};
+
+const BASE_KEYS = [
   'sifpress2.masthead.kicker',
   'sifpress2.masthead.tagline',
   'sifpress2.announcement.text',
@@ -25,8 +54,12 @@ const KEYS = [
   'sifpress2.footer.links',
   'sifpress2.footer.socials',
   'sifpress2.article.bottom',
-  'sifpress2.copy',
 ];
+
+/** Legacy key: before the copy split, every string shared one JSON blob. */
+const LEGACY_COPY_KEY = 'sifpress2.copy';
+
+const KEYS = [...BASE_KEYS, ...Object.keys(DEFAULT_COPY).map(name => `${LEGACY_COPY_KEY}.${name}`)];
 
 const SOCIAL_ICONS: Record<string, string> = {
   instagram:
@@ -166,6 +199,27 @@ function interpolate(template: string, vars: Record<string, string | number>): s
   );
 }
 
+/**
+ * Resolve one copy string: a stored `sifpress2.copy.<name>` wins, then the
+ * pre-split `sifpress2.copy` blob (still around until migration 0024 runs on
+ * an existing install), then the `meta.json` default, then the built-in one.
+ */
+function buildCopy(data: Record<string, unknown>, defaults: Record<string, unknown>) {
+  const legacy = asCopyMap(data[LEGACY_COPY_KEY]);
+  const out: Record<string, string> = {};
+
+  for (const name of Object.keys(DEFAULT_COPY)) {
+    const key = `${LEGACY_COPY_KEY}.${name}`;
+    const value = [data[key], legacy[name], defaults[key], DEFAULT_COPY[name]].find(
+      (candidate): candidate is string => typeof candidate === 'string',
+    );
+
+    out[name] = value ?? DEFAULT_COPY[name];
+  }
+
+  return out;
+}
+
 function buildConfig(
   data: Record<string, unknown>,
   defaults: Record<string, unknown>,
@@ -201,32 +255,9 @@ function buildConfig(
     footerLinks: asLinkArray(pick('sifpress2.footer.links')),
     footerSocials: asLinkArray(pick('sifpress2.footer.socials')),
     articleBottomHtml: asHtml(pick('sifpress2.article.bottom')),
-    copy: asCopyMap(pick('sifpress2.copy')),
+    copy: buildCopy(data, defaults),
   };
 }
-
-const DEFAULT_COPY: Record<string, string> = {
-  latestStories: 'Latest stories',
-  topStories: 'Top stories',
-  moreStories: 'More stories',
-  viewAll: 'View all articles',
-  minRead: '{min} min read',
-  searchPlaceholder: 'Search the archive',
-  searchResults: 'Search results for “{query}”',
-  noResults: 'No results for “{query}”.',
-  emptyState: 'No stories have been published yet.',
-  subscribe: 'Subscribe',
-  menu: 'Menu',
-  close: 'Close',
-  sections: 'Sections',
-  onThisPage: 'On this page',
-  moreIn: 'More in {section}',
-  share: 'Share',
-  notFound: 'Page not found',
-  articleNotFound: 'Story not found',
-  backHome: 'Back to the front page',
-  featured: 'Featured',
-};
 
 const ThemeConfigContext = createContext<ThemeConfig | null>(null);
 

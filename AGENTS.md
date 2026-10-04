@@ -223,7 +223,13 @@ sifronts/           public-facing sifront SPAs (each a pnpm workspace package,
                     story cards, article furniture (byline/share/TOC/progress)
   src/lib/          theme-config (`sifpress2.*` KV keys), format, stories (view models)
   Design: flat newsprint — hairline rules, Newsreader/Inter, no glass; theme keys
-  live in meta.json `require_keys` under the `sifpress2.` namespace.
+  live in meta.json `require_keys` under the `sifpress2.` namespace. UI copy is
+  **one key per string** (`sifpress2.copy.viewAll`, 20 of them), not one JSON
+  blob: `DEFAULT_COPY` in `sifronts/sifpress2/src/lib/theme-config.tsx` is the
+  single source of their names, so `KEYS` (the batch request), the
+  `require_keys` list and the admin KV rows all follow from it. Per string,
+  `buildCopy()` resolves stored key -> legacy `sifpress2.copy` blob (pre-0024
+  installs) -> `meta.json` default -> built-in.
   Both sifronts annotate every KV-driven element with `kvAttrs(...)`
   (`kv('masthead.kicker')` in sifpress2) and mount `InspectOverlay` in their
   ThemeConfigProvider — see "KV inspect mode" below.
@@ -245,8 +251,9 @@ sifronts/           public-facing sifront SPAs (each a pnpm workspace package,
     address bar (routes' `validateSearch` would otherwise drop it).
   - `createKvInspector({ values, declaredKeys })` holds the DOM machinery
     (framework-free, unit-testable in Node with a stub DOM);
-    `InspectOverlay` is the thin `useEffect` wrapper over it. Nested copy keys
-    resolve through their parent KV (`sifpress2.copy.viewAll`).
+    `InspectOverlay` is the thin `useEffect` wrapper over it. A nested key falls
+    back to its parent KV, so a pre-split `sifpress2.copy` blob still reads
+    (`sifpress2.copy.viewAll`).
   - Annotate with `{...kvAttrs('sifpress1.footer.text')}` (or sifpress2's
     `kv('footer.text')` helper) — on the element that renders the value, never
     on a `display: contents` wrapper, which has no box to outline.
@@ -269,7 +276,10 @@ pnpm-lock.yaml      workspace lockfile
   build time. Bootstrap only detects pending migrations; the app serves
   `503 migration_required` (SPA gets an `app-maintenance` meta tag) until
   `POST ?p=migration&action=run` applies them (per-migration
-  `BEGIN IMMEDIATE` transaction).
+  `BEGIN IMMEDIATE` transaction). A migration that only marks a code-side data
+  step is fine (see `0024_sifront_copy_split.sql`, whose work is
+  `normalize_sifront_copy_kv()` in `db_migrate_and_seed()`): the SQL file makes
+  the runner reach the PHP step on installs whose schema is already current.
 - **Auth**: DB-backed sessions (`sessions` table, hashed tokens) via an
   `HttpOnly; SameSite=Lax` cookie; `password_hash`/`password_verify`.
   - **Lifetime**: two windows — `SESSION_IDLE_TTL` (12h, slides on use via

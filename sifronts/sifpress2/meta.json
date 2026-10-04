@@ -16,28 +16,26 @@
     { "sifpress2.footer.links": [] },
     { "sifpress2.footer.socials": [] },
     { "sifpress2.article.bottom": "" },
-    {
-      "sifpress2.copy": {
-        "latestStories": "Latest stories",
-        "topStories": "Top stories",
-        "moreFrom": "More stories",
-        "viewAll": "View all articles",
-        "minRead": "{min} min read",
-        "searchPlaceholder": "Search the archive",
-        "searchResults": "Search results for “{query}”",
-        "noResults": "No results for “{query}”.",
-        "emptyState": "No stories have been published yet.",
-        "subscribe": "Subscribe",
-        "menu": "Menu",
-        "sections": "Sections",
-        "onThisPage": "On this page",
-        "moreIn": "More in {section}",
-        "share": "Share",
-        "notFound": "Page not found",
-        "articleNotFound": "Story not found",
-        "backHome": "Back to the front page"
-      }
-    }
+    { "sifpress2.copy.latestStories": "Latest stories" },
+    { "sifpress2.copy.topStories": "Top stories" },
+    { "sifpress2.copy.moreStories": "More stories" },
+    { "sifpress2.copy.viewAll": "View all articles" },
+    { "sifpress2.copy.minRead": "{min} min read" },
+    { "sifpress2.copy.searchPlaceholder": "Search the archive" },
+    { "sifpress2.copy.searchResults": "Search results for “{query}”" },
+    { "sifpress2.copy.noResults": "No results for “{query}”." },
+    { "sifpress2.copy.emptyState": "No stories have been published yet." },
+    { "sifpress2.copy.subscribe": "Subscribe" },
+    { "sifpress2.copy.menu": "Menu" },
+    { "sifpress2.copy.close": "Close" },
+    { "sifpress2.copy.sections": "Sections" },
+    { "sifpress2.copy.onThisPage": "On this page" },
+    { "sifpress2.copy.moreIn": "More in {section}" },
+    { "sifpress2.copy.share": "Share" },
+    { "sifpress2.copy.notFound": "Page not found" },
+    { "sifpress2.copy.articleNotFound": "Story not found" },
+    { "sifpress2.copy.backHome": "Back to the front page" },
+    { "sifpress2.copy.featured": "Featured" }
   ],
   "examples": {
     "sifpress2.masthead.kicker": "The Daily Edition",
@@ -55,6 +53,8 @@
     "sifpress2.footer.links": "[\n  { \"label\": \"About\", \"href\": \"/about\" },\n  { \"label\": \"Archive\", \"href\": \"/\" }\n]",
     "sifpress2.footer.socials": "[\n  { \"label\": \"GitHub\", \"href\": \"https://github.com/you\", \"icon\": \"github\" },\n  { \"label\": \"Email\", \"href\": \"mailto:you@example.com\", \"icon\": \"email\" }\n]",
     "sifpress2.article.bottom": "<div class=\"note\">Thanks for reading.</div>",
-    "sifpress2.copy": "{ \"latestStories\": \"Latest stories\", \"viewAll\": \"View all articles\" }"
+    "sifpress2.copy.latestStories": "Latest stories",
+    "sifpress2.copy.viewAll": "View all articles",
+    "sifpress2.copy.searchResults": "Search results for “{query}”"
   }
 }

@@ -129,7 +129,8 @@ function db_migrate(): array
 
 /**
  * Apply pending migrations and run the idempotent seeds (RBAC, default admin,
- * favicon, default sifront). Shared by the web migration endpoint and the CLI.
+ * favicon, default sifront) plus the theme-key normalization. Shared by the
+ * web migration endpoint and the CLI.
  */
 function db_migrate_and_seed(): array
 {
@@ -138,8 +139,99 @@ function db_migrate_and_seed(): array
     seed_default_admin();
     seed_favicon();
     seed_default_sifront();
+    normalize_sifront_copy_kv();
 
     return $applied;
+}
+
+/**
+ * sifpress2 used to keep every UI string in one `sifpress2.copy` JSON blob.
+ * Each string is its own key now, so an existing install gets the blob expanded
+ * into `sifpress2.copy.<name>` rows before it is dropped — carrying the blob's
+ * kv_grants along, otherwise the guest-readable grant the sifront relies on
+ * would be lost and the theme would silently fall back to its built-in copy.
+ * Idempotent: a no-op once the blob is gone. Returns the rows written.
+ */
+function normalize_sifront_copy_kv(): int
+{
+    $pdo = db();
+    $blobKey = 'sifpress2.copy';
+
+    $stmt = $pdo->prepare('SELECT id, value_json, created_by, updated_by FROM kv_pairs WHERE key = ?');
+    $stmt->execute([$blobKey]);
+    $blob = $stmt->fetch();
+
+    if ($blob === false) {
+        return 0;
+    }
+
+    $values = json_decode((string) $blob['value_json'], true);
+    $blobId = (int) $blob['id'];
+    $written = 0;
+
+    /* A blob the theme cannot read either: leave it alone rather than lose it. */
+    if (!is_array($values)) {
+        return 0;
+    }
+
+    $own = !$pdo->inTransaction();
+
+    if ($own) {
+        $pdo->beginTransaction();
+    }
+
+    try {
+        $insert = $pdo->prepare(
+            'INSERT OR IGNORE INTO kv_pairs (key, value_json, created_by, updated_by)
+             VALUES (?, ?, ?, ?)'
+        );
+        $copyGrants = $pdo->prepare(
+            'INSERT OR IGNORE INTO kv_grants (kv_id, user_id, granted_by, permission, note)
+             SELECT ?, user_id, granted_by, permission, note FROM kv_grants WHERE kv_id = ?'
+        );
+        $findId = $pdo->prepare('SELECT id FROM kv_pairs WHERE key = ?');
+
+        foreach ($values as $name => $value) {
+            $name = trim((string) $name);
+
+            /* Copy values are plain strings; anything else is not ours to split. */
+            if ($name === '' || !is_string($value)) {
+                continue;
+            }
+
+            $key = $blobKey . '.' . $name;
+            $json = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+            if ($json === false) {
+                continue;
+            }
+
+            /* OR IGNORE: a per-key row already saved by the new admin wins. */
+            $insert->execute([$key, $json, $blob['created_by'], $blob['updated_by']]);
+
+            $findId->execute([$key]);
+            $id = $findId->fetchColumn();
+
+            if ($id !== false) {
+                $copyGrants->execute([(int) $id, $blobId]);
+                $written++;
+            }
+        }
+
+        $pdo->prepare('DELETE FROM kv_pairs WHERE key = ?')->execute([$blobKey]);
+
+        if ($own) {
+            $pdo->commit();
+        }
+    } catch (Throwable $e) {
+        if ($own && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        throw $e;
+    }
+
+    return $written;
 }
 
 /**
