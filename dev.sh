@@ -18,6 +18,35 @@ WATCH_DIRS=(
 
 cd "$ROOT"
 
+# Asset bytes live outside the docroot (dist/) so they are only reachable
+# through ?p=asset, which enforces is_public and the per-asset grants. The
+# default <db_dir>/assets would be dist/var/sifpress/assets — i.e. inside the
+# dev server's document root — so dev puts them in var/ in the repo
+# (gitignored), for both the server and CLI commands alike.
+ASSET_DIR_DEFAULT="$ROOT/var/sifpress/assets"
+mkdir -p "$ASSET_DIR_DEFAULT"
+export SIFPRESS_ASSET_DIR="${SIFPRESS_ASSET_DIR:-$ASSET_DIR_DEFAULT}"
+
+# The web process inherits the env var above, but CLI runs (`php dist/index.php
+# assets …`) do not, and the CLI must see the same directory as the web server.
+# Persist it in the generated config once, so both read one source of truth.
+CONFIG="$ROOT/dist/sifpress_config.php"
+if [ -f "$CONFIG" ] && ! grep -q "SIFPRESS_ASSET_DIR" "$CONFIG"; then
+  php -r '
+    $path = $argv[1];
+    $dir = $argv[2];
+    $src = file_get_contents($path);
+    $anchor = "define(\x27SIFPRESS_DB_DIR\x27";
+    $at = strpos($src, $anchor);
+    if ($at === false) { exit(0); }
+    $lineEnd = strpos($src, "\n", $at);
+    $insert = "\n\n/** Dev: asset bytes kept outside dist/ (see dev.sh). */\n"
+        . "define(\x27SIFPRESS_ASSET_DIR\x27, " . var_export($dir, true) . ");";
+    file_put_contents($path, substr($src, 0, $lineEnd) . $insert . substr($src, $lineEnd));
+  ' "$CONFIG" "$SIFPRESS_ASSET_DIR"
+  echo "==> Added SIFPRESS_ASSET_DIR to $CONFIG"
+fi
+
 if ! command -v php >/dev/null 2>&1; then
   echo "error: php not found in PATH" >&2
   exit 1
@@ -66,7 +95,13 @@ else
 fi
 
 echo "==> Starting PHP dev server on port $SIFPRESS_PORT..."
-php -S "0.0.0.0:$SIFPRESS_PORT" "$ROOT/dist/index.php" &
+echo "==> Assets: $SIFPRESS_ASSET_DIR"
+# Run from dist/ so DOCUMENT_ROOT is the directory the built-in server actually
+# exposes. The app refuses an asset directory inside DOCUMENT_ROOT (assets are
+# served through ?p=asset, which enforces is_public and the per-asset grants),
+# and with the repo root as the document root that check would wrongly reject
+# the repo-level var/ folder used above.
+(cd "$ROOT/dist" && php -S "0.0.0.0:$SIFPRESS_PORT" "$ROOT/dist/index.php") &
 PHP_PID=$!
 
 cleanup() {

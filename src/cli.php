@@ -46,6 +46,10 @@ function sifpress_cli(array $argv): never
             sifpress_cli_sessions($configPath, $argv);
             break;
 
+        case 'assets':
+            sifpress_cli_assets($configPath, $options, $argv);
+            break;
+
         case 'inject_sifront':
             sifpress_cli_inject_sifront($configPath, $argv);
             break;
@@ -106,6 +110,12 @@ function sifpress_cli_usage(): void
         '                   sessions                  list active sessions',
         '                   sessions purge            delete expired sessions + old login attempts',
         '                   sessions revoke <user>   sign a user out everywhere',
+        '  assets           move asset bytes out of the database into storage:',
+        '                   assets status             where every asset\'s bytes live now',
+        '                   assets migrate-blobs     write legacy BLOB rows to storage',
+        '                     [--dry-run] [--limit=N] [--keep-blobs=0]',
+        '                   assets verify [--sample=N]  md5-check stored objects',
+        '                   assets gc                delete objects no row points at',
         '  inject_sifront   (dev only) push a built sifront into the DB and activate it:',
         '                   inject_sifront [name]   (default: sifpress1)',
         '  update_sifront   install/update a sifront from a .sifront archive:',
@@ -967,6 +977,519 @@ function sifpress_cli_adopt_db(): void
  * web auto-generation for CLI, so nothing has created or required the config
  * yet when this runs.
  */
+/**
+ * `assets <subcommand>`: move asset bytes out of the database into the storage
+ * backend, and report on the result.
+ *
+ *   assets status                     where every asset's bytes live right now
+ *   assets migrate-blobs [--dry-run]  write each legacy BLOB row to storage
+ *   assets verify [--sample=N]        md5 spot-check of stored objects
+ *   assets gc                         delete objects no row points at
+ *
+ * The first release keeps the BLOBs (`--keep-blobs` defaults on) so a rollback
+ * to the previous artifact still serves the bytes; pass `--keep-blobs=0` in a
+ * later run to clear them, which is what actually shrinks sys.db (SQLite only
+ * returns freed pages to the filesystem on VACUUM).
+ */
+function sifpress_cli_assets(string $configPath, array $options, array $argv): void
+{
+    if (!is_file($configPath)) {
+        fwrite(STDERR, 'No config found. Run: php ' . basename(__FILE__) . " setup\n");
+        exit(1);
+    }
+
+    require_once $configPath;
+
+    if (db_needs_migration()) {
+        fwrite(STDERR, 'Database needs migration. Run: php ' . basename(__FILE__) . " migrate\n");
+        exit(1);
+    }
+
+    $action = 'status';
+
+    foreach (array_slice($argv, 2) as $arg) {
+        if (substr($arg, 0, 2) !== '--') {
+            $action = strtolower(trim($arg));
+            break;
+        }
+    }
+
+    match ($action) {
+        'status' => cli_assets_status(),
+        'migrate-blobs', 'migrate' => cli_assets_migrate($options),
+        'verify' => cli_assets_verify((int) ($options['sample'] ?? 20)),
+        'gc' => cli_assets_gc(),
+        default => cli_assets_usage($action),
+    };
+}
+
+function cli_assets_usage(string $action): void
+{
+    fwrite(
+        STDERR,
+        "Unknown assets action: {$action} (use status, migrate-blobs, verify or gc)\n"
+    );
+    exit(1);
+}
+
+/** Bytes still living in the database, and bytes already in storage. */
+function cli_assets_totals(): array
+{
+    $row = db()->query(
+        "SELECT COUNT(*) AS total,
+                SUM(CASE WHEN storage_key IS NULL THEN 1 ELSE 0 END) AS legacy,
+                SUM(CASE WHEN storage_key IS NOT NULL THEN 1 ELSE 0 END) AS stored,
+                COALESCE(SUM(length(data)), 0) AS blob_bytes,
+                COALESCE(SUM(length(thumb)), 0) AS thumb_bytes,
+                COALESCE(SUM(CASE WHEN storage_key IS NULL THEN size_bytes ELSE 0 END), 0) AS pending_bytes
+           FROM assets"
+    )->fetch();
+
+    return [
+        'total' => (int) $row['total'],
+        'legacy' => (int) $row['legacy'],
+        'stored' => (int) $row['stored'],
+        'blob_bytes' => (int) $row['blob_bytes'],
+        'thumb_bytes' => (int) $row['thumb_bytes'],
+        'pending_bytes' => (int) $row['pending_bytes'],
+    ];
+}
+
+function human_bytes(int $bytes): string
+{
+    $units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+    $value = (float) $bytes;
+    $i = 0;
+
+    while ($value >= 1024 && $i < count($units) - 1) {
+        $value /= 1024;
+        $i++;
+    }
+
+    return ($i === 0 ? (string) (int) $value : sprintf('%.1f', $value)) . ' ' . $units[$i];
+}
+
+/** Objects referenced by a row but absent from storage, and vice versa. */
+function cli_assets_reconcile(): array
+{
+    $missing = [];
+    $diskBytes = 0;
+    $referenced = [];
+
+    foreach (db()->query('SELECT id, storage_key, thumb_key, storage FROM assets') as $row) {
+        if ((string) ($row['storage'] ?? '') === '') {
+            continue;
+        }
+
+        foreach ([(string) ($row['storage_key'] ?? ''), (string) ($row['thumb_key'] ?? '')] as $key) {
+            if ($key === '') {
+                continue;
+            }
+
+            $referenced[$key] = true;
+            $path = asset_storage()->localPath($key);
+
+            if ($path === null || !is_file($path)) {
+                $missing[] = [(int) $row['id'], $key];
+                continue;
+            }
+
+            $diskBytes += (int) filesize($path);
+        }
+    }
+
+    $orphans = [];
+    $dir = asset_dir();
+
+    if (is_dir($dir)) {
+        $it = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
+        );
+
+        foreach ($it as $file) {
+            if (!$file->isFile()) {
+                continue;
+            }
+
+            $path = $file->getPathname();
+            $relative = ltrim(substr($path, strlen($dir)), '/');
+
+            if (str_starts_with($relative, '.tmp/')) {
+                continue;
+            }
+
+            if (!isset($referenced[$relative])) {
+                $orphans[] = $relative;
+                $diskBytes += (int) $file->getSize();
+            }
+        }
+    }
+
+    return ['missing' => $missing, 'orphans' => $orphans, 'disk_bytes' => $diskBytes];
+}
+
+function cli_assets_status(): void
+{
+    $totals = cli_assets_totals();
+    $state = cli_assets_reconcile();
+
+    fwrite(
+        STDOUT,
+        "Asset directory: " . asset_dir() . "\n"
+        . 'Backend       : ' . asset_storage()->id() . "\n\n"
+        . sprintf("Rows          : %d total, %d in storage, %d legacy (blob)\n", $totals['total'], $totals['stored'], $totals['legacy'])
+        . sprintf(
+            "Bytes in DB   : %s (originals) + %s (thumbnails)\n",
+            human_bytes($totals['blob_bytes']),
+            human_bytes($totals['thumb_bytes'])
+        )
+        . sprintf("Bytes on disk : %s\n", human_bytes($state['disk_bytes']))
+        . sprintf("Pending move  : %s\n", human_bytes($totals['pending_bytes']))
+    );
+
+    if ($state['missing'] !== []) {
+        fwrite(STDOUT, "\nMissing objects (row points at a file that is gone):\n");
+
+        foreach (array_slice($state['missing'], 0, 10) as [$id, $key]) {
+            fwrite(STDOUT, "  asset {$id}: {$key}\n");
+        }
+
+        if (count($state['missing']) > 10) {
+            fwrite(STDOUT, '  ... and ' . (count($state['missing']) - 10) . " more\n");
+        }
+    } else {
+        fwrite(STDOUT, "Missing objects : none\n");
+    }
+
+    fwrite(
+        STDOUT,
+        'Orphan objects  : ' . count($state['orphans'])
+        . ($state['orphans'] === [] ? "\n" : " (reclaim with `assets gc`)\n")
+    );
+
+    if ($state['orphans'] !== []) {
+        foreach (array_slice($state['orphans'], 0, 5) as $key) {
+            fwrite(STDOUT, "  {$key}\n");
+        }
+    }
+
+    if ($totals['legacy'] > 0) {
+        fwrite(
+            STDOUT,
+            "\n" . $totals['legacy'] . " legacy row(s) still store bytes in the database.\n"
+            . 'Move them with: php ' . basename(__FILE__) . " assets migrate-blobs\n"
+        );
+    }
+}
+
+/**
+ * Write every legacy BLOB row to storage and point the row at the new object.
+ * Each row is independent and committed on its own, so an interrupted run
+ * resumes where it stopped and a rollback to the previous artifact is still
+ * possible while the BLOBs are kept.
+ */
+function cli_assets_migrate(array $options): void
+{
+    $dryRun = array_key_exists('dry-run', $options);
+    $limit = isset($options['limit']) ? max(1, (int) $options['limit']) : PHP_INT_MAX;
+    $keepBlobs = !array_key_exists('keep-blobs', $options) || (string) $options['keep-blobs'] !== '0';
+
+    $totals = cli_assets_totals();
+
+    if ($totals['legacy'] === 0) {
+        fwrite(STDOUT, "Nothing to migrate: every row already points at stored bytes.\n");
+
+        return;
+    }
+
+    $pendingBytes = $totals['pending_bytes'] + $totals['thumb_bytes'];
+
+    if ($dryRun) {
+        fwrite(
+            STDOUT,
+            "Would migrate {$totals['legacy']} legacy row(s), about " . human_bytes($pendingBytes)
+            . " of bytes into " . asset_dir() . ".\n"
+            . ($keepBlobs ? "The BLOBs would be kept (pass --keep-blobs=0 to clear them).\n" : "The BLOBs would be cleared.\n")
+        );
+
+        $rows = db()->query(
+            'SELECT id, name, size_bytes FROM assets WHERE storage_key IS NULL ORDER BY id LIMIT 50'
+        )->fetchAll();
+
+        foreach ($rows as $row) {
+            fwrite(
+                STDOUT,
+                sprintf("  #%-5d %-40s %s\n", (int) $row['id'], (string) $row['name'], human_bytes((int) $row['size_bytes']))
+            );
+        }
+
+        if ($totals['legacy'] > 50) {
+            fwrite(STDOUT, '  ... and ' . ($totals['legacy'] - 50) . " more\n");
+        }
+
+        fwrite(STDOUT, "\nDry run: nothing was written.\n");
+
+        return;
+    }
+
+    /*
+     * Both copies exist while the BLOBs are kept, so the migration needs room
+     * for the pending set on top of what is already there.
+     */
+    $free = @disk_free_space(asset_dir_ready());
+
+    if ($free !== false && $free < $pendingBytes + 32 * 1024 * 1024) {
+        fwrite(
+            STDERR,
+            'Not enough free disk space on the asset volume: ' . human_bytes((int) $free)
+            . ' available, ' . human_bytes($pendingBytes) . " needed (plus 32 MiB headroom).\n"
+            . "Nothing was migrated.\n"
+        );
+        exit(1);
+    }
+
+    fwrite(
+        STDOUT,
+        "Migrating {$totals['legacy']} legacy row(s), about " . human_bytes($pendingBytes) . "…\n"
+    );
+
+    $moved = 0;
+    $skipped = 0;
+    $failed = 0;
+    $cleared = 0;
+
+    while ($moved + $failed < $limit) {
+        $row = db()->query(
+            'SELECT id, mime, thumb_mime, md5, size_bytes, data, thumb
+               FROM assets WHERE storage_key IS NULL AND data IS NOT NULL ORDER BY id LIMIT 1'
+        )->fetch();
+
+        if ($row === false) {
+            break;
+        }
+
+        try {
+            [$storage, $key, $etag] = cli_asset_store_blob(
+                'data',
+                (int) $row['id'],
+                (string) $row['mime'],
+                (int) $row['size_bytes'],
+                (string) ($row['md5'] ?? '') !== '' ? (string) $row['md5'] : null
+            );
+
+            $thumbKey = null;
+
+            if ($row['thumb'] !== null && $row['thumb'] !== false) {
+                [, $thumbKey] = cli_asset_store_blob(
+                    'thumb',
+                    (int) $row['id'],
+                    (string) ($row['thumb_mime'] ?? '') !== '' ? (string) $row['thumb_mime'] : 'image/webp',
+                    null,
+                    null
+                );
+            }
+
+            $sets = ['storage = ?', 'storage_key = ?', 'storage_etag = ?'];
+            $params = [$storage, $key, $etag];
+
+            if ($thumbKey !== null) {
+                $sets[] = 'thumb_key = ?';
+                $params[] = $thumbKey;
+            }
+
+            if (!$keepBlobs) {
+                $sets[] = 'data = NULL';
+                $sets[] = 'thumb = NULL';
+                $cleared++;
+            }
+
+            $params[] = (int) $row['id'];
+            db()->prepare('UPDATE assets SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($params);
+
+            $moved++;
+            fwrite(STDOUT, sprintf("  #%-5d -> %s\n", (int) $row['id'], $key));
+        } catch (Throwable $e) {
+            $failed++;
+            fwrite(
+                STDERR,
+                sprintf("  #%d failed: %s\n", (int) $row['id'], $e->getMessage())
+            );
+
+            if ($failed > 20) {
+                fwrite(STDERR, "Too many failures, stopping.\n");
+                break;
+            }
+        }
+    }
+
+    sifpress_cli_adopt_db();
+    sifpress_cli_adopt_owner(asset_dir_ready());
+
+    fwrite(
+        STDOUT,
+        "\nMigrated {$moved} row(s)" . ($failed > 0 ? ", {$failed} failed" : '') . ".\n"
+    );
+
+    if (!$keepBlobs && $cleared > 0) {
+        fwrite(
+            STDOUT,
+            "Cleared {$cleared} BLOB(s) from the database. The file only shrinks on disk after:\n"
+            . '  php ' . basename(__FILE__) . ' sessions purge   # housekeeping\n'
+            . '  VACUUM the database when convenient (sqlite3 sys.db "VACUUM";) to reclaim pages.\n'
+        );
+    }
+}
+
+/**
+ * Stream one BLOB column of a row into storage without buffering it, verify
+ * it against the recorded size / md5, and return the new storage values.
+ *
+ * @return array{0:string,1:string,2:string}
+ */
+function cli_asset_store_blob(string $column, int $id, string $mime, ?int $expectedSize, ?string $expectedMd5): array
+{
+    $stmt = db()->prepare("SELECT {$column} FROM assets WHERE id = ?");
+    $stmt->bindColumn(1, $blob, PDO::PARAM_LOB);
+    $stmt->execute([$id]);
+    $stmt->fetch(PDO::FETCH_BOUND);
+
+    $tmp = tempnam(sys_get_temp_dir(), 'sifpress-asset-');
+
+    if ($tmp === false) {
+        throw new RuntimeException('Cannot create a temp file for the blob.');
+    }
+
+    try {
+        $out = fopen($tmp, 'wb');
+
+        if ($out === false) {
+            throw new RuntimeException('Cannot open the temp file.');
+        }
+
+        if (is_resource($blob)) {
+            /* Stream the LOB out in chunks: fpassthru() has no destination
+             * parameter in PHP 8, and a 200 MB blob must not be buffered. */
+            rewind($blob);
+
+            while (!feof($blob)) {
+                $chunk = fread($blob, 1048576);
+
+                if ($chunk === false || $chunk === '') {
+                    break;
+                }
+
+                fwrite($out, $chunk);
+            }
+        } elseif (is_string($blob)) {
+            fwrite($out, $blob);
+        }
+
+        fclose($out);
+
+        clearstatcache(true, $tmp);
+        $size = (int) filesize($tmp);
+
+        if ($expectedSize !== null && $size !== $expectedSize) {
+            throw new RuntimeException(
+                "blob is {$size} bytes, row says {$expectedSize}"
+            );
+        }
+
+        $md5 = md5_file($tmp);
+
+        if ($expectedMd5 !== null && $md5 !== $expectedMd5) {
+            throw new RuntimeException("blob md5 {$md5} does not match the row");
+        }
+
+        [$storage, $key, , ] = asset_store_file($tmp, $mime);
+
+        return [$storage, $key, $md5];
+    } finally {
+        @unlink($tmp);
+    }
+}
+
+/** md5 spot-check of stored objects against the row's recorded digest. */
+function cli_assets_verify(int $sample): void
+{
+    $storage = asset_storage();
+
+    if (!method_exists($storage, 'hash')) {
+        fwrite(STDOUT, "Backend '{$storage->id()}' cannot hash objects; nothing to verify.\n");
+
+        return;
+    }
+
+    $rows = db()->query(
+        'SELECT id, storage_key, md5 FROM assets WHERE storage_key IS NOT NULL ORDER BY id LIMIT '
+        . max(1, $sample)
+    )->fetchAll();
+
+    if ($rows === []) {
+        fwrite(STDOUT, "No stored objects to verify.\n");
+
+        return;
+    }
+
+    $bad = 0;
+
+    foreach ($rows as $row) {
+        $actual = $storage->hash((string) $row['storage_key']);
+        $expected = (string) ($row['md5'] ?? '');
+
+        if ($actual === null) {
+            fwrite(STDERR, "  asset #{$row['id']}: object missing\n");
+            $bad++;
+            continue;
+        }
+
+        if ($expected !== '' && $actual !== $expected) {
+            fwrite(STDERR, "  asset #{$row['id']}: md5 {$actual} != row {$expected}\n");
+            $bad++;
+            continue;
+        }
+
+        fwrite(STDOUT, "  asset #{$row['id']}: {$actual} ok\n");
+    }
+
+    fwrite(STDOUT, "\nChecked " . count($rows) . " object(s), {$bad} problem(s).\n");
+
+    if ($bad > 0) {
+        exit(1);
+    }
+}
+
+/** Delete stored objects that no row points at, and stale temp files. */
+function cli_assets_gc(): void
+{
+    $state = cli_assets_reconcile();
+    $removed = 0;
+
+    foreach ($state['orphans'] as $key) {
+        asset_storage()->delete($key);
+        $removed++;
+    }
+
+    /* Abandoned temp files from an interrupted put(). */
+    $tmpDir = asset_dir() . '/.tmp';
+    $cutoff = time() - 3600;
+
+    foreach (glob($tmpDir . '/*.incoming') ?: [] as $path) {
+        if (is_file($path) && (int) filemtime($path) < $cutoff) {
+            @unlink($path);
+            $removed++;
+        }
+    }
+
+    fwrite(
+        STDOUT,
+        "Removed {$removed} orphan object(s).\n"
+        . ($state['missing'] !== []
+            ? count($state['missing']) . " row(s) point at a missing object; see `assets status`.\n"
+            : "No rows point at a missing object.\n")
+    );
+}
+
 if (PHP_SAPI === 'cli') {
     sifpress_cli($argv ?? []);
 }

@@ -142,7 +142,7 @@ function asset_payload(array $row): array
         'height' => $row['height'] !== null ? (int) $row['height'] : null,
         'duration' => $row['duration'] !== null ? (float) $row['duration'] : null,
         'md5' => $row['md5'] !== null ? (string) $row['md5'] : null,
-        'has_thumb' => $row['thumb'] !== null,
+        'has_thumb' => ($row['thumb_key'] ?? null) !== null || ($row['thumb'] ?? null) !== null,
         'is_public' => (bool) (int) $row['is_public'],
         'uploaded_by' => $row['uploaded_by'] !== null ? (int) $row['uploaded_by'] : null,
         'uploaded_by_name' => (string) $row['uploaded_by_name'],
@@ -298,7 +298,9 @@ function handle_asset(string $method): never
     }
 
     $stmt = db()->prepare(
-        'SELECT id, name, mime, size_bytes, length(data) AS data_length, thumb_mime, is_public, uploaded_by
+        'SELECT id, name, mime, size_bytes, length(data) AS data_length,
+                length(thumb) AS thumb_length, thumb_mime, is_public, uploaded_by,
+                storage, storage_key, thumb_key, storage_etag
            FROM assets WHERE id = ?'
     );
     $stmt->execute([$id]);
@@ -314,7 +316,47 @@ function handle_asset(string $method): never
 
     $thumb = request_param('thumb') === '1';
 
-    if (!$thumb && (int) $row['size_bytes'] !== (int) $row['data_length']) {
+    /*
+     * Bytes come from storage when the row carries a key (anything uploaded
+     * or migrated by this artifact) and from the BLOB otherwise. Both paths
+     * answer the same URL with the same ETag, so a client (and the CDN/browser
+     * cache in front of it) cannot tell which one served a given id.
+     */
+    $key = (string) ($thumb ? ($row['thumb_key'] ?? '') : ($row['storage_key'] ?? ''));
+    $fromStorage = $key !== '';
+    $expected = $thumb ? null : (int) $row['size_bytes'];
+
+    if ($fromStorage) {
+        try {
+            $actual = asset_storage()->size($key);
+        } catch (Throwable $e) {
+            /* A misconfigured asset directory is an operator problem, not a
+             * 404: answer cleanly instead of letting the RuntimeException
+             * escape as a stack trace. */
+            error_log('sifpress: asset storage unavailable: ' . $e->getMessage());
+            json_response(['error' => 'asset storage unavailable'], 500);
+        }
+
+        if ($actual === null) {
+            json_response([
+                'error' => 'asset object missing',
+                'asset_id' => $id,
+                'storage_key' => $key,
+            ], 500);
+        }
+
+        if ($expected !== null && $actual !== $expected) {
+            json_response([
+                'error' => 'asset data size mismatch',
+                'asset_id' => $id,
+                'expected_bytes' => $expected,
+                'actual_bytes' => $actual,
+            ], 500);
+        }
+
+        $len = $actual;
+    } elseif (!$thumb && (int) $row['size_bytes'] !== (int) $row['data_length']) {
+        /* Legacy BLOB row: the same integrity check as before. */
         json_response([
             'error' => 'asset data size mismatch',
             'asset_id' => $id,
@@ -325,26 +367,28 @@ function handle_asset(string $method): never
 
     if ($thumb) {
         /*
-         * Thumbnails are tiny (<= 512 KiB) by construction, so loading
-         * the blob into memory is cheap and gives us Content-Length.
+         * Thumbnails are tiny (<= 512 KiB) by construction, so loading the
+         * blob into memory is cheap and gives us Content-Length.
          */
         $stmt = db()->prepare('SELECT thumb, thumb_mime FROM assets WHERE id = ?');
         $stmt->execute([$id]);
         $blob = $stmt->fetch();
 
-        if ($blob === false || $blob['thumb'] === null) {
+        if (!$fromStorage && ($blob === false || $blob['thumb'] === null)) {
             json_response(['error' => 'no thumbnail'], 404);
         }
 
-        $mime = (string) $blob['thumb_mime'];
-        $data = $blob['thumb'];
+        $mime = $fromStorage && (string) $row['thumb_mime'] !== ''
+            ? (string) $row['thumb_mime']
+            : (string) ($blob['thumb_mime'] ?? 'image/webp');
+        $data = $fromStorage ? null : (string) $blob['thumb'];
         $etag = '"asset-' . $id . '-thumb"';
-        $len = strlen($data);
+        $len = $fromStorage ? (int) $len : strlen((string) $data);
     } else {
         /*
-         * Originals can be up to hundreds of MB; stream the blob through
-         * php://output instead of buffering it in memory. Length and the
-         * ETag come from the meta row (blobs are immutable once stored).
+         * Originals can be up to hundreds of MB; stream them out instead of
+         * buffering in memory. Length and the ETag come from the meta row
+         * (assets are immutable once stored).
          */
         $mime = (string) $row['mime'];
         $len = (int) $row['size_bytes'];
@@ -363,9 +407,9 @@ function handle_asset(string $method): never
     header('X-Content-Type-Options: nosniff');
     header('Content-Disposition: inline; filename="' . basename((string) $row['name']) . '"');
 
-    if ($thumb) {
+    if ($thumb && !$fromStorage) {
         header('Content-Length: ' . $len);
-        echo $data;
+        echo (string) $data;
         exit;
     }
 
@@ -391,6 +435,11 @@ function handle_asset(string $method): never
         header('Content-Range: bytes ' . $start . '-' . $end . '/' . $len);
         header('Content-Length: ' . ($end - $start + 1));
 
+        if ($fromStorage) {
+            stream_asset_object($key, $start, $end);
+            exit;
+        }
+
         // substr() on the blob is 1-based and byte-accurate, and cheap for
         // the byte ranges media players actually request.
         $rangeStmt = db()->prepare('SELECT substr(data, ?, ?) FROM assets WHERE id = ?');
@@ -401,6 +450,11 @@ function handle_asset(string $method): never
     }
 
     header('Content-Length: ' . $len);
+
+    if ($fromStorage) {
+        stream_asset_object($key, 0, $len - 1);
+        exit;
+    }
 
     $stmt = db()->prepare('SELECT data FROM assets WHERE id = ?');
     $stmt->bindColumn(1, $stream, PDO::PARAM_LOB);
@@ -415,4 +469,39 @@ function handle_asset(string $method): never
     }
 
     exit;
+}
+
+/**
+ * Stream bytes [$start, $end] of a stored object to the client in chunks.
+ * fpassthru() does the chunking for us and keeps memory flat whatever the
+ * file size, which is the point of moving the bytes out of SQLite.
+ */
+function stream_asset_object(string $key, int $start, int $end): void
+{
+    try {
+        $handle = asset_storage()->open($key, $start);
+    } catch (Throwable $e) {
+        error_log('sifpress: asset storage unavailable: ' . $e->getMessage());
+
+        return;
+    }
+
+    if ($handle === false) {
+        return;
+    }
+
+    $remaining = $end - $start + 1;
+
+    while ($remaining > 0 && !feof($handle)) {
+        $chunk = fread($handle, (int) min(262144, $remaining));
+
+        if ($chunk === false || $chunk === '') {
+            break;
+        }
+
+        echo $chunk;
+        $remaining -= strlen($chunk);
+    }
+
+    fclose($handle);
 }

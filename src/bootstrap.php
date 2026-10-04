@@ -96,6 +96,19 @@ function sifpress_config_template(
 define('SIFPRESS_DB_DIR', %s);
 
 /**
+ * Folder holding uploaded asset bytes (images, videos, thumbnails).
+ *
+ * Each object is one file named `<uuid>.<ext>`, in two levels of fan-out, and
+ * is served through ?p=asset (which enforces is_public and the per-asset
+ * grants) — so this folder MUST stay outside DOCUMENT_ROOT. Leave empty for
+ * the default, <SIFPRESS_DB_DIR>/assets.
+ *
+ * Move it when the DB folder is on small disk, e.g. to a mounted volume:
+ *   define('SIFPRESS_ASSET_DIR', '/mnt/big/sifpress-assets');
+ */
+define('SIFPRESS_ASSET_DIR', '');
+
+/**
  * Admin password for the initial admin account (admin/admin by default).
  * Only used when the users table is empty (first migration).
  * Leave as empty string to use the built-in default.

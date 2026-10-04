@@ -2578,16 +2578,16 @@ function api_assets_create(string $method): never
     /*
      * The optional thumbnail (generated client-side) is stored beside the
      * original. It is tiny (<= ASSET_THUMB_MAX_BYTES), so buffering it is
-     * fine; the original is bound as a stream to keep PHP memory bounded.
+     * fine; both it and the original go through the storage backend, never
+     * into the database.
      */
-    $thumb = null;
+    $thumbKey = null;
     $thumbMime = null;
 
     if (isset($_FILES['thumb']) && $_FILES['thumb']['error'] === UPLOAD_ERR_OK) {
         $thumbSize = (int) filesize($_FILES['thumb']['tmp_name']);
 
         if ($thumbSize > 0 && $thumbSize <= ASSET_THUMB_MAX_BYTES) {
-            $thumb = file_get_contents($_FILES['thumb']['tmp_name']);
             $thumbMime = (string) ($_FILES['thumb']['type'] ?? '');
 
             if ($thumbMime === '' || !str_starts_with($thumbMime, 'image/')) {
@@ -2601,15 +2601,35 @@ function api_assets_create(string $method): never
             if (!str_starts_with($thumbMime, 'image/')) {
                 $thumbMime = 'image/webp';
             }
+
+            [, $thumbKey] = asset_store_file((string) $_FILES['thumb']['tmp_name'], $thumbMime);
         }
     }
 
     $user = current_user();
 
+    /*
+     * Store the original first: the row is only written once the bytes are on
+     * disk, so a failed write leaves no row pointing at a missing object. A
+     * rollback here removes the orphaned object (see assets.gc).
+     */
+    try {
+        [$storage, $storageKey, $etag] = asset_store_file((string) $file['tmp_name'], $mime);
+    } catch (Throwable $e) {
+        if ($thumbKey !== null) {
+            asset_storage()->delete((string) $thumbKey);
+        }
+
+        error_log('sifpress: asset storage failed: ' . $e->getMessage());
+
+        json_response(['error' => 'could not store the uploaded file'], 500);
+    }
+
     $stmt = db()->prepare(
         'INSERT INTO assets (name, mime, kind, size_bytes, width, height, duration,
-                             md5, data, thumb, thumb_mime, uploaded_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                             md5, data, thumb, thumb_mime, uploaded_by,
+                             storage, storage_key, thumb_key, storage_etag)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?)'
     );
     $stmt->bindValue(1, $name);
     $stmt->bindValue(2, $mime);
@@ -2619,10 +2639,12 @@ function api_assets_create(string $method): never
     $stmt->bindValue(6, $height, PDO::PARAM_INT);
     $stmt->bindValue(7, $duration);
     $stmt->bindValue(8, $md5);
-    $stmt->bindValue(9, fopen($file['tmp_name'], 'rb'), PDO::PARAM_LOB);
-    $stmt->bindValue(10, $thumb, $thumb !== null ? PDO::PARAM_LOB : PDO::PARAM_NULL);
-    $stmt->bindValue(11, $thumbMime);
-    $stmt->bindValue(12, $user['id'], PDO::PARAM_INT);
+    $stmt->bindValue(9, $thumbMime);
+    $stmt->bindValue(10, $user['id'], PDO::PARAM_INT);
+    $stmt->bindValue(11, $storage);
+    $stmt->bindValue(12, $storageKey);
+    $stmt->bindValue(13, $thumbKey);
+    $stmt->bindValue(14, $etag);
     $stmt->execute();
 
     $id = (int) db()->lastInsertId();
@@ -2706,7 +2728,24 @@ function api_assets_delete(string $method): never
         json_response(['error' => 'forbidden'], 403);
     }
 
+    /*
+     * The row goes first: the bytes are only reachable through it (the asset
+     * directory lives outside the docroot), so removing the row makes any
+     * leftover object unreachable, and `assets gc` reclaims it. Doing it in
+     * this order means a storage failure can never leave a row whose object
+     * has already vanished.
+     */
     db()->prepare('DELETE FROM assets WHERE id = ?')->execute([(int) $row['id']]);
+
+    foreach ([(string) ($row['storage_key'] ?? ''), (string) ($row['thumb_key'] ?? '')] as $key) {
+        if ($key !== '') {
+            try {
+                asset_storage()->delete($key);
+            } catch (Throwable $e) {
+                error_log('sifpress: could not delete asset object: ' . $e->getMessage());
+            }
+        }
+    }
 
     json_response(['ok' => true]);
 }

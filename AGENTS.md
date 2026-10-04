@@ -38,7 +38,8 @@ php buildfront.php release
 - `build.php` runs `pnpm run build` in `admin_ui/`, inlines the built
   JS/CSS into the HTML, embeds it as `EMBEDDED_HTML`, and assembles the
   PHP fragments from `src/` (in order: `env.php`, `bootstrap.php`, `db.php`,
-  `migration.php`, `auth.php`, `api.php`, `asset.php`, `sifront.php`,
+  `migration.php`, `auth.php`, `api.php`, `storage.php`, `asset.php`,
+  `sifront.php`,
   `spa.php`, `embed.php`, `migrations.php`, `backup.php`, `dev.php`,
   `router.php`)
   into the single artifact. (Plus `update.php`, `demo_page.php`,
@@ -91,11 +92,14 @@ php buildfront.php release
   `SIFPRESS_SESSION_MAX_PER_USER` (5), `SIFPRESS_LOGIN_MAX_FAILURES` (5),
   `SIFPRESS_LOGIN_IP_MAX_FAILURES` (20) and `SIFPRESS_LOGIN_LOCK_WINDOW`
   (900s). Session constants are read from the config at runtime, so changing
-  them needs no rebuild.
+  them needs no rebuild. `SIFPRESS_ASSET_DIR` (default
+  `<SIFPRESS_DB_DIR>/assets`) is the folder holding uploaded asset bytes; it
+  must stay outside `DOCUMENT_ROOT`, and `SIFPRESS_ASSET_BACKEND` (`fs`) picks
+  the storage implementation.
   Env vars (`SIFPRESS_DB_DIR`, `SIFPRESS_ADMIN_PASSWORD`,
   `SIFPRESS_UPDATE_MANIFEST_URL`, `SIFPRESS_BASE_URL`) are still supported as
   fallbacks for backward compatibility.
-- **CLI**: `php sifpress.php [setup|migrate|change_password|sessions|inject_sifront|update_sifront|backup|config|cron|status|version|help]`
+- **CLI**: `php sifpress.php [setup|migrate|change_password|sessions|assets|inject_sifront|update_sifront|backup|config|cron|status|version|help]`
   (default `setup`). `setup` writes `sifpress_config.php` + the DB folder as the
   invoking user — the way to bootstrap when the docroot is not writable by the
   web user; when run as root the created files are chowned to the artifact's
@@ -106,6 +110,13 @@ php buildfront.php release
   `sessions purge` deletes expired sessions and login-attempt rows older than
   30 days (otherwise only swept on sign-in); `sessions revoke <user>` signs
   a user out everywhere — the incident-response lever when no UI is at hand.
+  `assets status` reports where every asset's bytes live (storage vs BLOB, disk
+  bytes, missing objects, orphans); `assets migrate-blobs [--dry-run]
+  [--limit=N] [--keep-blobs=0]` moves legacy BLOB rows into storage;
+  `assets verify [--sample=N]` md5-checks stored objects; `assets gc` deletes
+  objects no row points at. `--keep-blobs` defaults **on** so a rollback to the
+  previous artifact still serves the bytes; clearing them only shrinks the file
+  after a VACUUM.
   `inject_sifront [name]`
   (dev-only) reads the `dist/<name>.{meta.json,bundle.js}` companions and
   upserts + activates that sifront through the normal storage columns.
@@ -116,7 +127,10 @@ php buildfront.php release
   [--keep=N] [--dry-run]` snapshots the DB with `VACUUM INTO` (WAL-safe) and
   tars it to `<SIFPRESS_BACKUP_DIR>/<prefix>-<Ymd-His>.tgz` via the system
   `tar(1)`, then prunes to `SIFPRESS_BACKUP_KEEP` newest; it fails when
-  `SIFPRESS_BACKUP_DIR` is unset. `config [--show-secrets]` lists values and
+  `SIFPRESS_BACKUP_DIR` is unset. The archive holds `sys.db` **plus the asset
+  directory** (under its own name, so restoring is a straight copy back into
+  `SIFPRESS_ASSET_DIR`); `--dry-run` lists both. `config [--show-secrets]` lists
+  values and
   `config --set KEY=VALUE` rewrites `define()` values in place with a
   tokenizer (preserves comments, writes a `.bak`). `cron install|show|remove`
   manages a marked backup block in a user's crontab. `version` prints the
@@ -145,6 +159,12 @@ SIFPRESS_PORT=8080 ./dev.sh
   as `min(desired cap, php ini limits, SQLite SQLITE_MAX_LENGTH)`, so a
   deployment that wants large uploads must raise those values in its own
   php.ini — `post_max_size` truncates the body before any app code runs.
+- dev.sh serves from `dist/` (its own cwd becomes `DOCUMENT_ROOT`, which is what
+  the built-in server actually exposes) and points `SIFPRESS_ASSET_DIR` at
+  `var/sifpress/assets` in the repo (gitignored), persisting it into
+  `dist/sifpress_config.php` so CLI runs and the web server agree on one asset
+  directory. The default `<db_dir>/assets` would sit inside `dist/`, i.e. inside
+  the dev docroot, and the app refuses that.
 
 ## Project layout
 
@@ -159,7 +179,8 @@ src/                PHP source fragments (edit these)
   migration.php     ?p=migration handler (status / run)
   auth.php          sessions, RBAC, page grants
   api.php           JSON API handler
-  asset.php         ?p=asset binary blob serving (assets + thumbnails)
+  storage.php       asset storage interface + filesystem backend (uuid keys)
+  asset.php         ?p=asset binary serving (storage objects + legacy blobs)
   demo_page.php     shared markdown-demo page (virtual page + dev seed)
   seo.php           settings store + sitemap/robots + head meta injection
   tracking.php      analytics tracking head tags
@@ -280,6 +301,27 @@ pnpm-lock.yaml      workspace lockfile
   step is fine (see `0024_sifront_copy_split.sql`, whose work is
   `normalize_sifront_copy_kv()` in `db_migrate_and_seed()`): the SQL file makes
   the runner reach the PHP step on installs whose schema is already current.
+- **Asset bytes live in files, not the DB** (`src/storage.php`). The row keeps
+  owning identity (name, mime, size, md5) and access control (`is_public` +
+  `asset_grants`); only bytes move. `assets.storage` is the backend id (`fs`
+  today), `assets.storage_key` / `thumb_key` the opaque keys, and both are NULL
+  for rows still holding BLOBs — `serve_asset()` reads either source, so old
+  and new artifacts interoperate while `assets migrate-blobs` moves rows.
+  - **Keys**: `ab/cd/<uuid4>.<ext>`, two hex fan-out levels; `ext` comes from
+    the *sniffed* MIME (`ASSET_EXT_FOR_MIME`), never the client filename, and
+    `asset_key_is_valid()` gates every filesystem path against traversal. The
+    directory defaults to `<db_dir>/assets` and **must stay outside
+    `DOCUMENT_ROOT`** — assets are reachable only through `?p=asset`, which
+    enforces the grants. `localPath()` is the seam for an eventual
+    `X-Accel-Redirect` handoff, and `id()` for a future S3 backend.
+  - **Writes**: temp file in `.tmp/` + `rename()` (atomic, never a partial
+    object), md5 recorded as `storage_etag`; the row is written *after* the
+    object exists, and deletes remove the row first so a failure can never
+    strand a live row.
+  - **Serving**: identical contract from either source (ETag `"asset-<id>"`,
+    `Range`/206/416, `Accept-Ranges`, `Content-Disposition`, `nosniff`);
+    storage rows stream through `stream_asset_object()` in 256 KiB chunks, so
+    memory stays flat for hundreds of MB.
 - **Auth**: DB-backed sessions (`sessions` table, hashed tokens) via an
   `HttpOnly; SameSite=Lax` cookie; `password_hash`/`password_verify`.
   - **Lifetime**: two windows — `SESSION_IDLE_TTL` (12h, slides on use via

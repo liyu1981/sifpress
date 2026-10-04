@@ -1,7 +1,11 @@
 # asset-storage-plan.md — move asset bytes out of SQLite behind a storage interface
 
-> Status: **planned** (not implemented). Follow-up to `plan/assets_upload.md`,
-> whose decision 1 explicitly reserved this escape hatch: *"A later
+> Status: **phases 1–4 implemented** (schema `0025`, `AssetStorage` + filesystem
+> backend, dual-read serving, storage-backed uploads, asset-aware backups, plus
+> the `assets` CLI). Phase 5 (clear the BLOBs, then drop the columns) is
+> deliberately deferred to a later release, and phase 6 (chunked resumable
+> upload) is the next slice. Follow-up to `plan/assets_upload.md`, whose
+> decision 1 explicitly reserved this escape hatch: *"A later
 > `storage = 'db' | 'file'` column is the escape hatch (keep `data` nullable)
 > if the DB ever gets unwieldy."* This is that escape hatch, plus chunked
 > resumable upload on top of it.
@@ -298,20 +302,35 @@ Client side (`ui_sdk/src/upload.ts`, new; `assets.ts` keeps thumbnail logic):
 
 ## 7. Sequence (each step is independently shippable)
 
-| # | Step | Ships | Notes |
-|---|---|---|---|
-| 1 | `0025` schema + `AssetStorage`/`FsAssetStorage` + `asset_dir()`/`SIFPRESS_ASSET_DIR` | artifact | bytes still served from BLOBs; nothing reads `storage_key` yet |
-| 2 | Dual-read serving (`storage_key` → file, else BLOB) + `assets.status/migrate-blobs/verify/gc` | artifact + CLI | run the tool; `--keep-blobs` on |
-| 3 | `assets.create` writes bytes through storage for **new** uploads | artifact | from here new assets never touch the DB |
-| 4 | `backup` archives `sys.db` **and** the asset dir | artifact | same tar, one snapshot; restore docs updated |
-| 5 | Second pass: clear `data`/`thumb`, then `0027` drops the columns | artifact | only after step 2 reports `legacy: 0`; this is when the DB actually shrinks (`VACUUM`) |
-| 6 | `0026` + chunked upload API + `ui_sdk/src/upload.ts` + progress UI | artifact + UI | `--keep-blobs=0` can wait for this if video is not the urgent case |
-| 7 | `X-Accel-Redirect` / `X-Sendfile` handoff for playback | artifact | needs operator-side web-server config; opt-in flag |
-| 8 | (future, not designed here) `S3AssetStorage` — `put()` becomes multipart upload, `localPath()` returns null | — | the interface in §3 is the seam; no caller should need to change |
+**Progress**
 
-Deployment order matters for the self-updating artifact: **1 → 2 → 3 → 4 →
-(5) → 6**, never skipping ahead, because a DB with dropped `data` columns is
-unreadable by an older artifact and a new artifact reading old rows is not.
+| # | Step | State |
+|---|---|---|
+| 1 | `0025` schema + `AssetStorage`/`FsAssetStorage` + `asset_dir()`/`SIFPRESS_ASSET_DIR` | **done** (`migrations/0025_asset_storage.sql`, `src/storage.php`) |
+| 2 | Dual-read serving (`storage_key` → file, else BLOB) + `assets` CLI | **done** (`serve_asset()`, `sifpress_cli_assets()`) |
+| 3 | `assets.create` writes bytes through storage for **new** uploads | **done** |
+| 4 | `backup` archives `sys.db` **and** the asset dir | **done** (`backup_tar_sources()`) |
+| 5 | Second pass: clear `data`/`thumb`, then drop the columns | pending — needs `0026`+; `migrate-blobs --keep-blobs=0` is the first half and is tested |
+| 6 | Chunked upload API + client + progress UI | pending — the seam (`AssetObject`, `localPath()`, `id()`) is in place |
+| 7 | `X-Accel-Redirect` / `X-Sendfile` handoff for playback | pending — `localPath()` returns the path it needs |
+| 8 | (future) `S3AssetStorage` | not started |
+
+Two deviations from the original text, both forced by reality:
+
+- **`data`/`thumb` became nullable in `0025`, not in step 5.** Step 3 (new
+  uploads skipping the DB) cannot work while `data` is `NOT NULL`, and SQLite
+  cannot relax that in place, so `0025` rebuilds the table. `DROP TABLE` fires
+  `asset_grants`' `ON DELETE CASCADE`, so the migration copies the grants out to
+  a temp table and writes them back (`defer_foreign_keys` postpones violation
+  checks but does not stop cascade actions — found the hard way).
+- **The archive stores the asset directory under its own name**
+  (`tar -C <parent> <basename>`), not under a hardcoded `assets/`, because
+  `SIFPRESS_ASSET_DIR` can be any path. Restoring is then a straight copy back
+  into the configured directory.
+
+Deployment order still matters: **1 → 2 → 3 → 4 → (5) → 6**, because a DB with
+dropped `data` columns is unreadable by an older artifact while a new artifact
+reading old rows is not.
 
 ---
 

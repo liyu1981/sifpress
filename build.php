@@ -36,6 +36,7 @@ declare(strict_types=1);
  *   src/update.php       ?p=sifpress/update version check / upgrade handler
  *   src/demo_page.php    shared markdown-demo page (virtual + dev seed)
  *   src/api.php          JSON API handler
+ *   src/storage.php      asset storage interface + filesystem backend
  *   src/asset.php        binary asset/avatar/blob serving
  *   src/seo.php          settings store + sitemap/robots + head meta injection
  *   src/spa.php          SPA serving / meta injection
@@ -80,6 +81,7 @@ $parts = [
     'update.php',
     'demo_page.php',
     'api.php',
+    'storage.php',
     'asset.php',
     'sifront.php',
     'seo.php',

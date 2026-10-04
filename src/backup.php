@@ -77,7 +77,8 @@ function db_backup_create(string $dir, string $prefix): array
             throw new RuntimeException('Snapshot failed integrity_check: ' . $integrity);
         }
 
-        db_backup_tar($work, 'sys.db', $tmpArchive);
+        db_backup_tar(backup_tar_sources($work), $tmpArchive);
+        $sources = backup_tar_sources($work);
 
         if (!@rename($tmpArchive, $target)) {
             throw new RuntimeException("Cannot move archive into place: {$target}");
@@ -93,7 +94,29 @@ function db_backup_create(string $dir, string $prefix): array
         sifpress_cli_adopt_owner($target);
     }
 
-    return ['path' => $target, 'name' => $name, 'bytes' => (int) @filesize($target)];
+    return [
+        'path' => $target,
+        'name' => $name,
+        'bytes' => (int) @filesize($target),
+        'assets_included' => count($sources) > 1,
+    ];
+}
+
+/** Total bytes of regular files under a directory (used by backup --dry-run). */
+function backup_dir_bytes(string $dir): int
+{
+    $bytes = 0;
+    $it = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
+    );
+
+    foreach ($it as $file) {
+        if ($file->isFile() && !str_starts_with($file->getPathname(), $dir . '/.tmp/')) {
+            $bytes += (int) $file->getSize();
+        }
+    }
+
+    return $bytes;
 }
 
 /**
@@ -125,23 +148,64 @@ function db_backup_snapshot(string $snapshot): void
 }
 
 /**
- * Create a gzip tar archive holding a single file. `tar -czf` is used so
- * the artifact needs no PHP archive extension.
+ * The entries that go into a backup archive: always the database snapshot,
+ * plus the asset directory when it holds files.
+ *
+ * Asset bytes live outside the database now, so a DB-only archive would
+ * restore into a site with every image and video gone — silently, because the
+ * rows are still there. tar takes one -C per entry, so the two can live in
+ * unrelated directories.
+ *
+ * @return array<int,array{0:string,1:string}> [directory, entry] pairs
  */
-function db_backup_tar(string $dir, string $entry, string $target): void
+function backup_tar_sources(string $snapshotDir): array
+{
+    $sources = [[$snapshotDir, 'sys.db']];
+    $assetDir = function_exists('asset_dir') ? asset_dir() : '';
+
+    if ($assetDir !== '' && is_dir($assetDir)) {
+        $it = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($assetDir, FilesystemIterator::SKIP_DOTS)
+        );
+
+        foreach ($it as $file) {
+            if ($file->isFile() && !str_starts_with($file->getPathname(), $assetDir . '/.tmp/')) {
+                /*
+                 * Archived as the directory itself (tar -C parent name), so a
+                 * restore drops it straight back into SIFPRESS_ASSET_DIR.
+                 */
+                $sources[] = [dirname($assetDir), basename($assetDir)];
+
+                break;
+            }
+        }
+    }
+
+    return $sources;
+}
+
+/**
+ * Create a gzip tar archive holding the database snapshot and, when present,
+ * the asset directory. `tar -czf` is used so the artifact needs no PHP
+ * archive extension.
+ *
+ * @param array<int,array{0:string,1:string}> $sources [directory, entry] pairs
+ */
+function db_backup_tar(array $sources, string $target): void
 {
     if (!function_exists('exec')) {
         throw new RuntimeException('The exec() function is disabled; cannot run tar(1).');
     }
 
+    $command = 'tar -czf ' . escapeshellarg($target);
+
+    foreach ($sources as [$dir, $entry]) {
+        $command .= ' -C ' . escapeshellarg($dir) . ' ' . escapeshellarg($entry);
+    }
+
     $output = [];
     $code = 0;
-    exec(
-        'tar -czf ' . escapeshellarg($target) . ' -C ' . escapeshellarg($dir)
-        . ' ' . escapeshellarg($entry) . ' 2>&1',
-        $output,
-        $code
-    );
+    exec($command . ' 2>&1', $output, $code);
 
     if ($code !== 0 || !is_file($target)) {
         @unlink($target);
@@ -243,6 +307,17 @@ function sifpress_cli_backup(string $configPath, array $options): void
         $existing = count(glob(rtrim($dir, '/\\') . '/' . $prefix . '-*.tgz') ?: []);
         fwrite(STDOUT, "Existing archives: {$existing}\n");
 
+        $assetDir = function_exists('asset_dir') ? asset_dir() : '';
+        $assetBytes = $assetDir !== '' && is_dir($assetDir) ? backup_dir_bytes($assetDir) : 0;
+        fwrite(
+            STDOUT,
+            'Will include:     sys.db'
+                        . ($assetBytes > 0
+                ? ' + ' . basename($assetDir) . '/ (' . human_bytes($assetBytes) . ')'
+                : ' (no asset files)')
+            . "\n"
+        );
+
         return;
     }
 
@@ -259,6 +334,9 @@ function sifpress_cli_backup(string $configPath, array $options): void
     fwrite(
         STDOUT,
         "Backed up to {$result['path']} (" . number_format($result['bytes']) . " bytes)\n"
+        . (($result['assets_included'] ?? false)
+            ? 'Included:          sys.db + ' . basename(asset_dir()) . "/\n"
+            : "Included:          sys.db\n")
     );
 
     if ($removed !== []) {
