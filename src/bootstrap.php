@@ -138,6 +138,37 @@ define('SIFPRESS_BACKUP_KEEP', 90);
  * name, e.g. sifpress-20260921-143000.tgz.
  */
 define('SIFPRESS_BACKUP_PREFIX', '');
+
+/*
+ * Session hardening. These are the defaults; change them only if you have a
+ * reason to (an unusually quiet admin panel, or a stricter compliance rule).
+ *
+ *   SIFPRESS_SESSION_IDLE_TTL     sign out after this many seconds without
+ *                                  any request (the window slides on use).
+ *                                  Default 43200 (12 hours).
+ *   SIFPRESS_SESSION_ABSOLUTE_TTL hard ceiling counted from sign-in; activity
+ *                                  never extends a session past it.
+ *                                  Default 604800 (7 days).
+ *   SIFPRESS_SESSION_MAX_PER_USER how many sessions may be open at once per
+ *                                  user; the oldest are dropped on sign-in.
+ *                                  Default 5.
+ *   SIFPRESS_LOGIN_MAX_FAILURES   failed sign-ins before the account/IP is
+ *                                  locked out. Default 5.
+ *   SIFPRESS_LOGIN_IP_MAX_FAILURES
+ *                                  the same ceiling for the source address,
+ *                                  kept much higher so one person's typos on a
+ *                                  shared NAT cannot lock everyone out.
+ *                                  Default 20.
+ *   SIFPRESS_LOGIN_LOCK_WINDOW    base lockout in seconds; it doubles for
+ *                                  every further burst, capped at 24 hours.
+ *                                  Default 900 (15 minutes).
+ */
+define('SIFPRESS_SESSION_IDLE_TTL', 12 * 3600);
+define('SIFPRESS_SESSION_ABSOLUTE_TTL', 7 * 86400);
+define('SIFPRESS_SESSION_MAX_PER_USER', 5);
+define('SIFPRESS_LOGIN_MAX_FAILURES', 5);
+define('SIFPRESS_LOGIN_IP_MAX_FAILURES', 20);
+define('SIFPRESS_LOGIN_LOCK_WINDOW', 900);
 PHP;
 
     return sprintf(

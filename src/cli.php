@@ -42,6 +42,10 @@ function sifpress_cli(array $argv): never
             sifpress_cli_change_password($configPath, $argv);
             break;
 
+        case 'sessions':
+            sifpress_cli_sessions($configPath, $argv);
+            break;
+
         case 'inject_sifront':
             sifpress_cli_inject_sifront($configPath, $argv);
             break;
@@ -98,6 +102,10 @@ function sifpress_cli_usage(): void
         '  setup            (default) create sifpress_config.php and the DB folder',
         '  migrate          apply pending migrations',
         '  change_password  set a user password: change_password <user> <password>',
+        '  sessions         inspect and manage sign-in sessions:',
+        '                   sessions                  list active sessions',
+        '                   sessions purge            delete expired sessions + old login attempts',
+        '                   sessions revoke <user>   sign a user out everywhere',
         '  inject_sifront   (dev only) push a built sifront into the DB and activate it:',
         '                   inject_sifront [name]   (default: sifpress1)',
         '  update_sifront   install/update a sifront from a .sifront archive:',
@@ -265,9 +273,132 @@ function sifpress_cli_change_password(string $configPath, array $argv): void
         "UPDATE users SET password_hash = ?, must_change_password = 0, updated_at = datetime('now') WHERE id = ?"
     )->execute([password_hash($password, PASSWORD_DEFAULT), (int) $id]);
 
+    /* A CLI reset is the "I was compromised" path: end every live session. */
+    $revoked = revoke_sessions((int) $id);
+
     sifpress_cli_adopt_db();
 
-    fwrite(STDOUT, "Password updated for '{$username}'. Sign in with the new password.\n");
+    fwrite(
+        STDOUT,
+        "Password updated for '{$username}'. Sign in with the new password.\n"
+        . "Revoked {$revoked} active session(s).\n"
+    );
+}
+
+/**
+ * `sessions`: list what is currently signed in, purge the dead rows, or force
+ * a user out everywhere (the incident-response lever when no UI is at hand).
+ */
+function sifpress_cli_sessions(string $configPath, array $argv): void
+{
+    if (!is_file($configPath)) {
+        fwrite(STDERR, 'No config found. Run: php ' . basename(__FILE__) . " setup\n");
+        exit(1);
+    }
+
+    require_once $configPath;
+
+    if (db_needs_migration()) {
+        fwrite(STDERR, 'Database needs migration. Run: php ' . basename(__FILE__) . " migrate\n");
+        exit(1);
+    }
+
+    $action = 'list';
+
+    foreach (array_slice($argv, 2) as $arg) {
+        if (substr($arg, 0, 2) !== '--') {
+            $action = strtolower(trim($arg));
+            break;
+        }
+    }
+
+    if ($action === 'purge') {
+        $expired = (int) db()->query(
+            "SELECT COUNT(*) FROM sessions WHERE expires_at < datetime('now')"
+        )->fetchColumn();
+        $attempts = (int) db()->query(
+            "SELECT COUNT(*) FROM login_attempts WHERE created_at < datetime('now', '-30 days')"
+        )->fetchColumn();
+
+        purge_sessions();
+
+        fwrite(STDOUT, "Purged {$expired} expired session(s) and {$attempts} login attempt row(s).\n");
+
+        return;
+    }
+
+    if ($action === 'revoke') {
+        $username = trim((string) ($argv[3] ?? ''));
+
+        if ($username === '') {
+            fwrite(STDERR, "Usage: php " . basename(__FILE__) . " sessions revoke <user>\n");
+            exit(1);
+        }
+
+        $stmt = db()->prepare('SELECT id FROM users WHERE username = ? OR email = ?');
+        $stmt->execute([$username, $username]);
+        $id = $stmt->fetchColumn();
+
+        if ($id === false) {
+            fwrite(STDERR, "No user found for '{$username}'.\n");
+            exit(1);
+        }
+
+        $revoked = revoke_sessions((int) $id);
+        fwrite(STDOUT, "Revoked {$revoked} session(s) for '{$username}'.\n");
+
+        return;
+    }
+
+    if ($action !== 'list') {
+        fwrite(STDERR, "Unknown sessions action: {$action} (use list, purge or revoke)\n");
+        exit(1);
+    }
+
+    fwrite(STDOUT, sprintf(
+        "Idle timeout: %dh   Absolute lifetime: %dh   Max per user: %d\n\n",
+        intdiv(SESSION_IDLE_TTL, 3600),
+        intdiv(SESSION_ABSOLUTE_TTL, 3600),
+        SESSION_MAX_PER_USER
+    ));
+
+    $rows = db()->query(
+        "SELECT s.user_id, u.username, s.ip, s.created_at, s.last_seen_at, s.expires_at
+           FROM sessions s JOIN users u ON u.id = s.user_id
+          WHERE s.expires_at > datetime('now')
+          ORDER BY s.user_id, datetime(s.last_seen_at) DESC"
+    )->fetchAll();
+
+    if ($rows === []) {
+        fwrite(STDOUT, "No active sessions.\n");
+
+        return;
+    }
+
+    foreach ($rows as $row) {
+        fwrite(STDOUT, sprintf(
+            "#%-4d %-16s %-15s signed in %s  last seen %s  expires %s\n",
+            $row['user_id'],
+            $row['username'],
+            $row['ip'],
+            $row['created_at'],
+            $row['last_seen_at'],
+            $row['expires_at']
+        ));
+    }
+
+    $failed = (int) db()->query(
+        "SELECT COUNT(*) FROM login_attempts WHERE ok = 0 AND created_at > datetime('now', '-24 hours')"
+    )->fetchColumn();
+    $expiredCount = (int) db()->query(
+        "SELECT COUNT(*) FROM sessions WHERE expires_at < datetime('now')"
+    )->fetchColumn();
+
+    fwrite(
+        STDOUT,
+        "\n" . count($rows) . " active session(s), {$expiredCount} expired row(s) pending purge, "
+        . "{$failed} failed sign-in(s) in the last 24h.\n"
+    );
 }
 
 /**

@@ -79,22 +79,35 @@ function cookie_path(): string
  * Look up a session by its raw cookie token. The DB stores only a hash
  * of the token, so a leaked DB cannot mint sessions. Expired and
  * deactivated users never authenticate.
+ *
+ * A live session slides its idle window forward (rate-limited to one write
+ * per hour) and dies at the absolute ceiling no matter how active it is.
  */
 function lookup_session(string $token): ?array
 {
+    $hash = hash('sha256', $token);
+
     $stmt = db()->prepare(
         'SELECT u.id, u.username, u.email, u.name, u.must_change_password,
-                u.is_active, u.created_at, u.updated_at
+                u.is_active, u.created_at, u.updated_at, s.created_at AS session_created_at
            FROM sessions s
            JOIN users u ON u.id = s.user_id
           WHERE s.token_hash = :h
             AND s.expires_at > datetime(\'now\')
             AND u.is_active = 1'
     );
-    $stmt->execute(['h' => hash('sha256', $token)]);
+    $stmt->execute(['h' => $hash]);
     $row = $stmt->fetch();
 
-    return $row === false ? null : $row;
+    if ($row === false) {
+        return null;
+    }
+
+    $sessionCreatedAt = (string) $row['session_created_at'];
+    unset($row['session_created_at']);
+    touch_session($hash, $sessionCreatedAt);
+
+    return $row;
 }
 
 /**
@@ -126,34 +139,308 @@ function require_auth(): array
     return $user;
 }
 
+/*
+ * Session policy. Two independent windows bound a session's life:
+ *
+ *   SESSION_IDLE_TTL     no authenticated request for this long and the
+ *                        session is dead (the window slides on use).
+ *   SESSION_ABSOLUTE_TTL the hard ceiling, counted from sign-in; activity can
+ *                        never push a session past it.
+ *
+ * Plus SESSION_MAX_PER_USER, so a shared or scripted credential cannot
+ * accumulate unbounded sessions. Each value can be overridden from
+ * sifpress_config.php with the matching SIFPRESS_* define.
+ */
+if (!defined('SESSION_IDLE_TTL')) {
+    define('SESSION_IDLE_TTL', max(60, (int) (defined('SIFPRESS_SESSION_IDLE_TTL') ? SIFPRESS_SESSION_IDLE_TTL : 12 * 3600)));
+}
+
+if (!defined('SESSION_ABSOLUTE_TTL')) {
+    define('SESSION_ABSOLUTE_TTL', max(SESSION_IDLE_TTL, (int) (defined('SIFPRESS_SESSION_ABSOLUTE_TTL') ? SIFPRESS_SESSION_ABSOLUTE_TTL : 7 * 86400)));
+}
+
+if (!defined('SESSION_MAX_PER_USER')) {
+    define('SESSION_MAX_PER_USER', max(1, (int) (defined('SIFPRESS_SESSION_MAX_PER_USER') ? SIFPRESS_SESSION_MAX_PER_USER : 5)));
+}
+
+/* The sliding refresh only writes once per session per hour. */
+if (!defined('SESSION_TOUCH_INTERVAL')) {
+    define('SESSION_TOUCH_INTERVAL', 3600);
+}
+
+/*
+ * Login throttle: LOGIN_MAX_FAILURES failures inside LOGIN_LOCK_WINDOW lock the
+ * key out for that window, doubling with every further burst up to
+ * LOGIN_LOCK_MAX. See login_throttle_check().
+ */
+if (!defined('LOGIN_MAX_FAILURES')) {
+    define('LOGIN_MAX_FAILURES', max(1, (int) (defined('SIFPRESS_LOGIN_MAX_FAILURES') ? SIFPRESS_LOGIN_MAX_FAILURES : 5)));
+}
+
+/*
+ * The IP key gets a far higher ceiling than the account key: a shared
+ * connection (office NAT, mobile carrier, a dev machine) would otherwise let
+ * one person's typos lock everyone else out. Spray attacks still hit it.
+ */
+if (!defined('LOGIN_IP_MAX_FAILURES')) {
+    define('LOGIN_IP_MAX_FAILURES', max(LOGIN_MAX_FAILURES, (int) (defined('SIFPRESS_LOGIN_IP_MAX_FAILURES') ? SIFPRESS_LOGIN_IP_MAX_FAILURES : 20)));
+}
+
+if (!defined('LOGIN_LOCK_WINDOW')) {
+    define('LOGIN_LOCK_WINDOW', max(60, (int) (defined('SIFPRESS_LOGIN_LOCK_WINDOW') ? SIFPRESS_LOGIN_LOCK_WINDOW : 900)));
+}
+
+if (!defined('LOGIN_LOCK_MAX')) {
+    define('LOGIN_LOCK_MAX', 86400);
+}
+
+/* How long failed-attempt rows are kept for auditing. */
+if (!defined('LOGIN_ATTEMPT_RETENTION')) {
+    define('LOGIN_ATTEMPT_RETENTION', 30 * 86400);
+}
+
+/*
+ * A real bcrypt hash (default cost) of a random throwaway string.
+ * password_verify() is run against it when the submitted username does not
+ * exist, so a miss costs the same wall-clock time as a wrong password and
+ * cannot be told apart by timing. Keep the cost in step with
+ * PASSWORD_DEFAULT's bcrypt cost, or the two paths diverge again.
+ */
+const AUTH_DUMMY_HASH = '$2y$10$0wHi8AGBbcGNTPUE8Yf3venrwTsinr63jH4R6YNk4C0.dblvkWXCC';
+
+/**
+ * UTC "now" in SQLite's datetime('now') format. Session timestamps are
+ * compared against SQLite's UTC clock, so they must be written in UTC too —
+ * writing them with the local PHP timezone silently extends every session on
+ * a non-UTC host.
+ */
+function sql_now(): string
+{
+    return gmdate('Y-m-d H:i:s');
+}
+
 /**
  * Create a session for the user: random token, hashed in the DB, set as
- * an HttpOnly SameSite=Lax cookie. Opportunistically sweeps expired rows.
+ * an HttpOnly SameSite=Lax cookie. Returns the raw token (the only time it
+ * exists un-hashed) so callers can revoke the session they are replacing.
  */
-function create_session(int $userId): void
+function create_session(int $userId): string
 {
     $token = bin2hex(random_bytes(32));
+    $now = sql_now();
 
     $stmt = db()->prepare(
-        'INSERT INTO sessions (token_hash, user_id, expires_at, ip, user_agent)
-         VALUES (?, ?, ?, ?, ?)'
+        'INSERT INTO sessions (token_hash, user_id, expires_at, created_at, last_seen_at, ip, user_agent)
+         VALUES (?, ?, ?, ?, ?, ?, ?)'
     );
     $stmt->execute([
         hash('sha256', $token),
         $userId,
-        date('Y-m-d H:i:s', time() + 30 * 86400),
+        gmdate('Y-m-d H:i:s', time() + SESSION_IDLE_TTL),
+        $now,
+        $now,
         (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
         substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
     ]);
 
-    db()->exec('DELETE FROM sessions WHERE expires_at < datetime(\'now\')');
+    purge_sessions();
+    prune_user_sessions($userId);
 
     setcookie('session', $token, [
-        'expires' => time() + 30 * 86400,
+        'expires' => time() + SESSION_ABSOLUTE_TTL,
         'path' => cookie_path(),
         'httponly' => true,
         'samesite' => 'Lax',
         'secure' => is_https(),
+    ]);
+
+    return $token;
+}
+
+/**
+ * Delete every session of a user except the one holding $keepToken (pass the
+ * raw cookie value, or null to revoke them all). Used after a password change
+ * so a stolen cookie dies with the password it was issued under.
+ */
+function revoke_sessions(int $userId, ?string $keepToken = null): int
+{
+    $sql = 'DELETE FROM sessions WHERE user_id = ?';
+    $params = [$userId];
+
+    if ($keepToken !== null && $keepToken !== '') {
+        $sql .= ' AND token_hash <> ?';
+        $params[] = hash('sha256', $keepToken);
+    }
+
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+
+    return $stmt->rowCount();
+}
+
+/**
+ * The two throttle keys for a sign-in attempt: the account being targeted and
+ * the source address. Both are checked, so one account cannot be ground down
+ * from many IPs, and one IP cannot spray many accounts. Returns a list of
+ * [sql expression, value, max failures] triples.
+ */
+function login_throttle_keys(string $username, string $ip): array
+{
+    return [
+        ['lower(username)', strtolower($username), LOGIN_MAX_FAILURES],
+        ['ip', $ip, LOGIN_IP_MAX_FAILURES],
+    ];
+}
+
+/**
+ * Throttle state for one key: ['locked' => bool, 'retry_after' => seconds].
+ *
+ * Failures are counted over the last 24 hours, ignoring anything that predates
+ * the last *successful* attempt on the same key (so signing in clears the
+ * slate without erasing the audit rows). Once LOGIN_MAX_FAILURES is reached
+ * the key locks from the start of that burst for LOGIN_LOCK_WINDOW, doubling
+ * for every additional burst of LOGIN_MAX_FAILURES up to LOGIN_LOCK_MAX — a
+ * patient attacker is throttled exponentially instead of retrying forever at
+ * a fixed rate.
+ */
+function login_throttle_state(string $column, string $value, int $maxFailures): array
+{
+    $stmt = db()->prepare(
+        "SELECT COUNT(*) FROM login_attempts
+          WHERE ok = 0 AND {$column} = :value
+            AND created_at > datetime('now', '-24 hours')
+            AND created_at > COALESCE(
+                (SELECT MAX(created_at) FROM login_attempts
+                  WHERE ok = 1 AND {$column} = :value), '')"
+    );
+    $stmt->execute(['value' => $value]);
+    $failures = (int) $stmt->fetchColumn();
+
+    if ($failures < $maxFailures) {
+        return ['locked' => false, 'retry_after' => 0];
+    }
+
+    $bursts = intdiv($failures, $maxFailures) - 1;
+    $lock = min(LOGIN_LOCK_WINDOW * (2 ** $bursts), LOGIN_LOCK_MAX);
+
+    /*
+     * The lock runs from the first failure of the burst that completed the
+     * lockout, so the caller can be told when to retry instead of just "no".
+     */
+    $start = db()->prepare(
+        "SELECT created_at FROM login_attempts
+          WHERE ok = 0 AND {$column} = :value
+          ORDER BY created_at ASC LIMIT 1 OFFSET :skip"
+    );
+    $start->execute(['value' => $value, 'skip' => ($bursts + 1) * $maxFailures - 1]);
+    $first = $start->fetchColumn();
+
+    if ($first === false) {
+        return ['locked' => true, 'retry_after' => $lock];
+    }
+
+    $retry = strtotime((string) $first . ' UTC') + $lock - time();
+
+    return ['locked' => $retry > 0, 'retry_after' => max(0, $retry)];
+}
+
+/**
+ * Whether this sign-in attempt is locked out, taking the worst of the account
+ * and IP keys. Returns ['locked' => bool, 'retry_after' => seconds].
+ */
+function login_throttle_check(string $username, string $ip): array
+{
+    $result = ['locked' => false, 'retry_after' => 0];
+
+    foreach (login_throttle_keys($username, $ip) as [$column, $value, $maxFailures]) {
+        $state = login_throttle_state($column, $value, $maxFailures);
+
+        if ($state['locked']) {
+            $result['locked'] = true;
+            $result['retry_after'] = max($result['retry_after'], $state['retry_after']);
+        }
+    }
+
+    return $result;
+}
+
+/**
+ * Append a sign-in attempt to the audit log. Called for successes too, so the
+ * table is a complete history rather than a failure-only counter.
+ */
+function login_attempt_record(string $username, string $ip, ?int $userId, bool $ok): void
+{
+    db()->prepare(
+        'INSERT INTO login_attempts (username, ip, user_id, ok, user_agent)
+         VALUES (?, ?, ?, ?, ?)'
+    )->execute([
+        substr($username, 0, 255),
+        substr($ip, 0, 255),
+        $userId,
+        $ok ? 1 : 0,
+        substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
+    ]);
+}
+
+/**
+ * Keep only the newest SESSION_MAX_PER_USER sessions of a user, ordered by
+ * recent activity. Runs on sign-in so the cap cannot be exceeded by simply
+ * logging in again.
+ */
+function prune_user_sessions(int $userId): void
+{
+    db()->prepare(
+        "DELETE FROM sessions
+          WHERE user_id = ?
+            AND token_hash NOT IN (
+                SELECT token_hash FROM sessions
+                 WHERE user_id = ?
+                 ORDER BY datetime(last_seen_at) DESC, rowid DESC
+                 LIMIT ?
+            )"
+    )->execute([$userId, $userId, SESSION_MAX_PER_USER]);
+}
+
+/**
+ * Sweep expired sessions and stale login-attempt rows. Cheap enough to run on
+ * every sign-in; the CLI (`sessions --purge`) is there for installs that want
+ * it on a schedule instead.
+ */
+function purge_sessions(): void
+{
+    db()->exec('DELETE FROM sessions WHERE expires_at < datetime(\'now\')');
+    db()->prepare('DELETE FROM login_attempts WHERE created_at < datetime(\'now\', ?)')->execute(['-' . LOGIN_ATTEMPT_RETENTION . ' seconds']);
+}
+
+/**
+ * Slide a session's idle window forward, never past its absolute ceiling.
+ * Called from lookup_session() but rate-limited to one write per session per
+ * SESSION_TOUCH_INTERVAL seconds, so an active editor does not generate a
+ * write on every request.
+ */
+function touch_session(string $tokenHash, string $createdAt): void
+{
+    $now = sql_now();
+    $absolute = gmdate('Y-m-d H:i:s', strtotime($createdAt . ' UTC') + SESSION_ABSOLUTE_TTL);
+
+    /* The absolute ceiling is not sliding: past it the session simply ends. */
+    if ($now >= $absolute) {
+        return;
+    }
+
+    $idleUntil = gmdate('Y-m-d H:i:s', time() + SESSION_IDLE_TTL);
+
+    db()->prepare(
+        'UPDATE sessions
+            SET last_seen_at = :now,
+                expires_at = :expires
+          WHERE token_hash = :hash
+            AND datetime(last_seen_at) <= datetime(:now, \'-' . SESSION_TOUCH_INTERVAL . ' seconds\')
+            AND datetime(last_seen_at) >= datetime(:now, \'-' . SESSION_ABSOLUTE_TTL . ' seconds\')'
+    )->execute([
+        'now' => $now,
+        'expires' => $idleUntil < $absolute ? $idleUntil : $absolute,
+        'hash' => $tokenHash,
     ]);
 }
 

@@ -86,17 +86,27 @@ php buildfront.php release
   See `SIFPRESS_DB_DIR`, `SIFPRESS_ADMIN_PASSWORD`, `SIFPRESS_MANIFEST_URL`,
   `SIFPRESS_BASE_URL`, `SIFPRESS_BACKUP_DIR` (required by `backup`, no
   default), `SIFPRESS_BACKUP_KEEP` (default 90) and `SIFPRESS_BACKUP_PREFIX`
-  (default: artifact name).
+  (default: artifact name), plus the session/throttle knobs
+  `SIFPRESS_SESSION_IDLE_TTL` (12h), `SIFPRESS_SESSION_ABSOLUTE_TTL` (7d),
+  `SIFPRESS_SESSION_MAX_PER_USER` (5), `SIFPRESS_LOGIN_MAX_FAILURES` (5),
+  `SIFPRESS_LOGIN_IP_MAX_FAILURES` (20) and `SIFPRESS_LOGIN_LOCK_WINDOW`
+  (900s). Session constants are read from the config at runtime, so changing
+  them needs no rebuild.
   Env vars (`SIFPRESS_DB_DIR`, `SIFPRESS_ADMIN_PASSWORD`,
   `SIFPRESS_UPDATE_MANIFEST_URL`, `SIFPRESS_BASE_URL`) are still supported as
   fallbacks for backward compatibility.
-- **CLI**: `php sifpress.php [setup|migrate|change_password|inject_sifront|update_sifront|backup|config|cron|status|version|help]`
+- **CLI**: `php sifpress.php [setup|migrate|change_password|sessions|inject_sifront|update_sifront|backup|config|cron|status|version|help]`
   (default `setup`). `setup` writes `sifpress_config.php` + the DB folder as the
   invoking user — the way to bootstrap when the docroot is not writable by the
   web user; when run as root the created files are chowned to the artifact's
   owner. `migrate` applies pending migrations + seeds (same as the web
   `?p=sifpress/migration&action=run`). `change_password <user> <password>` sets
-  a password and clears `must_change_password`. `inject_sifront [name]`
+  a password and clears `must_change_password` (and revokes every session of
+  that user). `sessions` prints the effective policy + the live sessions;
+  `sessions purge` deletes expired sessions and login-attempt rows older than
+  30 days (otherwise only swept on sign-in); `sessions revoke <user>` signs
+  a user out everywhere — the incident-response lever when no UI is at hand.
+  `inject_sifront [name]`
   (dev-only) reads the `dist/<name>.{meta.json,bundle.js}` companions and
   upserts + activates that sifront through the normal storage columns.
   `update_sifront <file.sifront> [--name=NAME] [--activate]` extracts a real
@@ -234,6 +244,26 @@ pnpm-lock.yaml      workspace lockfile
   `BEGIN IMMEDIATE` transaction).
 - **Auth**: DB-backed sessions (`sessions` table, hashed tokens) via an
   `HttpOnly; SameSite=Lax` cookie; `password_hash`/`password_verify`.
+  - **Lifetime**: two windows — `SESSION_IDLE_TTL` (12h, slides on use via
+    `touch_session()`, rate-limited to one write per hour) and
+    `SESSION_ABSOLUTE_TTL` (7d from sign-in, never extended past).
+    `lookup_session()` enforces both; timestamps are written with `gmdate()`
+    because they are compared against SQLite's UTC clock.
+    `SESSION_MAX_PER_USER` (5) is enforced by `prune_user_sessions()` on
+    sign-in; `purge_sessions()` sweeps expired rows.
+  - **Revocation**: a password change rotates the current token and drops all
+    other sessions (`revoke_sessions()`); `users.update` with a password or
+    `is_active: 0` drops them too, as does CLI `change_password` /
+    `sessions revoke`.
+  - **Login throttle**: `login_attempts` (migration `0023`) logs every attempt
+    (successes included, so the table is a real audit trail).
+    `login_throttle_check()` locks per account *and* per IP — 5 failures
+    (20 for the IP key) inside the window returns `429` + `Retry-After`, with
+    the lock doubling per further burst up to 24h. A success resets the
+    counter (failures older than the last success don't count) without
+    deleting audit rows. Unknown usernames still run `password_verify()`
+    against `AUTH_DUMMY_HASH` (same bcrypt cost) so timing can't enumerate
+    accounts; successful logins rehash when `password_needs_rehash()`.
 - **RBAC**: roles ⇄ permissions (`admin`/`editor`/`viewer` seeded
   idempotently); helpers `can()`, `require_permission()`, `is_admin()`.
 - **Page ownership**: editing needs `pages.write` AND (author OR a

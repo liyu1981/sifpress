@@ -459,6 +459,17 @@ function api_auth_login(string $method): never
         json_response(['error' => 'username and password are required'], 422);
     }
 
+    $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    $throttle = login_throttle_check($username, $ip);
+
+    if ($throttle['locked']) {
+        header('Retry-After: ' . $throttle['retry_after']);
+        json_response([
+            'error' => 'too many failed sign-in attempts, try again later',
+            'retry_after' => $throttle['retry_after'],
+        ], 429);
+    }
+
     /*
      * Username or email both sign in; the address can be used as the
      * login credential. Collisions between the two namespaces are
@@ -470,14 +481,33 @@ function api_auth_login(string $method): never
     $stmt->execute(['u' => $username]);
     $row = $stmt->fetch();
 
-    if ($row === false
-        || $row['username'] === '_guest_'
-        || !password_verify($password, $row['password_hash'])) {
+    $userId = $row === false ? null : (int) $row['id'];
+
+    /*
+     * Verify against a throwaway hash when the account does not exist (or is
+     * the guest), so an unknown username costs the same wall-clock time as a
+     * wrong password and cannot be told apart by timing.
+     */
+    $hash = $row === false || $row['username'] === '_guest_'
+        ? AUTH_DUMMY_HASH
+        : (string) $row['password_hash'];
+
+    $valid = password_verify($password, $hash);
+
+    if (!$valid || $row === false || $row['username'] === '_guest_') {
+        login_attempt_record($username, $ip, $userId, false);
         json_response(['error' => 'invalid credentials'], 401);
     }
 
-    create_session((int) $row['id']);
-    json_response(['user' => user_payload((int) $row['id'])]);
+    /* Transparently upgrade the stored hash when PHP's default has moved on. */
+    if (password_needs_rehash($hash, PASSWORD_DEFAULT)) {
+        db()->prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+            ->execute([password_hash($password, PASSWORD_DEFAULT), $userId]);
+    }
+
+    login_attempt_record($username, $ip, $userId, true);
+    create_session($userId);
+    json_response(['user' => user_payload($userId)]);
 }
 
 function api_auth_logout(string $method): never
@@ -536,6 +566,15 @@ function api_auth_change_password(string $method): never
           WHERE id = ?'
     );
     $stmt->execute([password_hash($newPassword, PASSWORD_DEFAULT), $user['id']]);
+
+    /*
+     * Rotate this session's token and drop every other one: a password change
+     * is the standard response to "I think I'm compromised", so it has to
+     * actually kick out whoever else holds a cookie. The current device keeps
+     * working with its fresh token.
+     */
+    $token = create_session((int) $user['id']);
+    revoke_sessions((int) $user['id'], $token);
 
     json_response(['ok' => true]);
 }
@@ -2076,6 +2115,8 @@ function api_users_update(string $method): never
     $sets = [];
     $params = [];
     $errors = [];
+    $passwordChanged = false;
+    $deactivated = false;
 
     if (array_key_exists('name', $body)) {
         $sets[] = 'name = :name';
@@ -2104,12 +2145,14 @@ function api_users_update(string $method): never
         } else {
             $sets[] = 'password_hash = :password';
             $params['password'] = password_hash((string) $body['password'], PASSWORD_DEFAULT);
+            $passwordChanged = true;
         }
     }
 
     if (array_key_exists('is_active', $body)) {
         $sets[] = 'is_active = :is_active';
         $params['is_active'] = (int) (bool) $body['is_active'];
+        $deactivated = $params['is_active'] === 0;
     }
 
     if ($errors !== []) {
@@ -2121,6 +2164,19 @@ function api_users_update(string $method): never
         $params['id'] = $id;
         db()->prepare('UPDATE users SET ' . implode(', ', $sets) . ' WHERE id = :id')
             ->execute($params);
+    }
+
+    /*
+     * An admin-set password must not leave the old sessions alive: revoke them
+     * all, including the admin's own if they just reset their own account.
+     */
+    if ($passwordChanged) {
+        revoke_sessions($id);
+    }
+
+    /* Deactivation already blocks the session in lookup_session(); drop the rows. */
+    if ($deactivated) {
+        revoke_sessions($id);
     }
 
     json_response(['user' => user_payload($id)]);
