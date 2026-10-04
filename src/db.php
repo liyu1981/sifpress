@@ -139,9 +139,125 @@ function db_migrate_and_seed(): array
     seed_default_admin();
     seed_favicon();
     seed_default_sifront();
-    normalize_sifront_copy_kv();
+    db_housekeeping();
 
     return $applied;
+}
+
+/**
+ * Idempotent data steps that are code, not SQL (see the marker migrations that
+ * reach them): normalizing pre-split theme keys and dropping the asset BLOB
+ * columns once they are empty. Run on every `migrate`, including when no
+ * migration was pending — an operator who just finished `assets
+ * migrate-blobs` should not need a new release to complete the cleanup.
+ */
+function db_housekeeping(): void
+{
+    normalize_sifront_copy_kv();
+    drop_legacy_asset_blob_columns();
+}
+
+/**
+ * Status of the phase-5 cleanup, for the CLI and `assets status` to report.
+ * Pass an array to record the outcome of drop_legacy_asset_blob_columns().
+ *
+ * @param array{dropped:bool, reason:string, remaining:array<int,string>}|null $set
+ *
+ * @return array{dropped:bool, reason:string, remaining:array<int,string>}
+ */
+function asset_blob_column_status(?array $set = null): array
+{
+    static $status = null;
+
+    if ($set !== null) {
+        $status = $set;
+    }
+
+    return $status ?? [
+        'dropped' => false,
+        'reason' => 'not run yet',
+        'remaining' => asset_blob_columns(),
+    ];
+}
+
+/**
+ * Drop `assets.data` and `assets.thumb` once they are empty (phase 5 of
+ * plan/asset-storage-plan.md).
+ *
+ * Two guards, both deliberate:
+ *
+ * - **Never while a row still holds bytes.** A deployment that has not run
+ *   `assets migrate-blobs` would lose every unmigrated asset the instant the
+ *   column went away, so that case reports what to do and leaves the schema
+ *   alone.
+ * - **Only on SQLite >= 3.35**, which is when ALTER TABLE ... DROP COLUMN
+ *   appeared. Older hosts keep two empty nullable columns; that costs nothing
+ *   and is reported rather than silently ignored.
+ *
+ * `thumb_mime` stays: it describes the stored thumbnail, not a blob.
+ *
+ * @return array{dropped:bool, reason:string, remaining:array<int,string>}
+ */
+function drop_legacy_asset_blob_columns(): array
+{
+    $remaining = asset_blob_columns();
+
+    if ($remaining === []) {
+        return asset_blob_column_status();
+    }
+
+    $record = static fn (string $reason): array => asset_blob_column_status([
+        'dropped' => false,
+        'reason' => $reason,
+        'remaining' => $remaining,
+    ]);
+
+    $legacyRows = (int) db()->query(
+        'SELECT COUNT(*) FROM assets WHERE storage_key IS NULL OR storage_key = \'\''
+    )->fetchColumn();
+
+    if ($legacyRows > 0) {
+        return $record(
+            $legacyRows . ' row(s) still have no stored object; run `assets migrate-blobs` first'
+        );
+    }
+
+    $version = (string) db()->query('SELECT sqlite_version()')->fetchColumn();
+
+    if (version_compare($version, '3.35.0', '<')) {
+        return $record(
+            'SQLite ' . $version . ' predates ALTER TABLE DROP COLUMN (3.35); the empty columns stay'
+        );
+    }
+
+    $pdo = db();
+    $own = !$pdo->inTransaction();
+
+    if ($own) {
+        $pdo->beginTransaction();
+    }
+
+    try {
+        foreach ($remaining as $column) {
+            $pdo->exec('ALTER TABLE assets DROP COLUMN ' . $column);
+        }
+
+        if ($own) {
+            $pdo->commit();
+        }
+    } catch (Throwable $e) {
+        if ($own && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return $record('could not drop the columns: ' . $e->getMessage());
+    }
+
+    return asset_blob_column_status([
+        'dropped' => true,
+        'reason' => 'dropped ' . implode(', ', $remaining),
+        'remaining' => [],
+    ]);
 }
 
 /**
@@ -375,25 +491,69 @@ function seed_favicon(): void
     $check = $pdo->query("SELECT value FROM settings WHERE key = 'favicon_asset_id'")->fetch();
     $existingId = ($check !== false && (string) $check['value'] !== '') ? (int) $check['value'] : 0;
 
+    /*
+     * The favicon is an asset like any other, so it goes through the storage
+     * backend rather than into a BLOB: a seeded BLOB row would count as legacy
+     * and keep the `data` column alive forever (phase 5 of
+     * plan/asset-storage-plan.md).
+     */
+    $current = null;
+
     if ($existingId > 0) {
-        $row = $pdo->prepare('SELECT data FROM assets WHERE id = ?');
+        $row = $pdo->prepare('SELECT storage_key, storage FROM assets WHERE id = ?');
         $row->execute([$existingId]);
-        $current = $row->fetchColumn();
+        $asset = $row->fetch();
 
-        if ($current !== false && $current === $svg) {
-            return;
+        if ($asset !== false) {
+            $key = (string) ($asset['storage_key'] ?? '');
+
+            if ($key !== '') {
+                $path = asset_storage()->localPath($key);
+                $current = $path !== null && is_file($path) ? (string) file_get_contents($path) : null;
+            } elseif (asset_column_exists('data')) {
+                $row = $pdo->prepare('SELECT data FROM assets WHERE id = ?');
+                $row->execute([$existingId]);
+                $blob = $row->fetchColumn();
+                $current = $blob === false ? null : (string) $blob;
+            }
         }
+    }
 
+    if ($existingId > 0 && $current === $svg) {
+        return;
+    }
+
+    /* Storage takes a path, so stage the SVG through a temp file. */
+    $tmp = tempnam(sys_get_temp_dir(), 'sifpress-favicon-');
+
+    if ($tmp === false) {
+        throw new RuntimeException('Cannot create a temp file for the favicon.');
+    }
+
+    try {
+        file_put_contents($tmp, $svg);
+        [$storage, $key, $etag] = asset_store_file($tmp, 'image/svg+xml');
+    } finally {
+        @unlink($tmp);
+    }
+
+    /* Clear the legacy BLOB when the column still exists, so the row counts as
+     * migrated and the cleanup can drop it. */
+    $legacy = asset_column_exists('data') ? ', data = NULL' : '';
+
+    if ($existingId > 0) {
         $stmt = $pdo->prepare(
-            'UPDATE assets SET data = ?, size_bytes = ?, name = ?, mime = ? WHERE id = ?'
+            'UPDATE assets SET size_bytes = ?, name = ?, mime = ?, storage = ?, storage_key = ?,'
+            . ' storage_etag = ?, thumb_key = NULL' . $legacy . ' WHERE id = ?'
         );
-        $stmt->execute([$svg, strlen($svg), 'default-favicon.svg', 'image/svg+xml', $existingId]);
+        $stmt->execute([strlen($svg), 'default-favicon.svg', 'image/svg+xml', $storage, $key, $etag, $existingId]);
         $id = $existingId;
     } else {
         $stmt = $pdo->prepare(
-            'INSERT INTO assets (name, mime, kind, size_bytes, data, is_public) VALUES (?, ?, ?, ?, ?, 1)'
+            'INSERT INTO assets (name, mime, kind, size_bytes, data, is_public, storage, storage_key, storage_etag)'
+            . ' VALUES (?, ?, ?, ?, NULL, 1, ?, ?, ?)'
         );
-        $stmt->execute(['default-favicon.svg', 'image/svg+xml', 'image', strlen($svg), $svg]);
+        $stmt->execute(['default-favicon.svg', 'image/svg+xml', 'image', strlen($svg), $storage, $key, $etag]);
         $id = (int) $pdo->lastInsertId();
 
         $pdo->prepare("UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'favicon_asset_id'")

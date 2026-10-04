@@ -2625,12 +2625,13 @@ function api_assets_create(string $method): never
         json_response(['error' => 'could not store the uploaded file'], 500);
     }
 
-    $stmt = db()->prepare(
-        'INSERT INTO assets (name, mime, kind, size_bytes, width, height, duration,
-                             md5, data, thumb, thumb_mime, uploaded_by,
-                             storage, storage_key, thumb_key, storage_etag)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?)'
-    );
+    /*
+     * Build the INSERT from the columns this database actually has: `data` and
+     * `thumb` are dropped once every asset lives in storage (phase 5 of
+     * plan/asset-storage-plan.md). New rows never fill them anyway, so they are
+     * written as NULL while they exist.
+     */
+    $stmt = db()->prepare(asset_insert_sql());
     $stmt->bindValue(1, $name);
     $stmt->bindValue(2, $mime);
     $stmt->bindValue(3, $kind);
@@ -2639,12 +2640,15 @@ function api_assets_create(string $method): never
     $stmt->bindValue(6, $height, PDO::PARAM_INT);
     $stmt->bindValue(7, $duration);
     $stmt->bindValue(8, $md5);
-    $stmt->bindValue(9, $thumbMime);
-    $stmt->bindValue(10, $user['id'], PDO::PARAM_INT);
-    $stmt->bindValue(11, $storage);
-    $stmt->bindValue(12, $storageKey);
-    $stmt->bindValue(13, $thumbKey);
-    $stmt->bindValue(14, $etag);
+    /* The legacy columns are literal NULLs, so they take no parameter: the
+     * first one after md5 is number 9 either way. */
+    $at = 9;
+    $stmt->bindValue($at, $thumbMime);
+    $stmt->bindValue($at + 1, $user['id'], PDO::PARAM_INT);
+    $stmt->bindValue($at + 2, $storage);
+    $stmt->bindValue($at + 3, $storageKey);
+    $stmt->bindValue($at + 4, $thumbKey);
+    $stmt->bindValue($at + 5, $etag);
     $stmt->execute();
 
     $id = (int) db()->lastInsertId();
@@ -3136,12 +3140,7 @@ function api_assets_upload_complete(string $method): never
      * The row is written after the object exists. A failure here leaves an
      * orphan, which `assets gc` reclaims; the reverse order could not.
      */
-    $stmt = db()->prepare(
-        'INSERT INTO assets (name, mime, kind, size_bytes, width, height, duration,
-                             md5, data, thumb, thumb_mime, uploaded_by,
-                             storage, storage_key, thumb_key, storage_etag)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?)'
-    );
+    $stmt = db()->prepare(asset_insert_sql());
     $stmt->bindValue(1, (string) $row['name']);
     $stmt->bindValue(2, $mime);
     $stmt->bindValue(3, $kind);
@@ -3150,12 +3149,15 @@ function api_assets_upload_complete(string $method): never
     $stmt->bindValue(6, $row['height'] !== null ? (int) $row['height'] : null, PDO::PARAM_INT);
     $stmt->bindValue(7, $row['duration'] !== null ? (float) $row['duration'] : null);
     $stmt->bindValue(8, $md5);
-    $stmt->bindValue(9, $thumbMime);
-    $stmt->bindValue(10, $user['id'], PDO::PARAM_INT);
-    $stmt->bindValue(11, $storage);
-    $stmt->bindValue(12, $storageKey);
-    $stmt->bindValue(13, $thumbKey);
-    $stmt->bindValue(14, $etag);
+    /* The legacy columns are literal NULLs, so they take no parameter: the
+     * first one after md5 is number 9 either way. */
+    $at = 9;
+    $stmt->bindValue($at, $thumbMime);
+    $stmt->bindValue($at + 1, $user['id'], PDO::PARAM_INT);
+    $stmt->bindValue($at + 2, $storage);
+    $stmt->bindValue($at + 3, $storageKey);
+    $stmt->bindValue($at + 4, $thumbKey);
+    $stmt->bindValue($at + 5, $etag);
     $stmt->execute();
 
     $id = (int) db()->lastInsertId();

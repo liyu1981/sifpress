@@ -310,11 +310,22 @@ function handle_asset(string $method): never
         json_response(['error' => 'asset not found'], 404);
     }
 
+    /*
+     * `length(data)`/`length(thumb)` only exist while the legacy BLOB columns
+     * do; once every row points at stored bytes they are dropped (see
+     * drop_legacy_asset_blob_columns()), so ask instead of assuming.
+     */
+    $lengths = [];
+
+    foreach (asset_blob_columns() as $column) {
+        $lengths[] = "length({$column}) AS {$column}_length";
+    }
+
     $stmt = db()->prepare(
-        'SELECT id, name, mime, size_bytes, length(data) AS data_length,
-                length(thumb) AS thumb_length, thumb_mime, is_public, uploaded_by,
-                storage, storage_key, thumb_key, storage_etag
-           FROM assets WHERE id = ?'
+        'SELECT id, name, mime, size_bytes, thumb_mime, is_public, uploaded_by,
+                storage, storage_key, thumb_key, storage_etag'
+        . ($lengths === [] ? '' : ', ' . implode(', ', $lengths))
+        . ' FROM assets WHERE id = ?'
     );
     $stmt->execute([$id]);
     $row = $stmt->fetch();
@@ -368,33 +379,42 @@ function handle_asset(string $method): never
         }
 
         $len = $actual;
-    } elseif (!$thumb && (int) $row['size_bytes'] !== (int) $row['data_length']) {
+    } elseif (
+        !$thumb
+        && asset_column_exists('data')
+        && (int) $row['size_bytes'] !== (int) ($row['data_length'] ?? -1)
+    ) {
         /* Legacy BLOB row: the same integrity check as before. */
         json_response([
             'error' => 'asset data size mismatch',
             'asset_id' => $id,
             'expected_bytes' => (int) $row['size_bytes'],
-            'actual_bytes' => (int) $row['data_length'],
+            'actual_bytes' => (int) ($row['data_length'] ?? -1),
         ], 500);
     }
 
     if ($thumb) {
         /*
-         * Thumbnails are tiny (<= 512 KiB) by construction, so loading the
-         * blob into memory is cheap and gives us Content-Length.
+         * Thumbnails are tiny (<= 512 KiB) by construction, so loading a legacy
+         * blob into memory is cheap and gives us Content-Length; a stored one is
+         * streamed like any other object.
          */
-        $stmt = db()->prepare('SELECT thumb, thumb_mime FROM assets WHERE id = ?');
-        $stmt->execute([$id]);
-        $blob = $stmt->fetch();
+        $blob = null;
 
-        if (!$fromStorage && ($blob === false || $blob['thumb'] === null)) {
-            json_response(['error' => 'no thumbnail'], 404);
+        if (!$fromStorage) {
+            $stmt = db()->prepare('SELECT thumb, thumb_mime FROM assets WHERE id = ?');
+            $stmt->execute([$id]);
+            $blob = $stmt->fetch();
+
+            if ($blob === false || $blob['thumb'] === null) {
+                json_response(['error' => 'no thumbnail'], 404);
+            }
         }
 
         $mime = $fromStorage && (string) $row['thumb_mime'] !== ''
             ? (string) $row['thumb_mime']
             : (string) ($blob['thumb_mime'] ?? 'image/webp');
-        $data = $fromStorage ? null : (string) $blob['thumb'];
+        $data = ($fromStorage || $blob === null) ? null : (string) $blob['thumb'];
         $etag = '"asset-' . $id . '-thumb"';
         $len = $fromStorage ? (int) $len : strlen((string) $data);
     } else {

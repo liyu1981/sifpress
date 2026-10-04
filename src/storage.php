@@ -393,6 +393,75 @@ function asset_upload_purge_expired(int $limit = 20): int
     return count($ids);
 }
 
+/**
+ * Columns of the `assets` table, cached per request.
+ *
+ * `data` and `thumb` are dropped once every row points at stored bytes (see
+ * drop_legacy_asset_blob_columns() in db.php), so every query that names them
+ * has to ask first instead of assuming they exist.
+ *
+ * @return array<int,string> column names
+ */
+function asset_columns(): array
+{
+    static $columns = null;
+
+    if ($columns === null) {
+        $columns = [];
+
+        foreach (db()->query('PRAGMA table_info(assets)') as $row) {
+            $columns[] = (string) $row['name'];
+        }
+    }
+
+    return $columns;
+}
+
+function asset_column_exists(string $column): bool
+{
+    return in_array($column, asset_columns(), true);
+}
+
+/** The legacy BLOB columns still present, e.g. ['data', 'thumb']. */
+function asset_blob_columns(): array
+{
+    return array_values(array_filter(
+        ['data', 'thumb'],
+        static fn (string $column): bool => asset_column_exists($column)
+    ));
+}
+
+/** How many of those columns exist — they sit between `md5` and `thumb_mime`. */
+function asset_blob_column_count(): int
+{
+    return count(asset_blob_columns());
+}
+
+/**
+ * The INSERT used by both upload paths, built from the columns this database
+ * still has. Parameter order:
+ *
+ *   1 name  2 mime  3 kind  4 size_bytes  5 width  6 height  7 duration
+ *   8 md5  [data] [thumb]  then thumb_mime, uploaded_by, storage,
+ *   storage_key, thumb_key, storage_etag
+ *
+ * The legacy columns are written as NULL: new assets never carry bytes in the
+ * database, and they disappear in phase 5 of plan/asset-storage-plan.md.
+ */
+function asset_insert_sql(): string
+{
+    $sql = 'INSERT INTO assets (name, mime, kind, size_bytes, width, height, duration, md5';
+    $blanks = '';
+
+    foreach (asset_blob_columns() as $column) {
+        $sql .= ", {$column}";
+        $blanks .= ', NULL';
+    }
+
+    return $sql . ', thumb_mime, uploaded_by, storage, storage_key, thumb_key, storage_etag)'
+        . ' VALUES (?, ?, ?, ?, ?, ?, ?, ?' . $blanks . ', ?, ?, ?, ?, ?, ?)';
+}
+
 /* ------------------------------------------------------------------ */
 /* Wiring                                                             */
 /* ------------------------------------------------------------------ */

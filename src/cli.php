@@ -220,17 +220,35 @@ function sifpress_cli_migrate(string $configPath): void
 
     if (!db_needs_migration()) {
         fwrite(STDOUT, 'Database is up to date (' . count(db_version()['applied']) . " migrations).\n");
+
+        /*
+         * Nothing to apply, but the code-side steps still have to run: an
+         * operator who just finished `assets migrate-blobs` wants the columns
+         * dropped now, not after the next release.
+         */
+        db_housekeeping();
+        $cleanup = asset_blob_column_status();
+
+        if ($cleanup['reason'] !== 'not run yet') {
+            fwrite(STDOUT, 'Asset cleanup: ' . $cleanup['reason'] . "\n");
+        }
+
         sifpress_cli_adopt_db();
 
         return;
     }
 
     $applied = db_migrate_and_seed();
+    $cleanup = asset_blob_column_status();
 
     fwrite(STDOUT, 'Applied ' . count($applied) . " migration(s):\n");
 
     foreach ($applied as $version) {
         fwrite(STDOUT, "  - {$version}\n");
+    }
+
+    if ($cleanup['reason'] !== 'not run yet') {
+        fwrite(STDOUT, 'Asset cleanup: ' . $cleanup['reason'] . "\n");
     }
 
     sifpress_cli_adopt_db();
@@ -1035,13 +1053,17 @@ function cli_assets_usage(string $action): void
 /** Bytes still living in the database, and bytes already in storage. */
 function cli_assets_totals(): array
 {
+    /* `length(data)`/`length(thumb)` disappear with the columns themselves. */
+    $hasData = asset_column_exists('data');
+    $hasThumb = asset_column_exists('thumb');
+
     $row = db()->query(
         "SELECT COUNT(*) AS total,
                 SUM(CASE WHEN storage_key IS NULL THEN 1 ELSE 0 END) AS legacy,
-                SUM(CASE WHEN storage_key IS NOT NULL THEN 1 ELSE 0 END) AS stored,
-                COALESCE(SUM(length(data)), 0) AS blob_bytes,
-                COALESCE(SUM(length(thumb)), 0) AS thumb_bytes,
-                COALESCE(SUM(CASE WHEN storage_key IS NULL THEN size_bytes ELSE 0 END), 0) AS pending_bytes
+                SUM(CASE WHEN storage_key IS NOT NULL THEN 1 ELSE 0 END) AS stored,"
+        . ($hasData ? ' COALESCE(SUM(length(data)), 0) AS blob_bytes,' : ' 0 AS blob_bytes,')
+        . ($hasThumb ? ' COALESCE(SUM(length(thumb)), 0) AS thumb_bytes,' : ' 0 AS thumb_bytes,')
+        . " COALESCE(SUM(CASE WHEN storage_key IS NULL THEN size_bytes ELSE 0 END), 0) AS pending_bytes
            FROM assets"
     )->fetch();
 
@@ -1173,11 +1195,29 @@ function cli_assets_status(): void
         }
     }
 
+    $blobColumns = asset_blob_columns();
+    $cleanup = asset_blob_column_status();
+
+    fwrite(
+        STDOUT,
+        'Legacy columns : '
+        . ($blobColumns === [] ? 'dropped' : implode(', ', $blobColumns))
+        . ($cleanup['reason'] === 'not run yet' ? '' : '  (' . $cleanup['reason'] . ')')
+        . "\n"
+    );
+
     if ($totals['legacy'] > 0) {
         fwrite(
             STDOUT,
             "\n" . $totals['legacy'] . " legacy row(s) still store bytes in the database.\n"
             . 'Move them with: php ' . basename(__FILE__) . " assets migrate-blobs\n"
+        );
+    } elseif ($blobColumns !== []) {
+        fwrite(
+            STDOUT,
+            "\nEvery row points at stored bytes. Reclaim the space and drop the empty columns with:\n"
+            . '  php ' . basename(__FILE__) . " assets migrate-blobs --keep-blobs=0\n"
+            . "  php " . basename(__FILE__) . " migrate   # drops data/thumb once they are empty\n"
         );
     }
 }
@@ -1196,8 +1236,18 @@ function cli_assets_migrate(array $options): void
 
     $totals = cli_assets_totals();
 
+    if (!asset_column_exists('data')) {
+        fwrite(STDOUT, "Nothing to migrate: the legacy BLOB columns have already been dropped.\n");
+
+        return;
+    }
+
     if ($totals['legacy'] === 0) {
         fwrite(STDOUT, "Nothing to migrate: every row already points at stored bytes.\n");
+        fwrite(
+            STDOUT,
+            "Finish the move with: php " . basename(__FILE__) . " assets migrate-blobs --keep-blobs=0\n"
+        );
 
         return;
     }

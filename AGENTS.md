@@ -114,7 +114,9 @@ php buildfront.php release
   bytes, missing objects, orphans); `assets migrate-blobs [--dry-run]
   [--limit=N] [--keep-blobs=0]` moves legacy BLOB rows into storage;
   `assets verify [--sample=N]` md5-checks stored objects; `assets gc` deletes
-  objects no row points at and sweeps expired chunked uploads. `--keep-blobs` defaults **on** so a rollback to the
+  objects no row points at and sweeps expired chunked uploads. `migrate` also
+  runs `db_housekeeping()` on its "already up to date" path, so finishing
+  `migrate-blobs` is immediately followed by the column cleanup. `--keep-blobs` defaults **on** so a rollback to the
   previous artifact still serves the bytes; clearing them only shrinks the file
   after a VACUUM.
   `inject_sifront [name]`
@@ -346,6 +348,16 @@ pnpm-lock.yaml      workspace lockfile
     `Range`/206/416, `Accept-Ranges`, `Content-Disposition`, `nosniff`);
     storage rows stream through `stream_asset_object()` in 256 KiB chunks, so
     memory stays flat for hundreds of MB.
+  - **Phase 5 cleanup**: `drop_legacy_asset_blob_columns()` (from
+    `db_housekeeping()`) drops `assets.data`/`assets.thumb` once every row has a
+    stored object, and refuses while any row is unmigrated — an unmigrated
+    install would lose every asset the instant the column went away. SQLite
+    needs >= 3.35 for `DROP COLUMN`; older hosts keep two empty columns. From
+    then on every query builds itself around `asset_columns()` /
+    `asset_blob_columns()` / `asset_insert_sql()`, so the app works with and
+    without them (an artifact older than this release cannot read such a
+    database — roll forward, not back). `seed_favicon()` stores the SVG through
+    the backend, so a seeded favicon never counts as an unmigrated row.
 - **Auth**: DB-backed sessions (`sessions` table, hashed tokens) via an
   `HttpOnly; SameSite=Lax` cookie; `password_hash`/`password_verify`.
   - **Lifetime**: two windows — `SESSION_IDLE_TTL` (12h, slides on use via

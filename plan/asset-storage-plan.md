@@ -1,9 +1,9 @@
 # asset-storage-plan.md — move asset bytes out of SQLite behind a storage interface
 
-> Status: **phases 1–4 and 6 implemented** (schema `0025`, `AssetStorage` +
-> filesystem backend, dual-read serving, storage-backed uploads, asset-aware
-> backups, the `assets` CLI, and chunked resumable upload). Phase 5 (clear the
-> BLOBs, then drop the columns) is deliberately deferred to a later release.
+> Status: **phases 1–6 implemented** (`0025`–`0027`, `AssetStorage` + filesystem
+> backend, dual-read serving, storage-backed uploads, asset-aware backups, the
+> `assets` CLI, chunked resumable upload, and the phase-5 column cleanup).
+> Phases 7 (`X-Accel-Redirect`) and 8 (S3) remain.
 > Follow-up to `plan/assets_upload.md`, whose decision 1 explicitly reserved
 > this escape hatch: *"A later `storage = 'db' | 'file'` column is the escape
 > hatch (keep `data` nullable) if the DB ever gets unwieldy."* This is that
@@ -309,16 +309,25 @@ Client side (`ui_sdk/src/upload.ts`, new; `assets.ts` keeps thumbnail logic):
 | 2 | Dual-read serving (`storage_key` → file, else BLOB) + `assets` CLI | **done** (`serve_asset()`, `sifpress_cli_assets()`) |
 | 3 | `assets.create` writes bytes through storage for **new** uploads | **done** |
 | 4 | `backup` archives `sys.db` **and** the asset dir | **done** (`backup_tar_sources()`) |
-| 5 | Second pass: clear `data`/`thumb`, then drop the columns | pending — needs `0027`+; `migrate-blobs --keep-blobs=0` is the first half and is tested |
+| 5 | Second pass: clear `data`/`thumb`, then drop the columns | **done** (`0027` + `drop_legacy_asset_blob_columns()`; the drop is refused while any row is unmigrated, and SQLite < 3.35 keeps the empty columns) |
 | 6 | Chunked upload API + client + progress UI | **done** (`0026`, `assets.upload.*`, `ui_sdk/src/upload.ts`, progress bar on `/assets`) |
 | 7 | `X-Accel-Redirect` / `X-Sendfile` handoff for playback | pending — `localPath()` returns the path it needs |
 | 8 | (future) `S3AssetStorage` | not started |
 
-One thing the plan did not predict, which turned out to be the whole point of
-phase 6: `asset_effective_cap()` folded the php.ini limit into the per-file cap,
-so chunking inherited a 2 MB ceiling it exists to remove. The signature now
-takes `$chunked`, and the chunked path checks only the kind's own cap (and not
-`SQLITE_MAX_LENGTH`, because those bytes never become a BLOB).
+Two things the plan did not predict:
+
+- **`asset_effective_cap()` folded the php.ini limit into the per-file cap**, so
+  chunking inherited a 2 MB ceiling it exists to remove. The signature now takes
+  `$chunked`, and the chunked path checks only the kind's own cap (and not
+  `SQLITE_MAX_LENGTH`, because those bytes never become a BLOB).
+- **The seeded favicon was a BLOB row**, which counted as unmigrated and would
+  have kept the columns alive on every fresh install forever. `seed_favicon()`
+  now stores the SVG through the backend like every other asset.
+
+Phase 5 also made the queries shape-aware: `asset_columns()` (cached
+`PRAGMA table_info`), `asset_blob_columns()` and `asset_insert_sql()` build the
+serving SELECT, the two upload INSERTs and the CLI totals around whatever the
+database still has, so the app runs identically before and after the drop.
 
 Two deviations from the original text, both forced by reality:
 

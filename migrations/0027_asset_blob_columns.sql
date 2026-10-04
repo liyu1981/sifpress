@@ -1,0 +1,13 @@
+-- Phase 5 of plan/asset-storage-plan.md: drop the `data` / `thumb` BLOB columns
+-- now that every asset lives in a storage object.
+--
+-- The work runs in PHP — drop_legacy_asset_blob_columns(), called from
+-- db_migrate_and_seed() — because it must not run at all while any row still
+-- holds bytes in those columns (that would destroy an unmigrated install), and
+-- because SQLite's ALTER TABLE ... DROP COLUMN only exists from 3.35; hosts on
+-- an older SQLite keep two empty nullable columns, which is harmless.
+--
+-- Once this file is applied the previous artifact can no longer read this
+-- database (its queries name `data`), which is the intended one-way door:
+-- migrate the bytes first, then roll forward, and keep a backup around.
+SELECT 1;
