@@ -1158,7 +1158,8 @@ function cli_assets_status(): void
     fwrite(
         STDOUT,
         "Asset directory: " . asset_dir() . "\n"
-        . 'Backend       : ' . asset_storage()->id() . "\n\n"
+        . 'Backend       : ' . asset_storage()->id() . "\n"
+        . 'Playback      : ' . asset_handoff_label() . "\n\n"
         . sprintf("Rows          : %d total, %d in storage, %d legacy (blob)\n", $totals['total'], $totals['stored'], $totals['legacy'])
         . sprintf(
             "Bytes in DB   : %s (originals) + %s (thumbnails)\n",

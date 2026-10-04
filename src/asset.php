@@ -447,6 +447,16 @@ function handle_asset(string $method): never
     }
 
     /*
+     * Web-server handoff (phase 7): access control is already decided, so the
+     * web server can take over the bytes. It also answers Range itself, which
+     * is the point — a media element seeking through PHP burns a worker per
+     * request, and with a worker-hungry server that reads as a stalled video.
+     */
+    if (asset_handoff_reaches_server($key, $mime, $len)) {
+        exit;
+    }
+
+    /*
      * Range support is required for <video>/<audio> playback. When a server
      * answers a Range request with a 200 instead of a 206, media elements
      * can re-request the stream in a loop (high CPU, endless reloads).
@@ -502,6 +512,46 @@ function handle_asset(string $method): never
     }
 
     exit;
+}
+
+/**
+ * Hand the response to the web server when configured to (phase 7).
+ *
+ * Returns true when the handoff happened and the caller must stop. It is a
+ * no-op — false — when the mode is off, when the backend has no local path
+ * (object storage), or when the key does not resolve to a real file, so the PHP
+ * streamer stays the single correct path and this is only ever an optimisation.
+ */
+function asset_handoff_reaches_server(string $key, string $mime, int $len): bool
+{
+    $mode = asset_handoff_mode();
+
+    if ($mode === '') {
+        return false;
+    }
+
+    $path = asset_storage()->localPath($key);
+
+    if ($path === null || !is_file($path)) {
+        return false;
+    }
+
+    if ($mode === 'sendfile') {
+        // mod_xsendfile serves the file itself; Content-Type/Length must be set.
+        header('Content-Length: ' . $len);
+        header('X-Sendfile: ' . $path);
+
+        return true;
+    }
+
+    /*
+     * nginx: the location is `internal`, so it can only be reached through this
+     * header — direct requests for the path are refused by nginx itself.
+     */
+    header('X-Accel-Redirect: ' . asset_accel_path() . '/' . $key);
+    header('Accept-Ranges: bytes');
+
+    return true;
 }
 
 /**

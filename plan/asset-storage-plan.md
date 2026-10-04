@@ -1,9 +1,9 @@
 # asset-storage-plan.md — move asset bytes out of SQLite behind a storage interface
 
-> Status: **phases 1–6 implemented** (`0025`–`0027`, `AssetStorage` + filesystem
+> Status: **phases 1–7 implemented** (`0025`–`0027`, `AssetStorage` + filesystem
 > backend, dual-read serving, storage-backed uploads, asset-aware backups, the
-> `assets` CLI, chunked resumable upload, and the phase-5 column cleanup).
-> Phases 7 (`X-Accel-Redirect`) and 8 (S3) remain.
+> `assets` CLI, chunked resumable upload, the phase-5 column cleanup and the
+> phase-7 web-server handoff). Phase 8 (S3) remains.
 > Follow-up to `plan/assets_upload.md`, whose decision 1 explicitly reserved
 > this escape hatch: *"A later `storage = 'db' | 'file'` column is the escape
 > hatch (keep `data` nullable) if the DB ever gets unwieldy."* This is that
@@ -311,7 +311,7 @@ Client side (`ui_sdk/src/upload.ts`, new; `assets.ts` keeps thumbnail logic):
 | 4 | `backup` archives `sys.db` **and** the asset dir | **done** (`backup_tar_sources()`) |
 | 5 | Second pass: clear `data`/`thumb`, then drop the columns | **done** (`0027` + `drop_legacy_asset_blob_columns()`; the drop is refused while any row is unmigrated, and SQLite < 3.35 keeps the empty columns) |
 | 6 | Chunked upload API + client + progress UI | **done** (`0026`, `assets.upload.*`, `ui_sdk/src/upload.ts`, progress bar on `/assets`) |
-| 7 | `X-Accel-Redirect` / `X-Sendfile` handoff for playback | pending — `localPath()` returns the path it needs |
+| 7 | `X-Accel-Redirect` / `X-Sendfile` handoff for playback | **done** (`SIFPRESS_ASSET_HANDOFF`, `asset_handoff_reaches_server()`); off by default, since the server half is operator configuration |
 | 8 | (future) `S3AssetStorage` | not started |
 
 Two things the plan did not predict:

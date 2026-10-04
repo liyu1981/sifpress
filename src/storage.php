@@ -463,6 +463,75 @@ function asset_insert_sql(): string
 }
 
 /* ------------------------------------------------------------------ */
+/* Web-server handoff (phase 7)                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Who streams the bytes: '' (PHP), 'x-accel' (nginx), 'sendfile' (Apache).
+ *
+ * PHP can stream a 90 MB video, but it costs a worker for the whole transfer —
+ * and media elements seek, so one playback is many requests. Handing the file to
+ * the web server (after this code has enforced access control) removes the app
+ * from the data path entirely.
+ *
+ * Off by default because the server-side part is operator configuration this
+ * artifact cannot write: an nginx without the matching `internal` location, or
+ * an Apache without mod_xsendfile, turns playback into 404s. 'auto' picks
+ * sendfile when mod_xsendfile is loaded and x-accel otherwise.
+ *
+ * @return ''|'x-accel'|'sendfile'
+ */
+function asset_handoff_mode(): string
+{
+    $mode = '';
+
+    if (defined('SIFPRESS_ASSET_HANDOFF')) {
+        $mode = strtolower(trim((string) SIFPRESS_ASSET_HANDOFF));
+    }
+
+    if ($mode === '') {
+        $mode = strtolower(trim((string) (getenv('SIFPRESS_ASSET_HANDOFF') ?: '')));
+    }
+
+    if ($mode === 'auto') {
+        $modules = function_exists('apache_get_modules') ? apache_get_modules() : [];
+
+        return in_array('mod_xsendfile', $modules, true) ? 'sendfile' : 'x-accel';
+    }
+
+    return in_array($mode, ['x-accel', 'sendfile'], true) ? $mode : '';
+}
+
+/**
+ * URL path nginx maps to the asset directory with an `internal` location, e.g.
+ *
+ *   location /protected-assets { internal; alias /var/lib/sifpress/assets/; }
+ */
+function asset_accel_path(): string
+{
+    $path = defined('SIFPRESS_ASSET_ACCEL_PATH') ? trim((string) SIFPRESS_ASSET_ACCEL_PATH) : '';
+    $path = trim($path === '' ? (string) (getenv('SIFPRESS_ASSET_ACCEL_PATH') ?: '') : $path);
+
+    if ($path === '') {
+        $path = '/protected-assets';
+    }
+
+    return '/' . trim($path, '/');
+}
+
+/** One-line summary for `assets status`. */
+function asset_handoff_label(): string
+{
+    $mode = asset_handoff_mode();
+
+    return match ($mode) {
+        'x-accel' => 'nginx X-Accel-Redirect via ' . asset_accel_path(),
+        'sendfile' => 'Apache X-Sendfile',
+        default => 'php (streamed by the app)',
+    };
+}
+
+/* ------------------------------------------------------------------ */
 /* Wiring                                                             */
 /* ------------------------------------------------------------------ */
 

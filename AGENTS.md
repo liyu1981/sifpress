@@ -94,8 +94,10 @@ php buildfront.php release
   (900s). Session constants are read from the config at runtime, so changing
   them needs no rebuild. `SIFPRESS_ASSET_DIR` (default
   `<SIFPRESS_DB_DIR>/assets`) is the folder holding uploaded asset bytes; it
-  must stay outside `DOCUMENT_ROOT`, and `SIFPRESS_ASSET_BACKEND` (`fs`) picks
-  the storage implementation.
+  must stay outside `DOCUMENT_ROOT`, `SIFPRESS_ASSET_BACKEND` (`fs`) picks the
+  storage implementation, and `SIFPRESS_ASSET_HANDOFF`
+  (`''` | `x-accel` | `sendfile` | `auto`) plus `SIFPRESS_ASSET_ACCEL_PATH`
+  (`/protected-assets`) decide whether the web server moves the bytes.
   Env vars (`SIFPRESS_DB_DIR`, `SIFPRESS_ADMIN_PASSWORD`,
   `SIFPRESS_UPDATE_MANIFEST_URL`, `SIFPRESS_BASE_URL`) are still supported as
   fallbacks for backward compatibility.
@@ -348,6 +350,17 @@ pnpm-lock.yaml      workspace lockfile
     `Range`/206/416, `Accept-Ranges`, `Content-Disposition`, `nosniff`);
     storage rows stream through `stream_asset_object()` in 256 KiB chunks, so
     memory stays flat for hundreds of MB.
+  - **Web-server handoff** (phase 7): with `SIFPRESS_ASSET_HANDOFF` set to
+    `x-accel` (nginx) or `sendfile` (Apache; `auto` picks one), `?p=asset` does
+    the access checks and then emits `X-Accel-Redirect: <SIFPRESS_ASSET_ACCEL_PATH>/<key>`
+    or `X-Sendfile: <abs path>` instead of streaming bytes — Range and all, which
+    is the point, since a `<video>` seek is one request per seek and each one
+    would otherwise pin a PHP worker. It is **off by default** because the
+    server-side half is operator configuration the artifact cannot write
+    (`location /protected-assets { internal; alias …; }` / `mod_xsendfile`); a
+    mismatch turns playback into 404s. Anything that is not a local file (object
+    storage, a missing object) falls back to the PHP streamer, so the handoff is
+    only ever an optimisation.
   - **Phase 5 cleanup**: `drop_legacy_asset_blob_columns()` (from
     `db_housekeeping()`) drops `assets.data`/`assets.thumb` once every row has a
     stored object, and refuses while any row is unmigrated — an unmigrated

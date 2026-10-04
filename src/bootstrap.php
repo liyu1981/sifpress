@@ -109,6 +109,37 @@ define('SIFPRESS_DB_DIR', %s);
 define('SIFPRESS_ASSET_DIR', '');
 
 /**
+ * Who streams asset bytes to visitors.
+ *
+ * '' (empty, the default) keeps every byte flowing through PHP: simple, but a
+ * large video ties up a web worker for the whole transfer, and a <video>
+ * element seeking issues one request per seek. The web-server handoff keeps the
+ * access checks here (is_public, per-asset grants) and lets the server move the
+ * bytes — including Range requests, which is what makes seeking cheap.
+ *
+ * This needs matching server-side configuration, or playback breaks with 404s:
+ *
+ *   nginx — set 'x-accel' and add an internal location (any path you like,
+ *           then point SIFPRESS_ASSET_ACCEL_PATH at it):
+ *
+ *     location /protected-assets {
+ *         internal;
+ *         alias /var/lib/sifpress/assets/;
+ *     }
+ *
+ *   Apache — set 'sendfile' and enable the module:
+ *
+ *     a2enmod xsendfile
+ *     # in the vhost:  XSendfilePath /var/lib/sifpress/assets
+ *
+ *   'auto' picks sendfile when mod_xsendfile is loaded, x-accel otherwise.
+ */
+define('SIFPRESS_ASSET_HANDOFF', '');
+
+/** URL path nginx maps to the asset folder (only used by 'x-accel'). */
+define('SIFPRESS_ASSET_ACCEL_PATH', '/protected-assets');
+
+/**
  * Admin password for the initial admin account (admin/admin by default).
  * Only used when the users table is empty (first migration).
  * Leave as empty string to use the built-in default.
