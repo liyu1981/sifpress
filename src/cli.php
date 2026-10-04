@@ -1470,6 +1470,17 @@ function cli_assets_gc(): void
         $removed++;
     }
 
+    /* Abandoned chunked uploads: expired rows and their staged bytes. */
+    $uploads = 0;
+
+    while (($n = asset_upload_purge_expired(100)) > 0) {
+        $uploads += $n;
+
+        if ($n < 100) {
+            break;
+        }
+    }
+
     /* Abandoned temp files from an interrupted put(). */
     $tmpDir = asset_dir() . '/.tmp';
     $cutoff = time() - 3600;
@@ -1483,7 +1494,7 @@ function cli_assets_gc(): void
 
     fwrite(
         STDOUT,
-        "Removed {$removed} orphan object(s).\n"
+        "Removed {$removed} orphan object(s) and {$uploads} expired upload(s).\n"
         . ($state['missing'] !== []
             ? count($state['missing']) . " row(s) point at a missing object; see `assets status`.\n"
             : "No rows point at a missing object.\n")

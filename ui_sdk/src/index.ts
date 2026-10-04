@@ -6,6 +6,7 @@ export * from './update';
 export * from './auth';
 export { createQueryRewrite } from './rewrite';
 export * from './inspect';
+export * from './upload';
 export * from './use-page-meta';
 export * from './markdown/light';
 export {

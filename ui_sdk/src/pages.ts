@@ -1,4 +1,11 @@
-import { apiRequest, migrationRequest, uploadRequest } from './api';
+import {
+  ApiError,
+  type ApiErrorData,
+  apiRequest,
+  apiUrl,
+  migrationRequest,
+  uploadRequest,
+} from './api';
 
 export type PageStatus = 'draft' | 'published';
 
@@ -515,6 +522,17 @@ export interface AssetCreateResult {
   duplicate?: boolean;
 }
 
+/** A chunked upload reservation: what the client is allowed to send. */
+export interface AssetUploadSession {
+  upload_id: string;
+  /** Bytes per part the server will accept (fits inside post_max_size). */
+  part_size: number;
+  parts_total: number;
+  /** Part numbers already stored, for resuming. */
+  parts: number[];
+  expires_at: string;
+}
+
 export const assetsApi = {
   list: (params: { kind?: AssetKind; page?: number; per_page?: number; q?: string } = {}) =>
     apiRequest<AssetListResult>('assets.list', {
@@ -533,6 +551,96 @@ export const assetsApi = {
 
   create: (formData: FormData) =>
     uploadRequest<AssetCreateResult>('sifpress/api', 'assets.create', formData),
+
+  /*
+   * Chunked/resumable upload. `uploadCreate` hands back the part size the
+   * server can accept (derived from post_max_size) plus the parts that already
+   * landed; parts go up as raw octet-stream bodies so they are not inflated by
+   * multipart framing; `uploadComplete` is multipart because the
+   * client-generated thumbnail rides along with it.
+   */
+  uploadCreate: (input: {
+    name: string;
+    size_bytes: number;
+    mime?: string;
+    width?: number;
+    height?: number;
+    duration?: number;
+    upload_id?: string;
+  }) =>
+    apiRequest<AssetUploadSession>('assets.upload.create', {
+      method: 'POST',
+      body: {
+        name: input.name,
+        size_bytes: input.size_bytes,
+        ...(input.mime !== undefined ? { mime: input.mime } : {}),
+        ...(input.width !== undefined ? { width: input.width } : {}),
+        ...(input.height !== undefined ? { height: input.height } : {}),
+        ...(input.duration !== undefined ? { duration: input.duration } : {}),
+        ...(input.upload_id !== undefined ? { upload_id: input.upload_id } : {}),
+      },
+    }),
+
+  uploadPart: async (
+    uploadId: string,
+    part: number,
+    blob: Blob,
+    signal?: AbortSignal,
+  ): Promise<{ received: number[]; part: number; bytes: number }> => {
+    const response = await fetch(
+      apiUrl('sifpress/api', 'assets.upload.part', {
+        upload_id: uploadId,
+        part: String(part),
+      }),
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: blob,
+        ...(signal !== undefined ? { signal } : {}),
+      },
+    );
+
+    const data = (await response.json().catch(() => null)) as
+      | { received?: number[]; part?: number; bytes?: number }
+      | ApiErrorData
+      | null;
+
+    if (!response.ok) {
+      throw new ApiError(response.status, (data ?? {}) as ApiErrorData);
+    }
+
+    return data as { received: number[]; part: number; bytes: number };
+  },
+
+  uploadComplete: (
+    uploadId: string,
+    input: { thumb?: Blob | null; md5?: string; signal?: AbortSignal },
+  ) => {
+    const formData = new FormData();
+
+    if (input.thumb !== undefined && input.thumb !== null) {
+      formData.append('thumb', input.thumb, 'thumb.webp');
+    }
+
+    if (input.md5 !== undefined) {
+      formData.append('md5', input.md5);
+    }
+
+    return uploadRequest<AssetCreateResult>(
+      'sifpress/api',
+      'assets.upload.complete',
+      formData,
+      { upload_id: uploadId },
+      input.signal,
+    );
+  },
+
+  /* Params travel in the query string like every other action in this API. */
+  uploadCancel: (uploadId: string) =>
+    apiRequest<{ ok: true }>('assets.upload.cancel', {
+      method: 'POST',
+      params: { upload_id: uploadId },
+    }),
 
   update: (id: number, input: { name?: string; is_public?: boolean }) =>
     apiRequest<{ asset: Asset }>('assets.update', {

@@ -301,6 +301,98 @@ final class FsAssetStorage implements AssetStorage
     }
 }
 
+/**
+ * Staging area for in-progress chunked uploads, inside the asset directory so
+ * parts land on the same filesystem as the final object (the rename in put()
+ * stays atomic).
+ */
+function asset_staging_dir(): string
+{
+    return asset_dir() . '/staging';
+}
+
+function asset_staging_dir_ready(): string
+{
+    $dir = asset_staging_dir();
+
+    if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+        throw new RuntimeException("Cannot create upload staging directory: {$dir}");
+    }
+
+    return $dir;
+}
+
+/** A staging path is `<staging>/<uuid>.part` — validated, never user input. */
+function asset_staging_path(string $token): ?string
+{
+    if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', strtolower($token)) !== 1) {
+        return null;
+    }
+
+    return asset_staging_dir() . '/' . strtolower($token) . '.part';
+}
+
+/**
+ * Part size handed to the client: a chunk is a raw request body, so
+ * `post_max_size` truncates it exactly like a whole file would. Keep clear of
+ * that limit (and of a floor that makes big files needlessly chatty).
+ */
+function asset_upload_part_size(): int
+{
+    $limit = asset_php_upload_limit();
+
+    if ($limit <= 0) {
+        return 4 * 1024 * 1024;
+    }
+
+    /* Half the limit, snapped to 256 KiB, so a chunk is comfortably accepted. */
+    $size = intdiv(max($limit, 2 * 1024 * 1024), 2);
+    $size = intdiv($size, 262144) * 262144;
+
+    return max($size, 512 * 1024);
+}
+
+/** How long an unfinished upload is kept before it is swept. */
+function asset_upload_ttl(): int
+{
+    return 24 * 3600;
+}
+
+/**
+ * Delete expired uploads (row + staging file). $limit bounds the sweep so it is
+ * safe to call on every create.
+ *
+ * @return int number of uploads removed
+ */
+function asset_upload_purge_expired(int $limit = 20): int
+{
+    $rows = db()->query(
+        'SELECT token FROM asset_uploads WHERE expires_at < datetime(\'now\') LIMIT ' . max(1, $limit)
+    )->fetchAll();
+
+    if ($rows === []) {
+        return 0;
+    }
+
+    $ids = [];
+
+    foreach ($rows as $row) {
+        $path = asset_staging_path((string) $row['token']);
+
+        if ($path !== null && is_file($path)) {
+            @unlink($path);
+        }
+
+        $ids[] = (string) $row['token'];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+    db()->prepare('DELETE FROM asset_uploads WHERE token IN (' . $placeholders . ')')->execute($ids);
+
+    return count($ids);
+}
+
 /* ------------------------------------------------------------------ */
 /* Wiring                                                             */
 /* ------------------------------------------------------------------ */

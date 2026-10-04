@@ -2708,6 +2708,499 @@ function api_assets_update(string $method): never
     json_response(['asset' => asset_payload(fetch_asset_meta((int) $row['id']))]);
 }
 
+/* ------------------------------------------------------------------ */
+/* Chunked / resumable upload                                         */
+/* ------------------------------------------------------------------ */
+
+/** Upload row + client-facing helpers. */
+function asset_upload_row(string $token): ?array
+{
+    $stmt = db()->prepare('SELECT * FROM asset_uploads WHERE token = ?');
+    $stmt->execute([$token]);
+    $row = $stmt->fetch();
+
+    return $row === false ? null : $row;
+}
+
+/**
+ * An upload may be driven by the user who started it, or by an admin (who can
+ * see everything). A uuid in the URL is never authorization on its own.
+ */
+function asset_upload_claim(array $row, array $user): void
+{
+    if ((int) $row['user_id'] === (int) $user['id'] || is_admin($user)) {
+        return;
+    }
+
+    json_response(['error' => 'forbidden'], 403);
+}
+
+function asset_upload_parts(array $row): array
+{
+    $decoded = json_decode((string) $row['parts_json'], true);
+
+    return is_array($decoded) ? array_values(array_map('intval', $decoded)) : [];
+}
+
+/** Total part count for a file of $size bytes at $partSize per part. */
+function asset_upload_part_count(int $size, int $partSize): int
+{
+    return $size <= 0 ? 0 : (int) ceil($size / $partSize);
+}
+
+/**
+ * `assets.upload.create` — reserve an upload and hand the client everything it
+ * needs to send the body: the part size the server can accept, and the parts
+ * that already landed (which is what makes a resumed upload cheap).
+ */
+function api_assets_upload_create(string $method): never
+{
+    if ($method !== 'POST') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $user = require_auth();
+
+    require_permission('assets.upload');
+
+    $body = read_json_body();
+    $name = trim((string) ($body['name'] ?? ''));
+    $size = (int) ($body['size_bytes'] ?? 0);
+    $errors = [];
+
+    if ($name === '') {
+        $errors['name'] = ['required'];
+    } elseif (strlen($name) > ASSET_MAX_NAME_BYTES) {
+        $errors['name'] = ['must be at most ' . ASSET_MAX_NAME_BYTES . ' characters'];
+    }
+
+    if ($size <= 0) {
+        $errors['size_bytes'] = ['must be a positive integer'];
+    } elseif ($size > asset_effective_cap('video', true)) {
+        /*
+         * The kind is only known once the bytes are here (MIME is sniffed at
+         * complete), so this is the most permissive cap; complete() re-checks
+         * against the kind it actually detects. Note this ignores the php.ini
+         * upload limits: no single request carries more than one part, which is
+         * what chunked upload is for.
+         */
+        $errors['size_bytes'] = [
+            'must be at most ' . asset_effective_cap('video', true) . ' bytes',
+        ];
+    }
+
+    if ($errors !== []) {
+        json_response(['error' => 'validation failed', 'errors' => $errors], 422);
+    }
+
+    $name = (string) preg_replace('/[\x00-\x1F\/\\\\]/', '_', $name);
+
+    /*
+     * Resume: the client remembers the upload id and sends it back. Reattach
+     * to that reservation when it still belongs to this user, has not expired
+     * and describes the same file — the answer is the part list, so only the
+     * missing bytes travel. Anything that does not line up starts fresh rather
+     * than resuming into someone else's or a different file's staging area.
+     */
+    $resume = trim((string) ($body['upload_id'] ?? ''));
+
+    if ($resume !== '') {
+        $existing = asset_upload_row($resume);
+
+        if (
+            $existing !== null
+            && (int) $existing['user_id'] === (int) $user['id']
+            && (int) $existing['size_bytes'] === $size
+            && (string) $existing['name'] === $name
+            && (string) $existing['expires_at'] > gmdate('Y-m-d H:i:s')
+        ) {
+            $path = asset_staging_path($resume);
+
+            if ($path !== null && is_file($path)) {
+                json_response([
+                    'upload_id' => $resume,
+                    'part_size' => (int) $existing['part_size'],
+                    'parts_total' => asset_upload_part_count($size, (int) $existing['part_size']),
+                    'parts' => asset_upload_parts($existing),
+                    'expires_at' => (string) $existing['expires_at'],
+                    'resumed' => true,
+                ]);
+            }
+        }
+    }
+
+    /* Opportunistic sweep of anything abandoned before the last day. */
+    try {
+        asset_upload_purge_expired();
+    } catch (Throwable $e) {
+        error_log('sifpress: upload sweep failed: ' . $e->getMessage());
+    }
+
+    $token = asset_uuid_v4();
+    $partSize = asset_upload_part_size();
+
+    $stmt = db()->prepare(
+        'INSERT INTO asset_uploads (token, name, mime, size_bytes, part_size, width, height, duration, user_id, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime(\'now\', ?))'
+    );
+    $stmt->execute([
+        $token,
+        $name !== '' ? $name : 'asset',
+        isset($body['mime']) ? substr((string) $body['mime'], 0, 128) : null,
+        $size,
+        $partSize,
+        isset($body['width']) && (int) $body['width'] > 0 ? (int) $body['width'] : null,
+        isset($body['height']) && (int) $body['height'] > 0 ? (int) $body['height'] : null,
+        isset($body['duration']) && (float) $body['duration'] > 0 ? (float) $body['duration'] : null,
+        $user['id'],
+        '+' . asset_upload_ttl() . ' seconds',
+    ]);
+
+    asset_staging_dir_ready();
+
+    json_response([
+        'upload_id' => $token,
+        'part_size' => $partSize,
+        'parts_total' => asset_upload_part_count($size, $partSize),
+        'parts' => [],
+        'expires_at' => gmdate('Y-m-d H:i:s', time() + asset_upload_ttl()),
+    ], 201);
+}
+
+/**
+ * `assets.upload.part` — one chunk as a raw `application/octet-stream` body.
+ *
+ * The offset is derived from the part index rather than trusted from the
+ * client, and the length is checked against both the part size and the
+ * declared file size, so a client cannot write outside its own upload.
+ */
+function api_assets_upload_part(string $method): never
+{
+    if ($method !== 'POST') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $user = require_auth();
+
+    require_permission('assets.upload');
+
+    $token = trim((string) request_param('upload_id', ''));
+    $row = asset_upload_row($token);
+
+    if ($row === null) {
+        json_response(['error' => 'upload not found'], 404);
+    }
+
+    asset_upload_claim($row, $user);
+
+    $part = (int) request_param('part', '-1');
+
+    if ($part < 0 || $part >= asset_upload_part_count((int) $row['size_bytes'], (int) $row['part_size'])) {
+        json_response(['error' => 'part out of range'], 422);
+    }
+
+    $partSize = (int) $row['part_size'];
+    $size = (int) $row['size_bytes'];
+    $offset = $part * $partSize;
+    $expected = min($partSize, $size - $offset);
+
+    $body = file_get_contents('php://input');
+
+    if ($body === false || $body === '') {
+        json_response(['error' => 'empty part'], 422);
+    }
+
+    if (strlen($body) !== $expected) {
+        json_response([
+            'error' => 'part has the wrong length',
+            'expected_bytes' => $expected,
+            'received_bytes' => strlen($body),
+            'part_size' => $partSize,
+        ], 422);
+    }
+
+    $path = asset_staging_path($token);
+
+    if ($path === null) {
+        json_response(['error' => 'upload not found'], 404);
+    }
+
+    asset_staging_dir_ready();
+
+    /*
+     * One writer at a time per upload: parts arrive concurrently, and without
+     * the lock two of them could interleave writes inside the same file.
+     */
+    $handle = @fopen($path, 'c+b');
+
+    if ($handle === false) {
+        json_response(['error' => 'cannot open the staging file'], 500);
+    }
+
+    $written = 0;
+
+    try {
+        if (!flock($handle, LOCK_EX)) {
+            json_response(['error' => 'cannot lock the staging file'], 500);
+        }
+
+        if (fseek($handle, $offset) !== 0) {
+            json_response(['error' => 'cannot seek the staging file'], 500);
+        }
+
+        /* Write in chunks so a part never doubles the request in memory. */
+        $remaining = $body;
+
+        while ($remaining !== '') {
+            $chunk = substr($remaining, 0, 1048576);
+            $bytes = fwrite($handle, $chunk);
+
+            if ($bytes === false || $bytes === 0) {
+                json_response(['error' => 'cannot write the staging file'], 500);
+            }
+
+            $written += $bytes;
+            $remaining = substr($remaining, $bytes);
+        }
+
+        fflush($handle);
+    } finally {
+        @flock($handle, LOCK_UN);
+        fclose($handle);
+    }
+
+    $parts = asset_upload_parts($row);
+
+    if (!in_array($part, $parts, true)) {
+        $parts[] = $part;
+        sort($parts);
+
+        db()->prepare('UPDATE asset_uploads SET parts_json = ? WHERE token = ?')
+            ->execute([json_encode($parts), $token]);
+    }
+
+    clearstatcache(true, $path);
+
+    json_response([
+        'received' => $parts,
+        'part' => $part,
+        'bytes' => (int) @filesize($path),
+        'staged_bytes' => $written,
+    ]);
+}
+
+/**
+ * `assets.upload.complete` — assemble, validate and store.
+ *
+ * multipart/form-data, because the (optional, client-generated) thumbnail
+ * rides along with the fields. Validation is the same as the single-shot path:
+ * MIME is sniffed from the assembled file's magic bytes, never taken from the
+ * client, and the size is checked against the cap for the detected kind.
+ */
+function api_assets_upload_complete(string $method): never
+{
+    if ($method !== 'POST') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $user = require_auth();
+
+    require_permission('assets.upload');
+
+    $token = trim((string) request_param('upload_id', ''));
+    $row = asset_upload_row($token);
+
+    if ($row === null) {
+        json_response(['error' => 'upload not found'], 404);
+    }
+
+    asset_upload_claim($row, $user);
+
+    $size = (int) $row['size_bytes'];
+    $partCount = asset_upload_part_count($size, (int) $row['part_size']);
+    $parts = asset_upload_parts($row);
+
+    if (count($parts) !== $partCount) {
+        json_response([
+            'error' => 'upload is incomplete',
+            'parts_received' => count($parts),
+            'parts_total' => $partCount,
+            'parts' => $parts,
+        ], 409);
+    }
+
+    $path = asset_staging_path($token);
+
+    if ($path === null || !is_file($path)) {
+        json_response(['error' => 'staged file is gone'], 410);
+    }
+
+    clearstatcache(true, $path);
+
+    if ((int) @filesize($path) !== $size) {
+        json_response([
+            'error' => 'staged file has the wrong size',
+            'expected_bytes' => $size,
+            'actual_bytes' => (int) @filesize($path),
+        ], 422);
+    }
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = $finfo !== false ? (string) finfo_file($finfo, $path) : '';
+
+    if ($finfo !== false) {
+        finfo_close($finfo);
+    }
+
+    if ($mime === '' || $mime === 'application/octet-stream') {
+        $mime = (string) ($_POST['mime'] ?? $row['mime'] ?? '');
+    }
+
+    $kind = asset_kind_for_mime($mime);
+
+    if ($kind === null) {
+        asset_upload_abandon($token);
+
+        json_response(['error' => 'unsupported file type', 'mime' => $mime], 415);
+    }
+
+    $cap = asset_effective_cap($kind, true);
+
+    if ($size > $cap) {
+        asset_upload_abandon($token);
+
+        json_response(['error' => 'file too large', 'max_bytes' => $cap, 'kind' => $kind], 413);
+    }
+
+    $md5 = md5_file($path);
+    $claimed = trim((string) ($_POST['md5'] ?? ''));
+
+    if ($claimed !== '' && !hash_equals(strtolower($claimed), $md5)) {
+        json_response([
+            'error' => 'checksum mismatch',
+            'expected' => strtolower($claimed),
+            'actual' => $md5,
+        ], 422);
+    }
+
+    /* Content-addressed dedupe: an identical file returns the existing row. */
+    $stmt = db()->prepare('SELECT id FROM assets WHERE md5 = ?');
+    $stmt->execute([$md5]);
+    $existingId = $stmt->fetchColumn();
+
+    if ($existingId !== false) {
+        asset_upload_abandon($token);
+
+        json_response([
+            'asset' => asset_payload(fetch_asset_meta((int) $existingId)),
+            'duplicate' => true,
+        ], 200);
+    }
+
+    /* Optional client-generated thumbnail, same rules as assets.create. */
+    $thumbKey = null;
+    $thumbMime = null;
+
+    if (isset($_FILES['thumb']) && $_FILES['thumb']['error'] === UPLOAD_ERR_OK) {
+        $thumbSize = (int) filesize($_FILES['thumb']['tmp_name']);
+
+        if ($thumbSize > 0 && $thumbSize <= ASSET_THUMB_MAX_BYTES) {
+            $thumbMime = (string) ($_FILES['thumb']['type'] ?? '');
+
+            if ($thumbMime === '' || !str_starts_with($thumbMime, 'image/')) {
+                $tfinfo = finfo_open(FILEINFO_MIME_TYPE);
+                if ($tfinfo !== false) {
+                    $thumbMime = (string) finfo_file($tfinfo, $_FILES['thumb']['tmp_name']);
+                    finfo_close($tfinfo);
+                }
+            }
+
+            if (str_starts_with($thumbMime, 'image/')) {
+                [, $thumbKey] = asset_store_file((string) $_FILES['thumb']['tmp_name'], $thumbMime);
+            }
+        }
+    }
+
+    try {
+        [$storage, $storageKey, $etag] = asset_store_file($path, $mime);
+    } catch (Throwable $e) {
+        if ($thumbKey !== null) {
+            asset_storage()->delete((string) $thumbKey);
+        }
+
+        error_log('sifpress: asset storage failed: ' . $e->getMessage());
+        json_response(['error' => 'could not store the uploaded file'], 500);
+    }
+
+    /*
+     * The row is written after the object exists. A failure here leaves an
+     * orphan, which `assets gc` reclaims; the reverse order could not.
+     */
+    $stmt = db()->prepare(
+        'INSERT INTO assets (name, mime, kind, size_bytes, width, height, duration,
+                             md5, data, thumb, thumb_mime, uploaded_by,
+                             storage, storage_key, thumb_key, storage_etag)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?)'
+    );
+    $stmt->bindValue(1, (string) $row['name']);
+    $stmt->bindValue(2, $mime);
+    $stmt->bindValue(3, $kind);
+    $stmt->bindValue(4, $size, PDO::PARAM_INT);
+    $stmt->bindValue(5, $row['width'] !== null ? (int) $row['width'] : null, PDO::PARAM_INT);
+    $stmt->bindValue(6, $row['height'] !== null ? (int) $row['height'] : null, PDO::PARAM_INT);
+    $stmt->bindValue(7, $row['duration'] !== null ? (float) $row['duration'] : null);
+    $stmt->bindValue(8, $md5);
+    $stmt->bindValue(9, $thumbMime);
+    $stmt->bindValue(10, $user['id'], PDO::PARAM_INT);
+    $stmt->bindValue(11, $storage);
+    $stmt->bindValue(12, $storageKey);
+    $stmt->bindValue(13, $thumbKey);
+    $stmt->bindValue(14, $etag);
+    $stmt->execute();
+
+    $id = (int) db()->lastInsertId();
+
+    asset_upload_abandon($token);
+
+    json_response(['asset' => asset_payload(fetch_asset_meta($id)), 'duplicate' => false], 201);
+}
+
+/** `assets.upload.cancel` — drop the reservation and its staged bytes. */
+function api_assets_upload_cancel(string $method): never
+{
+    if ($method !== 'POST') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $user = require_auth();
+
+    require_permission('assets.upload');
+
+    $token = trim((string) request_param('upload_id', ''));
+    $row = asset_upload_row($token);
+
+    if ($row === null) {
+        json_response(['ok' => true]);
+    }
+
+    asset_upload_claim($row, $user);
+    asset_upload_abandon($token);
+
+    json_response(['ok' => true]);
+}
+
+/** Delete an upload's staging file and its row. */
+function asset_upload_abandon(string $token): void
+{
+    $path = asset_staging_path($token);
+
+    if ($path !== null && is_file($path)) {
+        @unlink($path);
+    }
+
+    db()->prepare('DELETE FROM asset_uploads WHERE token = ?')->execute([$token]);
+}
+
 function api_assets_delete(string $method): never
 {
     if ($method !== 'DELETE') {
@@ -4271,6 +4764,8 @@ function handle_api(string $action, string $method): never
                     'roles.list', 'tags.list',
                     'web.fetch',
                     'assets.list', 'assets.get', 'assets.create', 'assets.update',
+                    'assets.upload.create', 'assets.upload.part',
+                    'assets.upload.complete', 'assets.upload.cancel',
                     'assets.delete',
                     'assets.grants', 'assets.grant', 'assets.revokeGrant',
                     'kvs.list', 'kvs.get', 'kvs.create', 'kvs.update', 'kvs.delete',
@@ -4390,6 +4885,18 @@ function handle_api(string $action, string $method): never
 
         case 'assets.create':
             api_assets_create($method);
+
+        case 'assets.upload.create':
+            api_assets_upload_create($method);
+
+        case 'assets.upload.part':
+            api_assets_upload_part($method);
+
+        case 'assets.upload.complete':
+            api_assets_upload_complete($method);
+
+        case 'assets.upload.cancel':
+            api_assets_upload_cancel($method);
 
         case 'assets.update':
             api_assets_update($method);

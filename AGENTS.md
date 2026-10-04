@@ -114,7 +114,7 @@ php buildfront.php release
   bytes, missing objects, orphans); `assets migrate-blobs [--dry-run]
   [--limit=N] [--keep-blobs=0]` moves legacy BLOB rows into storage;
   `assets verify [--sample=N]` md5-checks stored objects; `assets gc` deletes
-  objects no row points at. `--keep-blobs` defaults **on** so a rollback to the
+  objects no row points at and sweeps expired chunked uploads. `--keep-blobs` defaults **on** so a rollback to the
   previous artifact still serves the bytes; clearing them only shrinks the file
   after a VACUUM.
   `inject_sifront [name]`
@@ -155,10 +155,12 @@ SIFPRESS_PORT=8080 ./dev.sh
   (no server restart).
 - dev.sh uses the default PHP settings (no `-d` overrides), so asset uploads
   are bounded by the local `php.ini` `upload_max_filesize`/`post_max_size`
-  (defaults 2M/8M). The app computes its effective per-asset cap at runtime
-  as `min(desired cap, php ini limits, SQLite SQLITE_MAX_LENGTH)`, so a
-  deployment that wants large uploads must raise those values in its own
-  php.ini — `post_max_size` truncates the body before any app code runs.
+  (defaults 2M/8M). For a single-shot upload the effective cap is
+  `min(desired cap, php ini limits, SQLite SQLITE_MAX_LENGTH)`, so a deployment
+  that wants large *single-request* uploads must raise those values in its own
+  php.ini — `post_max_size` truncates the body before any app code runs. The
+  chunked upload path deliberately ignores the php.ini limit (no request carries
+  more than one part), which is how files larger than `post_max_size` get in.
 - dev.sh serves from `dist/` (its own cwd becomes `DOCUMENT_ROOT`, which is what
   the built-in server actually exposes) and points `SIFPRESS_ASSET_DIR` at
   `var/sifpress/assets` in the repo (gitignored), persisting it into
@@ -200,6 +202,7 @@ ui_sdk/             reusable UI SDK (pnpm workspace package "ui-sdk")
     pages.ts        typed API objects (system/settings/tracking/auth/pages/
                     users/roles/tags/assets/migration APIs) + shared types
     assets.ts       browser thumbnail/avatar generation (image/video)
+    upload.ts       chunked resumable uploader (parts, retry, resume, progress)
     auth.tsx        AuthProvider + useAuth (React context over react-query)
     update.ts       updateApi (version check / self-upgrade)
     rewrite.ts      createQueryRewrite() — the TanStack Router ?p= rewrite pair
@@ -301,6 +304,27 @@ pnpm-lock.yaml      workspace lockfile
   step is fine (see `0024_sifront_copy_split.sql`, whose work is
   `normalize_sifront_copy_kv()` in `db_migrate_and_seed()`): the SQL file makes
   the runner reach the PHP step on installs whose schema is already current.
+- **Chunked resumable upload** (migration `0026`): `assets.upload.create` hands
+  the client a `part_size` derived from `asset_php_upload_limit()` (a chunk is a
+  raw request body, so `post_max_size` truncates it like a whole file would) and
+  the list of parts already stored; `assets.upload.part` PUTs one chunk;
+  `assets.upload.complete` (multipart, because the client thumbnail rides along)
+  re-runs the single-shot validation — magic-byte sniffing, cap for the detected
+  kind, md5 — then stores the object and inserts the row.
+  - Parts stage on disk at `<asset_dir>/staging/<token>.part` with
+    `flock(LOCK_EX)` and an offset derived from the part index, so a client
+    cannot write outside its upload; rows expire after 24h and
+    `asset_upload_purge_expired()` runs on create and in `assets gc`.
+  - **This is what lifts the per-file ceiling**: `asset_effective_cap($kind,
+    $chunked = true)` skips the php.ini limit, because no single request carries
+    the whole file. A single-shot `assets.create` is still bounded by
+    `post_max_size` (≈2 MB on a stock host).
+  - Resume: `ui_sdk/src/upload.ts` (`uploadAssetResumable`) keeps the upload id
+    plus received parts in `localStorage` keyed by `name:size:lastModified`, and
+    `create` reattaches to a matching, unexpired reservation owned by the same
+    user — so a retry sends only what is missing. 3 parts in flight, exponential
+    backoff with jitter, 4xx treated as final, and progress derived from
+    completed parts (`fetch` has no upload progress event).
 - **Asset bytes live in files, not the DB** (`src/storage.php`). The row keeps
   owning identity (name, mime, size, md5) and access control (`is_public` +
   `asset_grants`); only bytes move. `assets.storage` is the backend id (`fs`

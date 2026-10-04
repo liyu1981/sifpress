@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePageTitle } from '@/hooks/use-page-title';
-import { ApiError, assetMarkdownLink, copyText } from 'ui-sdk';
+import { ApiError, assetMarkdownLink, copyText, uploadAssetResumable } from 'ui-sdk';
 import { makeImageThumb, makeVideoThumb } from 'ui-sdk';
 import { useAuth } from 'ui-sdk';
 import { type Asset, type AssetKind, assetSourceUrl, assetsApi, systemApi } from 'ui-sdk';
@@ -39,6 +39,10 @@ interface UploadItem {
   error?: string;
   duplicate?: boolean;
   optimize: boolean;
+  /** 0..1, from completed parts (fetch cannot report upload progress). */
+  progress?: number;
+  /** Aborts the in-flight upload when the user removes the row. */
+  controller?: AbortController;
 }
 
 export function AssetsPage() {
@@ -125,47 +129,56 @@ export function AssetsPage() {
   }
 
   async function uploadOne(item: UploadItem) {
+    const controller = new AbortController();
+
     setQueue(current =>
       current.map(entry =>
-        entry.key === item.key ? { ...entry, status: 'processing' as const } : entry,
+        entry.key === item.key ? { ...entry, status: 'processing' as const, controller } : entry,
       ),
     );
 
     try {
-      const isVideo = item.file.type.startsWith('video/');
-      const formData = new FormData();
-      formData.append('file', item.file);
-      formData.append('name', item.file.name);
-      formData.append('kind', isVideo ? 'video' : 'image');
+      /*
+       * Thumbnails and dimensions are computed client-side first (no GD or
+       * Imagick here), then the file itself goes up in parts. The upload id is
+       * remembered by uploadAssetResumable, so a failure here leaves enough
+       * behind for the next attempt to send only what is missing.
+       */
+      let thumb: Blob | null = null;
+      let width = 0;
+      let height = 0;
+      let duration = 0;
 
-      if (isVideo) {
+      if (item.file.type.startsWith('video/')) {
         const meta = await makeVideoThumb(item.file);
-        if (meta.thumb !== null) {
-          formData.append('thumb', meta.thumb, 'thumb.webp');
-        }
-        if (meta.width > 0) {
-          formData.append('width', String(meta.width));
-        }
-        if (meta.height > 0) {
-          formData.append('height', String(meta.height));
-        }
-        if (meta.duration > 0) {
-          formData.append('duration', String(meta.duration));
-        }
+        thumb = meta.thumb;
+        width = meta.width;
+        height = meta.height;
+        duration = meta.duration;
       } else {
         const meta = await makeImageThumb(item.file);
-        if (meta.thumb !== null) {
-          formData.append('thumb', meta.thumb, 'thumb.webp');
-        }
-        if (meta.width > 0) {
-          formData.append('width', String(meta.width));
-        }
-        if (meta.height > 0) {
-          formData.append('height', String(meta.height));
-        }
+        thumb = meta.thumb;
+        width = meta.width;
+        height = meta.height;
       }
 
-      const result = await assetsApi.create(formData);
+      const result = await uploadAssetResumable({
+        file: item.file,
+        thumb,
+        ...(width > 0 ? { width } : {}),
+        ...(height > 0 ? { height } : {}),
+        ...(duration > 0 ? { duration } : {}),
+        signal: controller.signal,
+        onProgress: progress => {
+          setQueue(current =>
+            current.map(entry =>
+              entry.key === item.key
+                ? { ...entry, progress: progress.total > 0 ? progress.sent / progress.total : 0 }
+                : entry,
+            ),
+          );
+        },
+      });
 
       setQueue(current =>
         current.map(entry =>
@@ -173,7 +186,9 @@ export function AssetsPage() {
             ? {
                 ...entry,
                 status: 'done' as const,
+                progress: 1,
                 duplicate: result.duplicate,
+                controller: undefined,
               }
             : entry,
         ),
@@ -181,14 +196,23 @@ export function AssetsPage() {
 
       queryClient.invalidateQueries({ queryKey: ['assets'] });
     } catch (err) {
-      const reason =
-        err instanceof ApiError
+      const aborted = err instanceof DOMException && err.name === 'AbortError';
+      const reason = aborted
+        ? t('assets.uploadCancelled')
+        : err instanceof ApiError
           ? (err.data.error ?? err.data.reason ?? t('assets.uploadError'))
           : t('assets.uploadError');
 
       setQueue(current =>
         current.map(entry =>
-          entry.key === item.key ? { ...entry, status: 'error' as const, error: reason } : entry,
+          entry.key === item.key
+            ? {
+                ...entry,
+                status: aborted ? ('queued' as const) : ('error' as const),
+                error: aborted ? undefined : reason,
+                controller: undefined,
+              }
+            : entry,
         ),
       );
     }
@@ -356,6 +380,20 @@ export function AssetsPage() {
                       <Upload className="size-4 shrink-0 text-muted-foreground" />
                     )}
                     <span className="min-w-0 flex-1 truncate">{item.file.name}</span>
+                    {item.status === 'processing' && item.progress !== undefined && (
+                      <span
+                        className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-muted"
+                        role="progressbar"
+                        aria-valuenow={Math.round(item.progress * 100)}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                      >
+                        <span
+                          className="block h-full rounded-full bg-primary transition-[width] duration-200"
+                          style={{ width: `${Math.min(100, Math.round(item.progress * 100))}%` }}
+                        />
+                      </span>
+                    )}
                     <Badge variant="outline">{formatBytes(item.file.size)}</Badge>
                     {item.file.type.startsWith('image/') && item.status === 'queued' && (
                       <label
@@ -389,9 +427,10 @@ export function AssetsPage() {
                       variant="ghost"
                       size="icon-xs"
                       aria-label={t('assets.remove')}
-                      onClick={() =>
-                        setQueue(current => current.filter(entry => entry.key !== item.key))
-                      }
+                      onClick={() => {
+                        item.controller?.abort();
+                        setQueue(current => current.filter(entry => entry.key !== item.key));
+                      }}
                       disabled={item.status === 'processing'}
                     >
                       <X />

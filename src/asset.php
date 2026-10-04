@@ -70,11 +70,24 @@ function asset_php_upload_limit(): int
 }
 
 /**
- * Effective per-kind cap: min(desired, php limit, sqlite limit).
+ * Effective per-kind cap.
+ *
+ * For a single-shot multipart upload this is min(desired, php limit, sqlite
+ * limit): the whole file travels in one request, so `post_max_size` really is
+ * the ceiling.
+ *
+ * A chunked upload passes $chunked = true and skips the PHP limit, because no
+ * request ever carries more than one part — that is the entire point of
+ * chunking. SQLite's ceiling does not apply either: those bytes are written to
+ * storage, never to a BLOB.
  */
-function asset_effective_cap(string $kind): int
+function asset_effective_cap(string $kind, bool $chunked = false): int
 {
     $desired = $kind === 'video' ? ASSET_MAX_VIDEO_BYTES : ASSET_MAX_IMAGE_BYTES;
+
+    if ($chunked) {
+        return $desired;
+    }
 
     return min($desired, asset_php_upload_limit(), SQLITE_MAX_LENGTH);
 }

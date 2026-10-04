@@ -74,10 +74,13 @@ export async function uploadRequest<T>(
   module: string,
   action: string,
   formData: FormData,
+  params: Record<string, string> = {},
+  signal?: AbortSignal,
 ): Promise<T> {
-  const response = await fetch(apiUrl(module, action), {
+  const response = await fetch(apiUrl(module, action, params), {
     method: 'POST',
     body: formData,
+    ...(signal !== undefined ? { signal } : {}),
   });
 
   const data: unknown = await response.json().catch(() => null);
