@@ -1,4 +1,4 @@
-import { appBaseUrl } from './base-url';
+import { moduleUrl } from './api';
 
 declare global {
   interface Window {
@@ -20,9 +20,10 @@ export function getUiLib<T>(name: string): T | null {
 
 /**
  * Load a separately built ui-sdk chunk (e.g. `ui-sdk-mermaid.mjs`) by
- * injecting a module script served from `?p=sifpress/asset/js/<file>`. The
- * single-file backend cannot serve Vite's default `/assets/*.mjs` chunk URLs,
- * so chunks are addressed through the same `?p=` scheme as the core bundle.
+ * injecting a module script served from the `sifpress/asset/js/<file>`
+ * module. The single-file backend cannot serve Vite's default `/assets/*.mjs`
+ * chunk URLs, so chunks are addressed through the same route as the core
+ * bundle, in whichever URL mode the artifact is serving.
  *
  * `ready` short-circuits when the chunk already published its library; the
  * in-flight map dedupes concurrent callers.
@@ -39,13 +40,7 @@ export function loadUiChunk(file: string, ready: () => boolean): Promise<void> {
   }
 
   const version = window.SIFPRESS_UI_VERSION ?? '';
-  const query = new URLSearchParams({ p: `sifpress/asset/js/${file}` });
-
-  if (version !== '') {
-    query.set('v', version);
-  }
-
-  const url = `${appBaseUrl()}?${query.toString()}`;
+  const url = moduleUrl(`sifpress/asset/js/${file}`, version === '' ? {} : { v: version });
 
   const promise = new Promise<void>((resolve, reject) => {
     const script = document.createElement('script');

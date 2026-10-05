@@ -12,6 +12,7 @@
  *   backup           snapshot the DB to a .tgz and prune old archives
  *   config           view or update sifpress_config.php
  *   cron             install/remove the backup crontab entry
+ *   rewrite          generate Apache/nginx clean-path rewrite rules (+ check)
  *   status           print paths, version and migration state
  *   version          print the Sifpress version + installed sifront versions
  *   help             show usage
@@ -70,6 +71,10 @@ function sifpress_cli(array $argv): never
             sifpress_cli_cron($configPath, $options, $argv);
             break;
 
+        case 'rewrite':
+            sifpress_cli_rewrite($configPath, $options, $argv);
+            break;
+
         case 'status':
             sifpress_cli_status($configPath);
             break;
@@ -113,9 +118,10 @@ function sifpress_cli_usage(): void
         '  assets           move asset bytes out of the database into storage:',
         '                   assets status             where every asset\'s bytes live now',
         '                   assets migrate-blobs     write legacy BLOB rows to storage',
-        '                     [--dry-run] [--limit=N] [--keep-blobs=0]',
+        '                     [--dry-run] [--limit=N] [--keep-blobs=0] [--vacuum]',
         '                   assets verify [--sample=N]  md5-check stored objects',
-        '                   assets gc                delete objects no row points at',
+        '                   assets gc                delete orphan objects + expired uploads',
+        '                   assets vacuum            reclaim the pages freed by dropping the BLOBs',
         '  inject_sifront   (dev only) push a built sifront into the DB and activate it:',
         '                   inject_sifront [name]   (default: sifpress1)',
         '  update_sifront   install/update a sifront from a .sifront archive:',
@@ -128,6 +134,10 @@ function sifpress_cli_usage(): void
         '  cron             manage the backup crontab entry for a user:',
         '                   cron install [--schedule="0 3 * * *"] [--user=USER] [--log=PATH]',
         '                   cron show | cron remove [--user=USER]',
+        '  rewrite          generate clean-path (pretty URL) rewrite rules:',
+        '                   rewrite [apache|nginx|both|check|status]',
+        '                     [--base-path=/app] [--out=FILE|DIR] [--config=PATH]',
+        '                     [--set-config] [--forget] [--base-url=URL]',
         '  status           print paths, version and migration state',
         '  version          print the Sifpress version + installed sifront versions',
         '  help             show this help',
@@ -552,6 +562,7 @@ function sifpress_config_types(): array
         'SIFPRESS_ADMIN_PASSWORD' => 'string',
         'SIFPRESS_MANIFEST_URL' => 'string',
         'SIFPRESS_BASE_URL' => 'string',
+        'SIFPRESS_PRETTY_URLS' => 'string',
         'SIFPRESS_BACKUP_DIR' => 'string',
         'SIFPRESS_BACKUP_KEEP' => 'int',
         'SIFPRESS_BACKUP_PREFIX' => 'string',
@@ -953,6 +964,459 @@ function sifpress_cli_status(string $configPath): void
 }
 
 /**
+ * `rewrite`: generate the Apache/nginx rules that let the artifact be
+ * addressed by clean paths, and/or check whether such rules are live.
+ *
+ *   rewrite [apache|nginx|both|check|status] [options]
+ *
+ * The rules hand every path that is not a real file to the artifact with the
+ * requested route copied into ?p=, which is the dispatch src/router.php
+ * already performs — the artifact keeps working without them, so installing
+ * these is purely cosmetic (plus /robots.txt and /sitemap.xml).
+ */
+function sifpress_cli_rewrite(string $configPath, array $options, array $argv): void
+{
+    $bin = basename(__FILE__);
+
+    if (!is_file($configPath)) {
+        // The rules do not depend on the config, so keep going: warn instead.
+        fwrite(STDERR, "No config found at {$configPath}; generating for defaults.\n");
+    } else {
+        require_once $configPath;
+    }
+
+    $sub = 'both';
+
+    foreach (array_slice($argv, 2) as $arg) {
+        if (str_starts_with($arg, '-')) {
+            continue;
+        }
+
+        $sub = strtolower($arg);
+        break;
+    }
+
+    if (!in_array($sub, ['apache', 'nginx', 'both', 'check', 'status'], true)) {
+        fwrite(STDERR, "Unknown rewrite target: {$sub}\n");
+        fwrite(STDERR, "Usage: php {$bin} rewrite [apache|nginx|both|check|status]\n");
+        exit(1);
+    }
+
+    if (isset($options['forget'])) {
+        fwrite(STDOUT, forget_pretty_urls()
+            ? "Cleared the clean-path marker; links revert to ?p= on the next request.\n"
+            : "No clean-path marker to clear.\n");
+
+        /* `rewrite --forget` on its own is a maintenance action, not a
+         * request for the rule text. */
+        if ($sub === 'both') {
+            $sub = '';
+        }
+    }
+
+    if (isset($options['set-config'])) {
+        sifpress_cli_config(
+            $configPath,
+            $options,
+            array_merge([$bin, 'config'], ['--set=SIFPRESS_PRETTY_URLS=1'])
+        );
+
+        if ($sub === 'both') {
+            $sub = '';
+        }
+    }
+
+    if ($sub === '') {
+        return;
+    }
+
+    $mount = sifpress_rewrite_mount($options);
+    $base = sifpress_cli_option($options, 'base-url') ?? sifpress_rewrite_base_url();
+
+    if ($sub === 'check') {
+        sifpress_rewrite_check($mount, $base, $bin);
+        return;
+    }
+
+    if ($sub === 'status') {
+        sifpress_rewrite_status($mount, $base, $bin, $configPath);
+        return;
+    }
+
+    $rules = sifpress_rewrite_rules($mount, $bin);
+    $targets = $sub === 'both' ? ['apache', 'nginx'] : [$sub];
+    $out = sifpress_cli_option($options, 'out');
+
+    if ($out === null) {
+        foreach ($targets as $target) {
+            fwrite(STDOUT, "\n# ===== {$target} =====\n");
+            fwrite(STDOUT, $rules[$target] . "\n");
+        }
+
+        return;
+    }
+
+    $isDir = is_dir($out);
+
+    if (count($targets) > 1 && !$isDir) {
+        fwrite(STDERR, "--out with two targets must be a directory (e.g. --out=.)\n");
+        exit(1);
+    }
+
+    foreach ($targets as $target) {
+        $path = $isDir
+            ? rtrim($out, '/') . '/' . ($target === 'apache' ? '.htaccess' : 'sifpress-rewrite.conf')
+            : $out;
+
+        if (@file_put_contents($path, $rules[$target]) === false) {
+            fwrite(STDERR, "Could not write {$path}\n");
+            exit(1);
+        }
+
+        sifpress_cli_adopt_owner($path);
+        fwrite(STDOUT, "Wrote {$target} rules to {$path}\n");
+    }
+}
+
+/**
+ * Mount path the rules are generated for: '' (document root) or '/app'.
+ * Precedence: --base-path, SIFPRESS_PRETTY_BASE env, SIFPRESS_BASE_URL,
+ * then the site_url setting.
+ */
+function sifpress_rewrite_mount(array $options): string
+{
+    $candidates = [];
+    $explicit = sifpress_cli_option($options, 'base-path');
+
+    if ($explicit !== null) {
+        $candidates[] = $explicit;
+    }
+
+    $env = getenv('SIFPRESS_PRETTY_BASE');
+
+    if (is_string($env) && trim($env) !== '') {
+        $candidates[] = $env;
+    }
+
+    $candidates[] = defined('SIFPRESS_BASE_URL') ? (string) SIFPRESS_BASE_URL : '';
+    $candidates[] = sifpress_rewrite_base_url();
+
+    foreach ($candidates as $candidate) {
+        $mount = sifpress_rewrite_mount_from($candidate);
+
+        if ($mount !== null) {
+            return $mount;
+        }
+    }
+
+    return '';
+}
+
+/** Path component of a URL-ish string, or null when it carries none. */
+function sifpress_rewrite_mount_from(string $value): ?string
+{
+    $value = trim($value);
+
+    if ($value === '') {
+        return null;
+    }
+
+    $path = parse_url($value, PHP_URL_PATH);
+    $path = is_string($path) ? $path : '';
+
+    if (str_starts_with($path, '/')) {
+        $path = substr($path, 1);
+    }
+
+    $path = trim($path, '/');
+
+    return $path === '' ? '' : '/' . $path;
+}
+
+/** Absolute base URL for the check probes, or '' when none is configured. */
+function sifpress_rewrite_base_url(): string
+{
+    $configured = defined('SIFPRESS_BASE_URL') ? trim((string) SIFPRESS_BASE_URL) : '';
+
+    if ($configured === '') {
+        $env = getenv('SIFPRESS_BASE_URL');
+        $configured = is_string($env) ? trim($env) : '';
+    }
+
+    if ($configured !== '' && str_starts_with($configured, 'http')) {
+        return rtrim($configured, '/');
+    }
+
+    if (!db_needs_migration()) {
+        $site = trim((string) setting_get('site_url', ''));
+
+        if ($site !== '' && str_starts_with($site, 'http')) {
+            return rtrim($site, '/');
+        }
+    }
+
+    return '';
+}
+
+/** The generated rules for both servers. Mount path aware (nginx needs it). */
+function sifpress_rewrite_rules(string $mount, string $bin): array
+{
+    $apache = <<<APACHE
+    # Sifpress — clean-path URLs (generated by `php sifpress.php rewrite apache`).
+    #
+    # Place this file in the directory that holds {$bin}. Every path that is
+    # not a real file is handed to the artifact with the requested route copied
+    # into ?p= — the dispatch src/router.php already performs — so ?p= links
+    # keep working unchanged and nothing breaks if this file is removed again.
+    #
+    # No RewriteBase is needed: the substitution is relative to this directory,
+    # which is what makes the rules valid at any mount depth (/, /app, /a/b/c).
+    #
+    # Requires mod_rewrite, and either `AllowOverride FileInfo` for this
+    # directory or the same directives inside a <Directory> block.
+
+    <IfModule mod_rewrite.c>
+        RewriteEngine On
+
+        # Never touch real files: the artifact, sifpress_config.php, uploads…
+        RewriteCond %{REQUEST_FILENAME} -f [OR]
+        RewriteCond %{REQUEST_FILENAME} -d
+        RewriteRule ^ - [L]
+
+        # Conventional names for the SEO endpoints.
+        RewriteRule ^robots\\.txt\$  {$bin}?p=sifpress/seo&action=robots  [QSA,L]
+        RewriteRule ^sitemap\\.xml\$ {$bin}?p=sifpress/seo&action=sitemap [QSA,L]
+        RewriteRule ^favicon\\.ico\$ {$bin}?p=sifpress/favicon             [QSA,L]
+
+        # Everything else: /<route> -> {$bin}?p=/<route>
+        RewriteRule ^(.*)\$ {$bin}?p=/\$1 [QSA,L]
+    </IfModule>
+
+    # Apache 2.4.8+ alternative with no mod_rewrite at all — the artifact then
+    # reads the route from the request path itself:
+    #
+    #   FallbackResource /{$bin}
+    APACHE;
+
+    if ($mount === '') {
+        $nginx = <<<NGINX
+        # Sifpress — clean-path URLs (generated by `php sifpress.php rewrite nginx`).
+        #
+        # Paste inside your server {} block. If the vhost already has a
+        # `location / { try_files … ; fastcgi_pass …; }`, replace only its
+        # try_files line with the one from `location /` below.
+        #
+        #   /<route>  ->  /{$bin}?p=/<route>
+
+        location = /robots.txt  { rewrite ^ /{$bin}?p=sifpress/seo&action=robots  last; }
+        location = /sitemap.xml { rewrite ^ /{$bin}?p=sifpress/seo&action=sitemap last; }
+        location = /favicon.ico { rewrite ^ /{$bin}?p=sifpress/favicon             last; }
+
+        location / {
+            try_files \$uri \$uri/ /{$bin}?p=\$uri;
+        }
+
+        # Two caveats:
+        #   * the PHP handler must stay a `location ~ \\.php$` block (a `^~`
+        #     prefix location would swallow it and serve .php as static);
+        #   * do not keep a competing `try_files \$uri =404;` in that block.
+        NGINX;
+    } else {
+        $prefix = $mount;
+
+        $nginx = <<<NGINX
+        # Sifpress — clean-path URLs (generated by `php sifpress.php rewrite nginx`).
+        #
+        # The artifact is mounted at {$prefix}, so these rules only cover that
+        # subtree — anything else in the vhost keeps its own routing. Paste
+        # inside your server {} block.
+        #
+        #   {$prefix}/<route>  ->  {$prefix}/{$bin}?p={$prefix}/<route>
+
+        location = {$prefix} { return 301 {$prefix}/; }
+
+        location = {$prefix}/robots.txt  { rewrite ^ {$prefix}/{$bin}?p=sifpress/seo&action=robots  last; }
+        location = {$prefix}/sitemap.xml { rewrite ^ {$prefix}/{$bin}?p=sifpress/seo&action=sitemap last; }
+        location = {$prefix}/favicon.ico { rewrite ^ {$prefix}/{$bin}?p=sifpress/favicon             last; }
+
+        location {$prefix}/ {
+            # \$uri keeps the {$prefix} prefix inside ?p=; the artifact strips its
+            # own mount prefix, so no map or capture is needed here.
+            try_files \$uri \$uri/ {$prefix}/{$bin}?p=\$uri;
+        }
+
+        # Two caveats:
+        #   * the PHP handler must stay a `location ~ \\.php$` block (a `^~`
+        #     prefix location would swallow it and serve .php as static);
+        #   * do not keep a competing `try_files \$uri =404;` in that block.
+        NGINX;
+    }
+
+    return ['apache' => dedent_block($apache), 'nginx' => dedent_block($nginx)];}
+
+/** Strip the heredoc indentation used to keep this file readable. */
+function dedent_block(string $text): string
+{
+    $lines = explode("\n", $text);
+    $indent = null;
+
+    foreach ($lines as $line) {
+        if (trim($line) === '') {
+            continue;
+        }
+
+        $pad = strlen($line) - strlen(ltrim($line, ' '));
+
+        if ($indent === null || $pad < $indent) {
+            $indent = $pad;
+        }
+    }
+
+    if ($indent === null || $indent === 0) {
+        return $text;
+    }
+
+    foreach ($lines as $i => $line) {
+        $lines[$i] = substr($line, $indent);
+    }
+
+    return implode("\n", $lines);
+}
+
+/**
+ * `rewrite status`: what the rules would target and what the artifact thinks
+ * its current URL mode is.
+ */
+function sifpress_rewrite_status(string $mount, string $base, string $bin, string $configPath): void
+{
+    $mode = defined('SIFPRESS_PRETTY_URLS') ? trim((string) SIFPRESS_PRETTY_URLS) : '(unset)';
+    $flag = pretty_urls_flag_path();
+
+    fwrite(STDOUT, 'Artifact:      ' . dirname(__FILE__) . "/{$bin}\n");
+    fwrite(STDOUT, 'Config:        ' . $configPath . "\n");
+    fwrite(STDOUT, 'Mount path:    ' . ($mount === '' ? '/ (document root)' : $mount) . "\n");
+    fwrite(STDOUT, 'Base URL:      ' . ($base === '' ? '(not configured)' : $base) . "\n");
+    fwrite(STDOUT, 'SIFPRESS_PRETTY_URLS: ' . $mode . "\n");
+    fwrite(STDOUT, 'Observed marker:    ' . $flag . (is_file($flag) ? ' (present)' : ' (absent)') . "\n");
+    fwrite(STDOUT, 'Mode now:      ' . (pretty_urls_enabled() ? 'clean paths' : '?p= links') . "\n");
+    fwrite(STDOUT, 'Emit mode:     ' . (defined('SIFPRESS_PRETTY_URLS')
+        && in_array(strtolower(trim((string) SIFPRESS_PRETTY_URLS)), ['1', 'true', 'on', 'yes'], true)
+        ? 'forced on (--forget will not change it)'
+        : 'evidence-based (on after the first clean-path request)') . "\n");
+
+    fwrite(STDOUT, "\nGenerate with: php {$bin} rewrite both"
+        . ($mount === '' ? '' : " --base-path={$mount}") . "\n");
+
+    if ($base !== '') {
+        fwrite(STDOUT, "Verify with:   php {$bin} rewrite check\n");
+    } else {
+        fwrite(STDOUT, "Verify with:   php {$bin} rewrite check --base-url=https://example.com"
+            . ($mount === '' ? '' : " --base-path={$mount}") . "\n");
+    }
+}
+
+/**
+ * `rewrite check`: probe the live URLs. The probes only ask whether the server
+ * routed a clean path to the artifact — no app-side marker needed.
+ */
+function sifpress_rewrite_check(string $mount, string $base, string $bin): void
+{
+    if ($base === '') {
+        fwrite(STDERR, "No base URL configured. Pass --base-url=https://example.com"
+            . " or set SIFPRESS_BASE_URL / the site_url setting.\n");
+        exit(1);
+    }
+
+    $root = rtrim($base, '/') . ($mount === '' ? '' : $mount);
+
+    $probes = [
+        ['API', $root . '/sifpress/api?action=system.status', 'json'],
+        ['Admin shell', $root . '/sifpress/admin/login', 'html'],
+        ['robots.txt', $root . '/robots.txt', 'text'],
+        ['Sifront route', $root . '/this/route/does/not/exist', 'html'],
+    ];
+
+    fwrite(STDOUT, "Probing {$root}\n\n");
+    $ok = true;
+
+    foreach ($probes as [$label, $url, $expect]) {
+        $res = sifpress_rewrite_probe($url);
+        $pass = $res['status'] === 200 && match ($expect) {
+            'json' => str_contains($res['body'], '"api":true'),
+            'text' => str_contains($res['body'], 'User-agent:'),
+            default => str_contains($res['body'], '<html'),
+        };
+
+        $ok = $ok && $pass;
+
+        fwrite(STDOUT, sprintf(
+            "  %s %-14s %-12s %s%s\n",
+            $pass ? 'OK  ' : 'FAIL',
+            $label,
+            $res['status'] > 0 ? (string) $res['status'] : 'no response',
+            $res['type'] === '' ? 'no content-type' : $res['type'],
+            $res['status'] === 404
+                ? ' — the web server did not route this path to ' . $bin
+                : ''
+        ));
+    }
+
+    fwrite(STDOUT, "\n");
+
+    if ($ok) {
+        fwrite(STDOUT, "Clean paths are live. The app switches to them by itself on the next\n"
+            . "request (SIFPRESS_PRETTY_URLS = auto).\n");
+
+        return;
+    }
+
+    fwrite(STDOUT, "Clean paths are not reachable yet:\n"
+        . "  1. install the rules: php {$bin} rewrite both"
+        . ($mount === '' ? '' : " --base-path={$mount}") . " --out=.\n"
+        . "  2. reload the web server, then run: php {$bin} rewrite check\n"
+        . "Until then the app keeps emitting ?p= links, which always work.\n");
+}
+
+/** One HTTP probe: status code, content type and a short body preview. */
+function sifpress_rewrite_probe(string $url): array
+{
+    if (!filter_var($url, FILTER_VALIDATE_URL)) {
+        return ['status' => 0, 'type' => '', 'body' => ''];
+    }
+
+    $context = stream_context_create([
+        'http' => [
+            'method' => 'GET',
+            'timeout' => 5,
+            'ignore_errors' => true,
+            'follow_location' => 0,
+            'header' => "Accept: */*\r\nUser-Agent: Sifpress-rewrite-check\r\n",
+        ],
+    ]);
+
+    $body = @file_get_contents($url, false, $context);
+    $status = 0;
+    $type = '';
+
+    foreach ($http_response_header ?? [] as $line) {
+        if (preg_match('#^HTTP/\S+\s+(\d{3})#', $line, $m) === 1) {
+            $status = (int) $m[1];
+            continue;
+        }
+
+        if (stripos($line, 'content-type:') === 0) {
+            $type = trim(explode(';', substr($line, 13))[0]);
+        }
+    }
+
+    return [
+        'status' => $status,
+        'type' => $type,
+        'body' => is_string($body) ? $body : '',
+    ];
+}
+
+/**
  * chown a path to the running artifact's owner when invoked as root, so a
  * root-run `setup`/`migrate` leaves the web server able to read/write it.
  */
@@ -1037,6 +1501,7 @@ function sifpress_cli_assets(string $configPath, array $options, array $argv): v
         'migrate-blobs', 'migrate' => cli_assets_migrate($options),
         'verify' => cli_assets_verify((int) ($options['sample'] ?? 20)),
         'gc' => cli_assets_gc(),
+        'vacuum' => cli_assets_vacuum(),
         default => cli_assets_usage($action),
     };
 }
@@ -1234,6 +1699,7 @@ function cli_assets_migrate(array $options): void
     $dryRun = array_key_exists('dry-run', $options);
     $limit = isset($options['limit']) ? max(1, (int) $options['limit']) : PHP_INT_MAX;
     $keepBlobs = !array_key_exists('keep-blobs', $options) || (string) $options['keep-blobs'] !== '0';
+    $vacuum = isset($options['vacuum']);
 
     $totals = cli_assets_totals();
 
@@ -1260,7 +1726,9 @@ function cli_assets_migrate(array $options): void
             STDOUT,
             "Would migrate {$totals['legacy']} legacy row(s), about " . human_bytes($pendingBytes)
             . " of bytes into " . asset_dir() . ".\n"
-            . ($keepBlobs ? "The BLOBs would be kept (pass --keep-blobs=0 to clear them).\n" : "The BLOBs would be cleared.\n")
+            . ($keepBlobs
+                ? "The BLOBs would be kept (pass --keep-blobs=0 to clear them).\n"
+                : "The BLOBs would be cleared; add --vacuum to reclaim the disk space.\n")
         );
 
         $rows = db()->query(
@@ -1310,9 +1778,17 @@ function cli_assets_migrate(array $options): void
     $cleared = 0;
 
     while ($moved + $failed < $limit) {
+        /* Name only the legacy columns this database still has (see §9 of the plan). */
+        $blobColumns = asset_blob_columns();
+
+        if (!in_array('data', $blobColumns, true)) {
+            break;
+        }
+
         $row = db()->query(
-            'SELECT id, mime, thumb_mime, md5, size_bytes, data, thumb
-               FROM assets WHERE storage_key IS NULL AND data IS NOT NULL ORDER BY id LIMIT 1'
+            'SELECT id, mime, thumb_mime, md5, size_bytes'
+            . ($blobColumns === [] ? '' : ', ' . implode(', ', $blobColumns))
+            . " FROM assets WHERE storage_key IS NULL AND data IS NOT NULL ORDER BY id LIMIT 1"
         )->fetch();
 
         if ($row === false) {
@@ -1330,7 +1806,12 @@ function cli_assets_migrate(array $options): void
 
             $thumbKey = null;
 
-            if ($row['thumb'] !== null && $row['thumb'] !== false) {
+            if (
+                in_array('thumb', $blobColumns, true)
+                && isset($row['thumb'])
+                && $row['thumb'] !== null
+                && $row['thumb'] !== false
+            ) {
                 [, $thumbKey] = cli_asset_store_blob(
                     'thumb',
                     (int) $row['id'],
@@ -1348,15 +1829,20 @@ function cli_assets_migrate(array $options): void
                 $params[] = $thumbKey;
             }
 
+            $dropped = [];
+
             if (!$keepBlobs) {
-                $sets[] = 'data = NULL';
-                $sets[] = 'thumb = NULL';
-                $cleared++;
+                foreach ($blobColumns as $column) {
+                    $sets[] = $column . ' = NULL';
+                    $dropped[] = $column;
+                }
             }
 
             $params[] = (int) $row['id'];
             db()->prepare('UPDATE assets SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($params);
 
+            /* Only count what actually landed, so a failure cannot inflate it. */
+            $cleared += count($dropped) > 0 ? 1 : 0;
             $moved++;
             fwrite(STDOUT, sprintf("  #%-5d -> %s\n", (int) $row['id'], $key));
         } catch (Throwable $e) {
@@ -1384,11 +1870,39 @@ function cli_assets_migrate(array $options): void
     if (!$keepBlobs && $cleared > 0) {
         fwrite(
             STDOUT,
-            "Cleared {$cleared} BLOB(s) from the database. The file only shrinks on disk after:\n"
-            . '  php ' . basename(__FILE__) . ' sessions purge   # housekeeping\n'
-            . '  VACUUM the database when convenient (sqlite3 sys.db "VACUUM";) to reclaim pages.\n'
+            "Cleared the asset BLOB data from {$cleared} row(s). SQLite only returns the freed\n"
+            . "pages to the filesystem on VACUUM. Reclaim them with:\n"
+            . '  php ' . basename(__FILE__) . ' assets vacuum' . "\n"
         );
+
+        if ($vacuum) {
+            cli_assets_vacuum();
+        }
     }
+}
+
+/**
+ * Reclaim the pages freed by dropping the asset BLOBs. VACUUM rewrites the
+ * whole database under a brief exclusive lock, so it is a deliberate,
+ * operator-triggered step rather than something every `migrate` does.
+ */
+function cli_assets_vacuum(): void
+{
+    $path = db_path();
+    $before = (int) @filesize($path);
+
+    /* Fold the WAL back in first, so the number reported is the real file. */
+    db()->exec('PRAGMA wal_checkpoint(TRUNCATE)');
+    db()->exec('VACUUM');
+
+    clearstatcache(true, $path);
+    $after = (int) @filesize($path);
+
+    fwrite(
+        STDOUT,
+        'VACUUM: sys.db ' . human_bytes($before) . ' -> ' . human_bytes($after)
+        . ($after < $before ? ' (' . human_bytes($before - $after) . " reclaimed)\n" : " (already compact)\n")
+    );
 }
 
 /**
@@ -1399,6 +1913,10 @@ function cli_assets_migrate(array $options): void
  */
 function cli_asset_store_blob(string $column, int $id, string $mime, ?int $expectedSize, ?string $expectedMd5): array
 {
+    if (!asset_column_exists($column)) {
+        throw new RuntimeException("column {$column} no longer exists on assets");
+    }
+
     $stmt = db()->prepare("SELECT {$column} FROM assets WHERE id = ?");
     $stmt->bindColumn(1, $blob, PDO::PARAM_LOB);
     $stmt->execute([$id]);

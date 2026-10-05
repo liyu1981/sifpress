@@ -37,7 +37,8 @@ php buildfront.php release
   (`run()`, `inline_assets()`); each drives its own pipeline.
 - `build.php` runs `pnpm run build` in `admin_ui/`, inlines the built
   JS/CSS into the HTML, embeds it as `EMBEDDED_HTML`, and assembles the
-  PHP fragments from `src/` (in order: `env.php`, `bootstrap.php`, `db.php`,
+  PHP fragments from `src/` (in order: `env.php`, `bootstrap.php`,
+  `urlmode.php`, `db.php`,
   `migration.php`, `auth.php`, `api.php`, `storage.php`, `asset.php`,
   `sifront.php`,
   `spa.php`, `embed.php`, `migrations.php`, `backup.php`, `dev.php`,
@@ -101,7 +102,9 @@ php buildfront.php release
   Env vars (`SIFPRESS_DB_DIR`, `SIFPRESS_ADMIN_PASSWORD`,
   `SIFPRESS_UPDATE_MANIFEST_URL`, `SIFPRESS_BASE_URL`) are still supported as
   fallbacks for backward compatibility.
-- **CLI**: `php sifpress.php [setup|migrate|change_password|sessions|assets|inject_sifront|update_sifront|backup|config|cron|status|version|help]`
+  `SIFPRESS_PRETTY_URLS` (`'auto'` | `'1'` | `'0'`) picks which URL form the
+  app *emits* — see "URL modes" below.
+- **CLI**: `php sifpress.php [setup|migrate|change_password|sessions|assets|inject_sifront|update_sifront|backup|config|cron|rewrite|status|version|help]`
   (default `setup`). `setup` writes `sifpress_config.php` + the DB folder as the
   invoking user — the way to bootstrap when the docroot is not writable by the
   web user; when run as root the created files are chowned to the artifact's
@@ -137,11 +140,56 @@ php buildfront.php release
   values and
   `config --set KEY=VALUE` rewrites `define()` values in place with a
   tokenizer (preserves comments, writes a `.bak`). `cron install|show|remove`
-  manages a marked backup block in a user's crontab. `version` prints the
+  manages a marked backup block in a user's crontab.
+  `rewrite [apache|nginx|both|check|status]` prints (or `--out=`) the server
+  rules that map clean paths onto the `?p=` protocol, `check` probes the live
+  URLs, `status` prints the resolved mount/mode, `--forget` clears the
+  clean-path marker and `--set-config` pins `SIFPRESS_PRETTY_URLS=1`. See
+  "URL modes" below. `version` prints the
   Sifpress version (and the artifact path) followed by every installed sifront
   with its version and flags (`virtual`, `legacy html`, `active`) — handy to
   confirm what a deployment is running. See `src/backup.php`
   and `src/cli.php`.
+
+## URL modes (`src/urlmode.php`)
+
+`?p=` is the protocol; clean paths are an optional, purely cosmetic second
+spelling of the same routes.
+
+- **Resolution.** `request_route()` reads `?p=`, and when it is absent falls
+  back to `REQUEST_URI`'s path (or `PATH_INFO`), normalising it
+  (`normalize_route()`: percent-decode, collapse `.`/`..`/empty segments, cap
+  512 chars). `mount_path()` — from `SCRIPT_NAME`, or `SCRIPT_FILENAME` minus
+  `DOCUMENT_ROOT` under the built-in server — is stripped from both, so the
+  nginx rule `try_files $uri $uri/ /app/index.php?p=$uri` works verbatim at any
+  mount depth.
+- **Emission.** `route_path()` / `route_url()` build every generated link
+  (canonical, og:image, sitemap, robots, asset/avatar payloads, the sifront
+  shell, favicon) in the active form, so no route is spelled out in `?p=`
+  notation anywhere else — the only exceptions are `urlmode.php` itself,
+  robots.txt (which needs a path, not a document-relative query) and the
+  needle `apply_ui_sdk_version()` matches against the build-time admin HTML.
+  Query mode stays document-relative (`?p=…`); pretty mode is mount-aware
+  (`/app/sifpress/asset?id=7`).
+- **Mode.** `SIFPRESS_PRETTY_URLS`: `'1'`/`'0'` force it, `'auto'` (default)
+  switches on the first *observed* clean-path request and remembers it in
+  `<db_dir>/pretty_urls` (written `@`-silently, deleted by `rewrite --forget`).
+  Evidence-based on purpose: an install whose rules were removed keeps
+  emitting links that work.
+- **Aliases.** `robots.txt`, `sitemap.xml` and `favicon.ico` are matched in
+  `router.php` on the resolved route *before* the `sifpress/` branch, so they
+  need the rules (or PATH_INFO) to arrive at all.
+- **Client.** `base_url_meta()` injects `window.SIFPRESS_MOUNT`,
+  `window.SIFPRESS_PRETTY_URLS` and matching `<meta>` tags. In ui-sdk,
+  `appBaseUrl()` returns the mount in pretty mode (the document may be an
+  article), `moduleUrl()`/`apiUrl()`/`assetUrl()`/`loadUiChunk()` branch on it,
+  and `createQueryRewrite()`'s `input` accepts a bare path (strip mount, then
+  module prefix) while `output` writes `mount + prefix + route`. Both spellings
+  resolve in both modes, so a bundle cached before the feature keeps working.
+- **Dev.** PHP's built-in server routes every URI to the artifact, so
+  `curl localhost:5000/sifpress/admin/login` exercises the whole path — the
+  dev box therefore also flips the mode to pretty on the first clean-path
+  request (`php dist/index.php rewrite --forget` to reset).
 
 ## Development server
 
@@ -188,6 +236,7 @@ src/                PHP source fragments (edit these)
   storage.php       asset storage interface + filesystem backend (uuid keys)
   asset.php         ?p=asset binary serving (storage objects + legacy blobs)
   demo_page.php     shared markdown-demo page (virtual page + dev seed)
+  urlmode.php       `?p=` / clean-path route resolution + mode-aware links
   seo.php           settings store + sitemap/robots + head meta injection
   tracking.php      analytics tracking head tags
   favicon.php       ?p=favicon serving (icon + apple-touch-icon)
@@ -209,6 +258,7 @@ ui_sdk/             reusable UI SDK (pnpm workspace package "ui-sdk")
     upload.ts       chunked resumable uploader (parts, retry, resume, progress)
     auth.tsx        AuthProvider + useAuth (React context over react-query)
     update.ts       updateApi (version check / self-upgrade)
+    base-url.ts     appBaseUrl() / mountPath() / prettyUrls() (URL mode)
     rewrite.ts      createQueryRewrite() — the TanStack Router ?p= rewrite pair
     index.ts        barrel (re-exports everything as "ui-sdk")
   package.json      name "ui-sdk", peer-deps on react/react-query/router

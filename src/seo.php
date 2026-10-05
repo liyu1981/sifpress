@@ -236,18 +236,14 @@ function redirect_to_canonical_host(): void
 }
 
 /**
- * Absolute canonical URL for a route. Root maps to the base; everything
- * else is the query-string form the router actually serves.
+ * Absolute canonical URL for a route. Follows the active URL mode: the mount
+ * root for '/', the ?p= form of the artifact while rewrite rules are absent,
+ * and the pretty path (/article/x) once they are installed — so canonical,
+ * og:url, JSON-LD and the sitemap all name the URL the browser actually uses.
  */
 function canonical_url(string $route): string
 {
-    $route = trim($route, '/');
-
-    if ($route === '') {
-        return base_url();
-    }
-
-    return base_url() . '?p=' . $route;
+    return route_url($route);
 }
 
 /**
@@ -574,15 +570,30 @@ function seo_robots(): never
     if ($custom !== '') {
         $body = $custom;
     } else {
-        $body = "User-agent: *\n"
-            . "Allow: /\n"
-            . "Disallow: /?p=sifpress/admin/editor\n"
-            . "Disallow: /?p=sifpress/admin/settings\n"
-            . "Disallow: /?p=sifpress/admin/login";
+        /*
+         * Disallow paths, in whichever URL mode is active. robots.txt wants a
+         * path, so the ?p= form is spelled out with the mount rather than
+         * borrowing the document-relative form links use.
+         */
+        $private = '';
+
+        foreach (['sifpress/admin/editor', 'sifpress/admin/settings', 'sifpress/admin/login'] as $route) {
+            $private .= 'Disallow: ' . (
+                pretty_urls_enabled()
+                    ? route_path($route)
+                    : rtrim(mount_path(), '/') . '/?p=' . $route
+            ) . "\n";
+        }
+
+        $body = "User-agent: *\nAllow: /\n" . rtrim($private, "\n");
     }
 
     if (setting_get('enable_sitemap', '1') === '1' && !str_contains($body, 'Sitemap:')) {
-        $body .= "\nSitemap: " . canonical_url('/') . '?p=sifpress/seo&action=sitemap';
+        $sitemap = pretty_urls_enabled()
+            ? rtrim(mount_path(), '/') . '/sitemap.xml'
+            : base_url() . '?p=sifpress/seo&action=sitemap';
+
+        $body .= "\nSitemap: " . $sitemap;
     }
 
     http_response_code(200);

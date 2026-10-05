@@ -2,7 +2,7 @@
  * Auto-detected video embeds for image-syntax markdown links:
  *
  *   ![alt](https://example.com/clip.mp4)          direct video file
- *   ![alt](?p=sifpress/asset&id=3&kind=video)          app asset (video)
+ *   ![alt](/sifpress/asset?id=3)                   app asset (video)
  *   ![alt](https://www.youtube.com/watch?v=…)r)     YouTube
  *   ![alt](https://youtu.be/…) / short link
  *   ![alt](https://www.bilibili.com/video/BV…/)    Bilibili
@@ -11,10 +11,11 @@
  * position directives from image-directives.ts still apply (e.g.
  * `![Alt|center](clip.mp4)`).
  *
- * App-asset URLs (`?p=sifpress/asset&id=N`) carry no extension, so the copied
- * markdown link tags them explicitly: `![clip](?p=sifpress/asset&id=3&filetype=mp4)`.
- * The backend ignores the extra `filetype` param; the renderer uses it to
- * choose `<video>` over `<img>`.
+ * App-asset URLs carry no extension, so the copied markdown link tags them
+ * explicitly: `![clip](/sifpress/asset?id=3&filetype=mp4)`. The backend ignores
+ * the extra `filetype` param; the renderer uses it to choose `<video>` over
+ * `<img>`. Both URL modes are recognised: the clean path above and the
+ * rewrite-free `?p=sifpress/asset&id=3` form (see src/urlmode.php).
  *
  * An `|autoplay` directive in the alt text enables autoplay on bilibili
  * embeds: `![Bilibili|autoplay](https://www.bilibili.com/…)`. Without it
@@ -29,7 +30,8 @@ export interface ResolvedVideo {
 }
 
 const VIDEO_EXT_RE = /\.(?:mp4|webm|ogg|ogv|m4v)(?:[?#].*)?$/i;
-const ASSET_URL_RE = /[?&]p=sifpress\/asset\b/i;
+/* `?p=sifpress/asset` (rewrite-free) or `/sifpress/asset` (clean path). */
+const ASSET_URL_RE = /[?&]p=sifpress\/asset\b|\/sifpress\/asset(?:\?|$)/i;
 const ASSET_VIDEO_HINT_RE = /[?&]kind=video\b|[?&]filetype=(?:mp4|webm|ogg|ogv|m4v)(?:[&#]|$)/i;
 
 const YOUTUBE_HOST_RE = /(?:^|\.)youtube\.com|youtu\.be/i;

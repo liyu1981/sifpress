@@ -30,6 +30,7 @@ declare(strict_types=1);
  *
  *   src/env.php          PHP version/extension/FTS5 requirements (assembled first)
  *   src/bootstrap.php    constants + core helpers
+ *   src/urlmode.php      ?p= / clean-path URL resolution + pretty-mode links
  *   src/db.php           SQLite open, pragmas, migration detection/runner, seeds
  *   src/migration.php    ?p=sifpress/migration handler
  *   src/auth.php         sessions, RBAC, page grants
@@ -75,6 +76,7 @@ $output = $outputDir . ($isRelease ? '/sifpress.php' : '/index.php');
 $parts = [
     'env.php',
     'bootstrap.php',
+    'urlmode.php',
     'db.php',
     'migration.php',
     'auth.php',
@@ -387,3 +389,5 @@ echo "Artifact: " . ($isRelease ? 'dist/sifpress.php (release, no dev.php)' : 'd
 echo PHP_EOL;
 echo "No .htaccess, no rewrite rules are required." . PHP_EOL;
 echo "Routes: /index.php?p=sifpress/admin/...   API: /index.php?p=sifpress/api&action=..." . PHP_EOL;
+echo "Want clean paths (/sifpress/admin/...)? php "
+    . ($isRelease ? 'dist/sifpress.php' : 'dist/index.php') . " rewrite both" . PHP_EOL;

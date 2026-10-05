@@ -27,7 +27,7 @@ it into any directory of any PHP host and it just runs.
 | | |
 | --- | --- |
 | **1** production file | everything inlined — no asset folder |
-| **0** rewrite rules | routing is a query parameter (`?p=…`) every server passes natively |
+| **0** rewrite rules | routing is a query parameter (`?p=…`) every server passes natively — generate them only if you want clean paths |
 | **1 request** per page load | JS + CSS are embedded in the HTML |
 | **PHP 8.3+** + SQLite | the production server never needs Node.js |
 
@@ -128,6 +128,31 @@ Anything starting with `p=sifpress/` is handled server-side (`api`,
 belongs to the active sifront. There are no `.htaccess` rules and no `#/`
 hash routes — route changes go through `history.pushState`, so back/forward
 work out of the box and every link is real.
+
+## Routing, optionally pretty — generated rewrite rules
+
+The `?p=` form is the protocol and it always works. If you want clean paths
+(`/sifpress/admin/sifront`, `/article/hello-world`, `/robots.txt`), generate
+the rules and install them:
+
+```bash
+php sifpress.php rewrite apache --out=.      # writes ./.htaccess
+php sifpress.php rewrite nginx  --out=.      # writes ./sifpress-rewrite.conf (paste into server {})
+php sifpress.php rewrite check               # probe the live URLs, prints a verdict
+php sifpress.php rewrite status              # mount path, mode, marker
+```
+
+Every path that is not a real file is handed to the artifact with the route
+copied into `?p=` — the dispatch it already performs — so removing the rules
+later breaks nothing. `/robots.txt`, `/sitemap.xml` and `/favicon.ico` get
+their conventional names on top of that. Nginx users who mount the artifact
+in a sub-directory pass `--base-path=/myapp`.
+
+The app switches on its own: `SIFPRESS_PRETTY_URLS` defaults to `auto`, which
+emits `?p=` links until a clean-path request has actually been observed (proof
+the rules are live), then keeps a marker in the DB folder. Set it to `1` to
+force clean paths or `0` to pin the `?p=` form even with the rules installed;
+`php sifpress.php rewrite --forget` clears the marker.
 
 ## The front: sifronts
 

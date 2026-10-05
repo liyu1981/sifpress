@@ -1,4 +1,4 @@
-import { appBaseUrl } from './base-url';
+import { appBaseUrl, prettyUrls } from './base-url';
 
 export type ApiMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
@@ -20,13 +20,31 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * URL for a backend module route, in whichever URL mode the artifact is
+ * serving (see base-url.ts / src/urlmode.php):
+ *
+ *   query mode   /index.php?p=sifpress/api&action=…   (document-relative)
+ *   clean paths  /sifpress/api?action=…                (mount-aware)
+ *
+ * Every caller goes through here, so both forms stay in lockstep.
+ */
+export function moduleUrl(module: string, params: Record<string, string> = {}): string {
+  if (prettyUrls()) {
+    const query = new URLSearchParams(params).toString();
+    const base = appBaseUrl().replace(/\/+$/, '');
+    return `${base}/${module}${query === '' ? '' : `?${query}`}`;
+  }
+
+  return `${appBaseUrl()}?${new URLSearchParams({ p: module, ...params }).toString()}`;
+}
+
 export function apiUrl(
   module: string,
   action: string,
   params: Record<string, string> = {},
 ): string {
-  const query = new URLSearchParams({ p: module, action, ...params });
-  return `${appBaseUrl()}?${query.toString()}`;
+  return moduleUrl(module, { action, ...params });
 }
 
 interface RequestInitOptions {
@@ -93,16 +111,12 @@ export async function uploadRequest<T>(
 }
 
 /**
- * Absolute URL for an asset blob (or its thumbnail). Relative URLs in
- * asset payloads are combined with the current mount path so the single
- * file works at any depth.
+ * Absolute URL for an asset blob (or its thumbnail). Root-relative URLs carry
+ * the artifact's mount path, so the single file works at any depth and under
+ * either URL mode.
  */
 export function assetUrl(id: number, thumb = false): string {
-  const params = new URLSearchParams({ p: 'sifpress/asset', id: String(id) });
-  if (thumb) {
-    params.set('thumb', '1');
-  }
-  return `${appBaseUrl()}?${params.toString()}`;
+  return moduleUrl('sifpress/asset', thumb ? { id: String(id), thumb: '1' } : { id: String(id) });
 }
 
 /**
@@ -110,8 +124,7 @@ export function assetUrl(id: number, thumb = false): string {
  * otherwise a generated SVG, so this endpoint always returns an image.
  */
 export function avatarUrl(userId: number): string {
-  const params = new URLSearchParams({ p: 'sifpress/asset', user: String(userId) });
-  return `${appBaseUrl()}?${params.toString()}`;
+  return moduleUrl('sifpress/asset', { user: String(userId) });
 }
 
 function escapeMarkdownText(name: string): string {
@@ -124,12 +137,12 @@ function escapeMarkdownText(name: string): string {
  * but the renderer uses it to pick `<video>` over `<img>`.
  */
 export function assetSourceUrl(id: number, name: string, kind: string): string {
-  const url = assetUrl(id);
   if (kind !== 'video') {
-    return url;
+    return assetUrl(id);
   }
+
   const ext = /\.([a-z0-9]{2,5})$/i.exec(name)?.[1]?.toLowerCase() ?? 'mp4';
-  return `${url}&filetype=${ext}`;
+  return moduleUrl('sifpress/asset', { id: String(id), filetype: ext });
 }
 
 export function assetMarkdownLink(name: string, id: number, kind: string): string {

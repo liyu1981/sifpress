@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ArrowLeft, Calendar, Clock, Loader2, Pencil, RefreshCw } from 'lucide-react';
 import { useRef } from 'react';
-import { kvAttrs, MarkdownView, pagesApi, parseFrontMatter } from 'ui-sdk';
+import { kvAttrs, MarkdownView, moduleUrl, pagesApi, parseFrontMatter } from 'ui-sdk';
 import { RawHtml } from '@/components/raw-html';
 import { ReadingProgress } from '@/components/reading-progress';
 import { TableOfContents, useArticleHeadings, useScrollSpy } from '@/components/toc';
@@ -30,9 +30,9 @@ function estimateReadingMinutes(md: string): number {
   return Math.max(1, Math.round(words / 200));
 }
 
-/** Admin editor URL for a page slug (?p=sifpress/admin/editor/<slug>). */
+/** Admin editor URL for a page slug (mode-aware: /sifpress/admin/editor/<slug>). */
 function adminEditorUrl(slug: string): string {
-  return `?p=sifpress/admin/editor/${encodeURIComponent(slug)}`;
+  return moduleUrl(`sifpress/admin/editor/${encodeURIComponent(slug)}`);
 }
 
 function TagPill({ tag }: { tag: string }) {

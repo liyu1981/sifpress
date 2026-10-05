@@ -2,7 +2,7 @@
  * ------------------------------------------------------------
  * Main router
  *
- * Strict protocol:
+ * Strict protocol (one query parameter, `p`):
  *
  *   p=sifpress/api        -> server-side JSON API (action required)
  *   p=sifpress/migration  -> schema migration status / run
@@ -13,12 +13,34 @@
  *   p=sifpress/favicon    -> favicon serving
  *   p=sifpress/dev        -> dev-only seeder (dev builds only)
  *   p=sifpress/admin/...  -> admin SPA (React)
- *   anything else          -> viewer SPA (construction page)
+ *   p=/article/hello      -> viewer SPA (sifront), route /article/hello
+ *   anything else         -> viewer SPA (construction page)
+ *
+ * With the rewrite rules installed (`php sifpress.php rewrite`) every `p`
+ * above is also reachable as a path — /sifpress/admin/assets,
+ * /article/hello-world, /robots.txt — because the path is copied into `p`.
+ * request_route() resolves both forms, so neither is deprecated.
  * ------------------------------------------------------------
  */
 
 $method = request_method();
-$p = request_param('p', '');
+$p = request_route();
+
+/*
+ * Conventional SEO file names. They are not module paths, so they are matched
+ * on the resolved route before the sifpress/ branch below.
+ */
+if ($p === 'robots.txt') {
+    handle_seo('robots', $method);
+}
+
+if ($p === 'sitemap.xml') {
+    handle_seo('sitemap', $method);
+}
+
+if ($p === 'favicon.ico') {
+    handle_favicon();
+}
 
 if (str_starts_with($p, 'sifpress/')) {
     $inner = substr($p, strlen('sifpress/'));
@@ -68,7 +90,7 @@ if (str_starts_with($p, 'sifpress/')) {
     $route = '/' . ltrim($inner, '/');
 
     if ($route === '/admin') {
-        header('Location: ' . base_url() . '?p=sifpress/admin/sifront');
+        header('Location: ' . route_url('sifpress/admin/sifront'));
         http_response_code(302);
         exit;
     }

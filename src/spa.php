@@ -59,17 +59,23 @@ const SIFRONT_FALLBACK_HTML = '<!DOCTYPE html>'
     . '</html>';
 
 /**
- * `<meta>` + inline script exposing the resolved base URL to the client,
- * so ui-sdk can build API/asset links and router hrefs from it instead of
- * assuming the document path.
+ * `<meta>` + inline script exposing the resolved base URL, the mount path and
+ * the URL mode to the client, so ui-sdk can build API/asset/router URLs from
+ * them instead of assuming the document path (see ui_sdk/src/base-url.ts).
  */
 function base_url_meta(): string
 {
     $base = base_url();
     $version = defined('UI_SDK_VERSION') ? (string) UI_SDK_VERSION : '';
+    $mount = mount_path();
+    $pretty = pretty_urls_enabled() ? '1' : '0';
 
     return '<meta name="sifpress-base-url" content="' . seo_esc($base) . '">'
+        . '<meta name="sifpress-mount" content="' . seo_esc($mount) . '">'
+        . '<meta name="sifpress-pretty-urls" content="' . $pretty . '">'
         . '<script>window.SIFPRESS_BASE_URL=' . json_encode($base) . ';'
+        . 'window.SIFPRESS_MOUNT=' . json_encode($mount) . ';'
+        . 'window.SIFPRESS_PRETTY_URLS=' . $pretty . ';'
         . 'window.SIFPRESS_UI_VERSION=' . json_encode($version) . ';</script>';
 }
 
@@ -91,9 +97,26 @@ function inject_into_head(string $html, string $block): string
 }
 
 /**
- * Append the embedded ui-sdk content hash to its <script> URL. The bundle
- * is served `immutable` for a year, so the URL must change whenever its
- * content does — otherwise a stale module stays cached across rebuilds.
+ * `src` for a shared ui-sdk chunk: whichever URL mode is active, with the
+ * content-hash version query already attached. The bundle is served
+ * `immutable` for a year, so the URL must change whenever its content does —
+ * otherwise a stale module stays cached across rebuilds.
+ */
+function ui_sdk_src(string $file): string
+{
+    $query = [];
+
+    if (defined('UI_SDK_VERSION') && UI_SDK_VERSION !== '') {
+        $query['v'] = UI_SDK_VERSION;
+    }
+
+    return route_path('sifpress/asset/js/' . $file, $query);
+}
+
+/**
+ * Point the build-time `?p=sifpress/asset/js/<file>` script tags in the
+ * inlined admin HTML at the current mode's URL. That HTML is assembled once at
+ * build time and holds no request state, so the swap happens here.
  */
 function apply_ui_sdk_version(string $html): string
 {
@@ -109,7 +132,7 @@ function apply_ui_sdk_version(string $html): string
     foreach ($needles as $file) {
         $html = str_replace(
             'src="?p=sifpress/asset/js/' . $file . '"',
-            'src="?p=sifpress/asset/js/' . $file . '&v=' . UI_SDK_VERSION . '"',
+            'src="' . seo_esc(ui_sdk_src($file)) . '"',
             $html
         );
     }
@@ -160,11 +183,11 @@ function sifront_shell_html(
         $metaJson = '{}';
     }
 
-    $bundleSrc = '?p=sifpress/sifront-bundle&id=' . $id . '&v=' . rawurlencode($version);
-
-    if ($hash !== '') {
-        $bundleSrc .= '&h=' . rawurlencode($hash);
-    }
+    $bundleSrc = route_path('sifpress/sifront-bundle', array_filter([
+        'id' => $id > 0 ? (string) $id : '',
+        'v' => $version,
+        'h' => $hash,
+    ], fn ($value) => $value !== ''));
 
     return '<!doctype html>'
         . '<html lang="en">'
@@ -174,7 +197,7 @@ function sifront_shell_html(
         . '<title>' . htmlspecialchars($title, ENT_QUOTES) . '</title>'
         . '<script>' . sifront_theme_bootstrap() . '</script>'
         . '<meta name="sifront_meta" content="' . htmlspecialchars($metaJson, ENT_QUOTES) . '">'
-        . '<script type="module" src="?p=sifpress/asset/js/ui-sdk.mjs"></script>'
+        . '<script type="module" src="' . seo_esc(ui_sdk_src('ui-sdk.mjs')) . '"></script>'
         . '<script type="module" src="' . $bundleSrc . '"></script>'
         . '</head>'
         . '<body><div id="root"></div></body>'
@@ -360,15 +383,15 @@ function serve_spa(string $route): never
         $faviconVersion = (string) setting_get('favicon_version', '0');
 
         if ($faviconId !== '' && $faviconId !== '0') {
-            $faviconUrl = base_url() . '?p=sifpress/asset&id=' . $faviconId . '&v=' . $faviconVersion;
+            $faviconUrl = route_url('sifpress/asset', ['id' => $faviconId, 'v' => $faviconVersion]);
             $faviconMime = (string) setting_get('favicon_mime', 'image/svg+xml');
             $meta .= '<link rel="icon" type="' . seo_esc($faviconMime) . '" href="' . seo_esc($faviconUrl) . '">';
         } else {
-            $meta .= '<link rel="icon" type="image/svg+xml" href="' . seo_esc(base_url() . '?p=sifpress/favicon') . '">';
+            $meta .= '<link rel="icon" type="image/svg+xml" href="' . seo_esc(route_url('sifpress/favicon')) . '">';
         }
 
         if ($appleId !== '' && $appleId !== '0') {
-            $appleUrl = base_url() . '?p=sifpress/asset&id=' . $appleId . '&v=' . $faviconVersion;
+            $appleUrl = route_url('sifpress/asset', ['id' => $appleId, 'v' => $faviconVersion]);
             $meta .= '<link rel="apple-touch-icon" href="' . seo_esc($appleUrl) . '">';
         }
     }

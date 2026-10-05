@@ -161,8 +161,8 @@ function asset_payload(array $row): array
         'uploaded_by_name' => (string) $row['uploaded_by_name'],
         'can_edit' => can_edit_asset(current_user(), $row),
         'created_at' => (string) $row['created_at'],
-        'url' => '?p=sifpress/asset&id=' . $id,
-        'thumb_url' => '?p=sifpress/asset&id=' . $id . '&thumb=1',
+        'url' => route_path('sifpress/asset', ['id' => $id]),
+        'thumb_url' => route_path('sifpress/asset', ['id' => $id, 'thumb' => '1']),
     ];
 }
 

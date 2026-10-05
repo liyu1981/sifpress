@@ -1430,7 +1430,7 @@ function api_pages_owner_candidates(string $method): never
             'id' => $id,
             'username' => (string) $row['username'],
             'name' => $name !== '' ? $name : (string) $row['username'],
-            'avatar_url' => '?p=sifpress/asset&user=' . $id,
+            'avatar_url' => route_path('sifpress/asset', ['user' => $id]),
         ];
     }
 

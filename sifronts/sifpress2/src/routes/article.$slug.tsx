@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ArrowLeft, Clock, Pencil, RefreshCw } from 'lucide-react';
 import { useRef } from 'react';
-import { MarkdownView } from 'ui-sdk';
+import { MarkdownView, moduleUrl } from 'ui-sdk';
 import { Cover } from '@/components/cover';
 import { SectionLink } from '@/components/kicker';
 import { RailItem } from '@/components/story-card';
@@ -20,7 +20,7 @@ export const Route = createFileRoute('/article/$slug')({
 });
 
 function adminEditorUrl(slug: string): string {
-  return `?p=sifpress/admin/editor/${encodeURIComponent(slug)}`;
+  return moduleUrl(`sifpress/admin/editor/${encodeURIComponent(slug)}`);
 }
 
 function Byline({ article }: { article: ReturnType<typeof useArticle>['data'] }) {

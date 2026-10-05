@@ -2,7 +2,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { Menu, Search, Settings, X } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { useState } from 'react';
-import { kvAttrs, type SeoSettings, type TagCount } from 'ui-sdk';
+import { kvAttrs, moduleUrl, type SeoSettings, type TagCount } from 'ui-sdk';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { linkIconPath, useThemeConfig } from '@/lib/theme-config';
 import { cn } from '@/lib/utils';
@@ -194,7 +194,7 @@ export function Sidebar({ tags, settings }: { tags: TagCount[]; settings?: SeoSe
         <div className="mt-auto flex items-center justify-between border-t border-border pt-4">
           <ThemeToggle />
           <a
-            href="?p=sifpress/admin"
+            href={moduleUrl('sifpress/admin')}
             title="Admin"
             aria-label="Admin"
             className="inline-flex items-center justify-center rounded-md p-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"

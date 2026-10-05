@@ -18,6 +18,11 @@
  *   /index.php?p=sifpress/api&action=hello    -> API
  *   /index.php?p=sifpress/api&action=projects -> API
  *
+ * Rules CAN be installed to also address those routes as clean paths
+ * (/sifpress/admin/articles, /article/hello-world, /robots.txt); generate
+ * them with `php sifpress.php rewrite apache|nginx`. Both spellings are
+ * always accepted, so nothing depends on the rules — see src/urlmode.php.
+ *
  * Source is split into fragments under src/ (bootstrap.php, api.php,
  * spa.php, embed.php, router.php). build.php assembles them and the
  * inlined React bundle into the single dist/index.php artifact.
@@ -165,6 +170,21 @@ define('SIFPRESS_MANIFEST_URL', %s);
  * public https URL explicitly if your proxy does not forward either.
  */
 define('SIFPRESS_BASE_URL', %s);
+
+/**
+ * Which URL form the app *emits* (both forms are always accepted):
+ *
+ *   'auto' (default)  ?p= links, switching to clean paths (/sifpress/admin,
+ *                     /article/hello-world) once a clean-path request has been
+ *                     observed — i.e. after the rewrite rules are installed.
+ *                     Generate them with: php sifpress.php rewrite
+ *   '1'               always emit clean paths (use only with the rules live)
+ *   '0'               always emit ?p= links, even with the rules installed
+ *
+ * 'auto' is the safe default: it never starts emitting links that the server
+ * would 404.
+ */
+define('SIFPRESS_PRETTY_URLS', 'auto');
 
 /**
  * Folder where `php sifpress.php backup` writes snapshot archives.

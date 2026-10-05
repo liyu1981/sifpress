@@ -50,9 +50,9 @@ import { ApiError } from 'ui-sdk';
 import { makeAvatarThumb } from 'ui-sdk';
 import { useAuth } from 'ui-sdk';
 import {
-  appBaseUrl,
   assetsApi,
   authApi,
+  moduleUrl,
   type RoleListItem,
   rolesApi,
   type SeoSettings,
@@ -935,8 +935,7 @@ function SeoSettingsCard() {
     return <SettingsLoadingCard />;
   }
 
-  const seoUrl = (action: 'sitemap' | 'robots'): string =>
-    `${appBaseUrl()}?p=sifpress/seo&action=${action}`;
+  const seoUrl = (action: 'sitemap' | 'robots'): string => moduleUrl('sifpress/seo', { action });
 
   return (
     <Card size="sm">
@@ -1247,8 +1246,7 @@ function FaviconCard({ canEdit }: { canEdit: boolean }) {
     if (id === '' || id === '0') {
       return '';
     }
-    const params = new URLSearchParams({ p: 'sifpress/asset', id, t: faviconVersion });
-    return `${appBaseUrl()}?${params.toString()}`;
+    return moduleUrl('sifpress/asset', { id, t: faviconVersion });
   }
 
   async function handleUpload(type: 'favicon' | 'apple', file: File) {

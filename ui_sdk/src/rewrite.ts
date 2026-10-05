@@ -1,9 +1,15 @@
 import type { LocationRewrite } from '@tanstack/react-router';
-import { appBasePath } from './base-url';
+import { appBasePath, prettyUrls } from './base-url';
 
 function normalizeInternalPath(path: string): string {
   path = path.startsWith('/') ? path : '/' + path;
   return path.replace(/\/+$/, '');
+}
+
+/** Module prefix as a path segment: 'sifpress/' -> '/sifpress', '' -> ''. */
+function moduleSegment(prefix: string): string {
+  const trimmed = prefix.replace(/\/+$/, '');
+  return trimmed === '' ? '' : '/' + trimmed;
 }
 
 /**
@@ -16,6 +22,13 @@ function normalizeInternalPath(path: string): string {
  * - `output` (router -> browser URL): turns the internal path back into a
  *   `?p=...` query on the current document, so `<Link>` hrefs stay
  *   real and shareable at any mount depth.
+ *
+ * When the artifact is serving clean paths (`?p=` copied from the request
+ * path, see src/urlmode.php) the same mapping applies to paths instead:
+ * `/sifpress/admin/assets` <-> `/admin/assets` for the admin SPA,
+ * `/article/hello-world` <-> `/article/hello-world` for a root-mounted
+ * sifront. Both spellings keep working in both modes — a link, a bookmark or a
+ * pushState entry from either world resolves to the same route.
  *
  * `basePath` overrides the document path used for generated hrefs; when
  * omitted it comes from the injected `SIFPRESS_BASE_URL` (see base-url.ts).
@@ -54,16 +67,64 @@ export function createQueryRewrite(
 
       url.searchParams.delete('p');
 
-      if (p && p.startsWith(prefix)) {
-        url.pathname = normalizeInternalPath(p.slice(prefix.length));
-      } else {
-        url.pathname = p != null && p !== '' ? normalizeInternalPath(p) : '/';
+      if (p != null && p !== '') {
+        url.pathname = normalizeInternalPath(
+          prefix !== '' && p.startsWith(prefix) ? p.slice(prefix.length) : p,
+        );
+
+        return url;
       }
+
+      if (!prettyUrls()) {
+        url.pathname = '/';
+
+        return url;
+      }
+
+      /*
+       * Clean-path mode: the browser path already carries the route. Strip
+       * the artifact's mount, then the module prefix, so a sifront mounted at
+       * /app sees /app/article/x as /article/x and the admin SPA sees
+       * /sifpress/admin/x as /admin/x.
+       */
+      const mount = appBasePath().replace(/\/+$/, '');
+      const segment = moduleSegment(prefix);
+      let path = url.pathname;
+
+      if (mount !== '' && path.startsWith(mount + '/')) {
+        path = path.slice(mount.length);
+      }
+
+      path = normalizeInternalPath(path);
+
+      if (segment !== '' && (path === segment || path.startsWith(segment + '/'))) {
+        path = normalizeInternalPath(path.slice(segment.length));
+      }
+
+      /* The artifact URL itself (?p=, or /index.php typed by hand) is the
+       * site root, not a route. */
+      url.pathname = path === '' || /\.php$/i.test(path) ? '/' : path;
 
       return url;
     },
     output: ({ url }) => {
       const internalPath = url.pathname;
+
+      if (prettyUrls()) {
+        const mount = (basePath ?? appBasePath()).replace(/\/+$/, '');
+        const segment = moduleSegment(prefix);
+        const tail = internalPath === '/' ? '' : normalizeInternalPath(internalPath);
+
+        url.pathname = mount + (tail === '' ? (segment === '' ? '/' : segment) : segment + tail);
+
+        for (const [name, value] of kept) {
+          if (!url.searchParams.has(name)) {
+            url.searchParams.set(name, value);
+          }
+        }
+
+        return url;
+      }
 
       url.pathname = basePath ?? appBasePath();
 
