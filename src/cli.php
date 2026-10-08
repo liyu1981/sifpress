@@ -1174,9 +1174,21 @@ function sifpress_rewrite_rules(string $mount, string $bin): array
     #
     # Requires mod_rewrite, and either `AllowOverride FileInfo` for this
     # directory or the same directives inside a <Directory> block.
+    #
+    # The two optional lines at the bottom are commented out on purpose: they
+    # need `AllowOverride Indexes` / `AllowOverride Options`, and Apache answers
+    # 500 for every request in this directory when a directive belongs to an
+    # override category that is not enabled.
 
     <IfModule mod_rewrite.c>
         RewriteEngine On
+
+        # The directory root runs the artifact. There is no index.html here and
+        # the artifact is not named index.php, so without this rule a request
+        # for / falls through to the -d skip below and Apache answers with a
+        # directory listing (or 403 without mod_autoindex). Only the empty path
+        # matches, so every subdirectory keeps its own index file.
+        RewriteRule ^/?\$ {$bin}?p=/ [QSA,L]
 
         # Never touch real files: the artifact, sifpress_config.php, uploads…
         RewriteCond %{REQUEST_FILENAME} -f [OR]
@@ -1191,6 +1203,19 @@ function sifpress_rewrite_rules(string $mount, string $bin): array
         # Everything else: /<route> -> {$bin}?p=/<route>
         RewriteRule ^(.*)\$ {$bin}?p=/\$1 [QSA,L]
     </IfModule>
+
+    # Optional — uncomment only where AllowOverride includes the matching
+    # category. A directive outside the enabled categories makes Apache answer
+    # 500 for every request in this directory, which is why both stay off.
+    #
+    #   # AllowOverride Indexes — the directory index runs the artifact too, so
+    #   # / works even without mod_rewrite (FallbackResource setup below):
+    #   DirectoryIndex {$bin} index.php index.html
+    #
+    #   # AllowOverride Options — never list a directory (a listing exposes the
+    #   # tree; applies to every folder below this one, so keep it commented
+    #   # when another app in the same directory tree relies on listings):
+    #   Options -Indexes
 
     # Apache 2.4.8+ alternative with no mod_rewrite at all — the artifact then
     # reads the route from the request path itself:
@@ -1211,6 +1236,11 @@ function sifpress_rewrite_rules(string $mount, string $bin): array
         location = /robots.txt  { rewrite ^ /{$bin}?p=sifpress/seo&action=robots  last; }
         location = /sitemap.xml { rewrite ^ /{$bin}?p=sifpress/seo&action=sitemap last; }
         location = /favicon.ico { rewrite ^ /{$bin}?p=sifpress/favicon             last; }
+
+        # The document root runs the artifact: `try_files … \$uri/` matches the
+        # root directory itself, and without an index file the index module
+        # then lists it (or answers 403).
+        location = / { rewrite ^ /{$bin}?p=/ last; }
 
         location / {
             try_files \$uri \$uri/ /{$bin}?p=\$uri;
@@ -1238,6 +1268,9 @@ function sifpress_rewrite_rules(string $mount, string $bin): array
         location = {$prefix}/robots.txt  { rewrite ^ {$prefix}/{$bin}?p=sifpress/seo&action=robots  last; }
         location = {$prefix}/sitemap.xml { rewrite ^ {$prefix}/{$bin}?p=sifpress/seo&action=sitemap last; }
         location = {$prefix}/favicon.ico { rewrite ^ {$prefix}/{$bin}?p=sifpress/favicon             last; }
+
+        # The mount root runs the artifact instead of listing the directory.
+        location = {$prefix}/ { rewrite ^ {$prefix}/{$bin}?p={$prefix}/ last; }
 
         location {$prefix}/ {
             # \$uri keeps the {$prefix} prefix inside ?p=; the artifact strips its
@@ -1334,20 +1367,32 @@ function sifpress_rewrite_check(string $mount, string $base, string $bin): void
         ['Admin shell', $root . '/sifpress/admin/login', 'html'],
         ['robots.txt', $root . '/robots.txt', 'text'],
         ['Sifront route', $root . '/this/route/does/not/exist', 'html'],
+        /* The root is the one URL a directory listing can hide behind: autoindex
+         * answers 200 with HTML, so '<html' alone would pass it. */
+        ['Site root', $root . '/', 'root'],
     ];
 
     fwrite(STDOUT, "Probing {$root}\n\n");
     $ok = true;
+    $failed = [];
 
     foreach ($probes as [$label, $url, $expect]) {
         $res = sifpress_rewrite_probe($url);
-        $pass = $res['status'] === 200 && match ($expect) {
-            'json' => str_contains($res['body'], '"api":true'),
-            'text' => str_contains($res['body'], 'User-agent:'),
-            default => str_contains($res['body'], '<html'),
+        $pass = match ($expect) {
+            'root' => $res['status'] >= 200 && $res['status'] < 400
+                && !str_contains($res['body'], 'Index of '),
+            default => $res['status'] === 200 && match ($expect) {
+                'json' => str_contains($res['body'], '"api":true'),
+                'text' => str_contains($res['body'], 'User-agent:'),
+                default => str_contains($res['body'], '<html'),
+            },
         };
 
         $ok = $ok && $pass;
+
+        if (!$pass) {
+            $failed[] = $expect;
+        }
 
         fwrite(STDOUT, sprintf(
             "  %s %-14s %-12s %s%s\n",
@@ -1375,6 +1420,13 @@ function sifpress_rewrite_check(string $mount, string $base, string $bin): void
         . ($mount === '' ? '' : " --base-path={$mount}") . " --out=.\n"
         . "  2. reload the web server, then run: php {$bin} rewrite check\n"
         . "Until then the app keeps emitting ?p= links, which always work.\n");
+
+    if (in_array('root', $failed, true)) {
+        fwrite(STDOUT, "\nThe site root answers with a directory listing: the installed rules\n"
+            . "predate the root rule. Regenerating them fixes it, or add this line by\n"
+            . "hand right after `RewriteEngine On`:\n"
+            . "    RewriteRule ^/?\$ {$bin}?p=/ [QSA,L]\n");
+    }
 }
 
 /** One HTTP probe: status code, content type and a short body preview. */
