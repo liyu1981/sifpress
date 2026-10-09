@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Bot,
   ChevronDown,
+  Eye,
   Loader2,
   Lock,
   Plus,
@@ -40,7 +41,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { useImageOptimize } from '@/hooks/use-image-optimize';
-import { ApiError, assetSourceUrl } from 'ui-sdk';
+import { ApiError, assetSourceUrl, sifrontUrl, writePreviewBuffer } from 'ui-sdk';
 import { useAuth } from 'ui-sdk';
 import {
   buildFrontMatter,
@@ -672,8 +673,8 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
     setBodyTab(next);
   };
 
-  function handleSave(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  /** Validate and assemble the save payload — shared by Save and Preview. */
+  function buildSavePayload(): SavePayload | null {
     setSaveError(null);
 
     const errors: Record<string, string> = {};
@@ -705,7 +706,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
         Object.entries(errors).map(([field, message]) => [field, [message]]),
       );
       setSaveError(new ApiError(422, { error: t('editor.metaInvalid'), errors: fieldErrors }));
-      return;
+      return null;
     }
 
     let frontBlock: string;
@@ -714,7 +715,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
       const meta = parseFrontMatter(`${rawFront.trimEnd()}\n\n`);
       if (Object.keys(meta.data).length === 0) {
         setSaveError(new ApiError(422, { error: t('editor.rawInvalid'), errors: {} }));
-        return;
+        return null;
       }
       frontBlock = `${rawFront.trimEnd()}\n\n`;
     } else {
@@ -723,7 +724,7 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
 
     const bodyMd = bodyTab === 'source' ? sourceBody : (editorRef.current?.getMarkdown() ?? '');
 
-    save.mutate({
+    return {
       slug: cleanSlug,
       title: cleanTitle,
       status: published ? 'published' : 'draft',
@@ -738,7 +739,52 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
           : editing
             ? 'Update article'
             : 'Initial version',
+    };
+  }
+
+  function handleSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const payload = buildSavePayload();
+
+    if (payload !== null) {
+      save.mutate(payload);
+    }
+  }
+
+  /**
+   * Open the sifront on exactly what is on screen: the buffer is parked in
+   * sessionStorage and the new tab renders it (`?preview=1`), so unsaved —
+   * and never-saved — text previews without touching the database.
+   */
+  function handlePreview(): void {
+    const payload = buildSavePayload();
+
+    if (payload === null) {
+      return;
+    }
+
+    const written = writePreviewBuffer({
+      slug: payload.slug,
+      edit_slug: editing && pageQuery.data ? pageQuery.data.slug : 'new',
+      title: payload.title,
+      content_md: payload.content_md,
+      status: payload.status,
+      created_at: payload.created_at,
+      updated_at: payload.updated_at,
+      created_by_name: user?.name ?? '',
     });
+
+    if (!written) {
+      setSaveError(new ApiError(422, { error: t('editor.previewUnavailable'), errors: {} }));
+      return;
+    }
+
+    window.open(
+      sifrontUrl(`/article/${payload.slug}`, { preview: '1' }),
+      '_blank',
+      'noopener,noreferrer',
+    );
   }
 
   const addExtraField = (): void => {
@@ -1276,6 +1322,18 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
                     </Button>
                   </DeletePageMenu>
                 )}
+              {!isRevisionPreview && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePreview}
+                  disabled={slugValue.trim() === ''}
+                >
+                  <Eye />
+                  {t('editor.preview')}
+                </Button>
+              )}
               {!isRevisionPreview && (
                 <Button type="submit" size="sm" disabled={save.isPending}>
                   {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}

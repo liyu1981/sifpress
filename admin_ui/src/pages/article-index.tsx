@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Calendar,
   Clock,
+  Eye,
   FilePenLine,
   GitCommitHorizontal,
   History,
@@ -22,7 +23,7 @@ import { useAuth } from 'ui-sdk';
 import { estimateReadingMinutes, excerptFromMarkdown, formatDate } from '@/lib/format';
 import { frontMatterString, parseFrontMatter } from '@/lib/front-matter';
 import type { PageListItem, SearchResult } from 'ui-sdk';
-import { pagesApi, settingsApi, tagsApi } from 'ui-sdk';
+import { pagesApi, settingsApi, sifrontUrl, tagsApi } from 'ui-sdk';
 
 const ARTICLE_PER_PAGE = 20;
 
@@ -153,6 +154,16 @@ function ArticleCard({ article, locale }: { article: PageListItem; locale: strin
               {t('article.readMore')}
               <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
             </Link>
+          </Button>
+          <Button asChild size="sm" variant="ghost">
+            <a
+              href={sifrontUrl(`/article/${article.slug}`)}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Eye />
+              {article.status === 'draft' ? t('article.preview') : t('article.viewLive')}
+            </a>
           </Button>
           {article.can_edit && (
             <Button asChild size="sm" variant="outline">

@@ -260,7 +260,17 @@ function serve_sifront_page(): never
         $html = SIFRONT_FALLBACK_HTML;
     }
 
-    serve_encoded_text(apply_ui_sdk_version(inject_into_head($html, base_url_meta())));
+    /*
+     * The sifront shell carries no SEO meta of its own (themes set what they
+     * need from the client), so a draft, a preview or a slug that does not
+     * exist is marked noindex here — for every sifront, including bundles too
+     * old to know about previews. See article_noindex_meta().
+     */
+    serve_encoded_text(
+        apply_ui_sdk_version(
+            inject_into_head($html, base_url_meta() . article_noindex_meta(request_route()))
+        )
+    );
 }
 
 /**

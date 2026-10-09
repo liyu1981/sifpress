@@ -2,7 +2,16 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ArrowLeft, Calendar, Clock, Loader2, Pencil, RefreshCw } from 'lucide-react';
 import { useRef } from 'react';
-import { kvAttrs, MarkdownView, moduleUrl, pagesApi, parseFrontMatter } from 'ui-sdk';
+import {
+  kvAttrs,
+  MarkdownView,
+  moduleUrl,
+  pagesApi,
+  parseFrontMatter,
+  previewToPage,
+  readPreviewBuffer,
+} from 'ui-sdk';
+import { PreviewBanner, type PreviewMode } from '@/components/preview-banner';
 import { RawHtml } from '@/components/raw-html';
 import { ReadingProgress } from '@/components/reading-progress';
 import { TableOfContents, useArticleHeadings, useScrollSpy } from '@/components/toc';
@@ -52,9 +61,13 @@ function ArticleDetailPage() {
   const { articleBottomHtml } = useThemeConfig();
   const contentRef = useRef<HTMLDivElement>(null);
 
+  const previewBuffer = readPreviewBuffer(slug);
+  const unsavedPreview = previewBuffer !== null;
+
   const article = useQuery({
-    queryKey: ['page', slug],
-    queryFn: () => pagesApi.get({ slug }),
+    queryKey: ['page', slug, unsavedPreview ? 'preview' : 'saved'],
+    queryFn: async () =>
+      previewBuffer !== null ? previewToPage(previewBuffer) : pagesApi.get({ slug }),
     staleTime: 60_000,
   });
 
@@ -89,6 +102,11 @@ function ArticleDetailPage() {
   }
 
   const page = article.data;
+  const previewMode: PreviewMode | null = unsavedPreview
+    ? 'unsaved'
+    : page.status === 'draft'
+      ? 'draft'
+      : null;
   const tags = page.tags ?? [];
   const { data: frontMatter } = parseFrontMatter(page.content_md);
   const cover =
@@ -98,6 +116,12 @@ function ArticleDetailPage() {
   return (
     <div className="mx-auto w-full max-w-8xl">
       <ReadingProgress />
+      {previewMode !== null && (
+        <PreviewBanner
+          mode={previewMode}
+          editHref={adminEditorUrl(unsavedPreview ? previewBuffer.edit_slug : slug)}
+        />
+      )}
       <div className="mx-auto grid max-w-6xl gap-8 xl:grid-cols-[minmax(0,1fr)_14rem]">
         <div className="min-w-0 space-y-8">
           <article className="glass-control glass-control-read overflow-hidden rounded-2xl">

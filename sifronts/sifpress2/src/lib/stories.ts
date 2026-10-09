@@ -1,5 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
-import { type Page, type PageListItem, type PageSeo, type SearchResult, pagesApi } from 'ui-sdk';
+import {
+  type Page,
+  type PageListItem,
+  type PageSeo,
+  type PageStatus,
+  type SearchResult,
+  pagesApi,
+  previewToPage,
+  readPreviewBuffer,
+} from 'ui-sdk';
 import { type StoryMeta, readStoryMeta, truncate } from '@/lib/format';
 
 export const FRONT_PAGE_SIZE = 40;
@@ -209,19 +218,37 @@ export function useSearchStories(query: string, page: number) {
 export interface ArticlePage extends Story {
   content_md: string;
   canEdit: boolean;
+  status: PageStatus;
   seo: PageSeo;
+}
+
+function toArticlePage(page: Page): ArticlePage {
+  return {
+    ...toStory(page),
+    content_md: page.content_md,
+    canEdit: page.can_edit,
+    status: page.status,
+    seo: page.seo,
+  };
 }
 
 export function useArticle(slug: string) {
   return useQuery({
     queryKey: ['sifront2', 'article', slug],
-    queryFn: (): Promise<ArticlePage> =>
-      pagesApi.get({ slug }).then(page => ({
-        ...toStory(page),
-        content_md: page.content_md,
-        canEdit: page.can_edit,
-        seo: page.seo,
-      })),
+    queryFn: (): Promise<ArticlePage> => {
+      /*
+       * `?preview=1` renders the editor's parked buffer (ui-sdk preview.ts)
+       * instead of fetching, so unsaved — and never-saved — text previews
+       * without a database round trip.
+       */
+      const buffer = readPreviewBuffer(slug);
+
+      if (buffer !== null) {
+        return Promise.resolve(toArticlePage(previewToPage(buffer)));
+      }
+
+      return pagesApi.get({ slug }).then(toArticlePage);
+    },
     staleTime: 60_000,
   });
 }

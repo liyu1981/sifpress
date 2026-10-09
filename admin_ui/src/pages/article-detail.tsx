@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { ArrowLeft, Calendar, Clock, FilePenLine, History, Trash2 } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, Eye, FilePenLine, History, Trash2 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DeletePageMenu } from '@/components/delete-page-menu';
@@ -15,7 +15,7 @@ import { estimateReadingMinutes, formatDate } from '@/lib/format';
 import { frontMatterString, parseFrontMatter } from '@/lib/front-matter';
 import { log } from '@/lib/logger';
 import { MarkdownView } from 'ui-sdk';
-import { pagesApi } from 'ui-sdk';
+import { pagesApi, sifrontUrl } from 'ui-sdk';
 import { cn } from '@/lib/utils';
 
 function AuthorAvatar({
@@ -182,6 +182,16 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                         </Link>
                       </Button>
                     )}
+                    <Button asChild variant="glass" size="xs">
+                      <a
+                        href={sifrontUrl(`/article/${page.slug}`)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Eye />
+                        {page.status === 'draft' ? t('article.preview') : t('article.viewLive')}
+                      </a>
+                    </Button>
                     {user !== null && (isAdmin || page.created_by === user.id) && (
                       <DeletePageMenu
                         pageId={page.id}

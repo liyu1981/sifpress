@@ -35,7 +35,9 @@
     { "sifpress2.copy.notFound": "Page not found" },
     { "sifpress2.copy.articleNotFound": "Story not found" },
     { "sifpress2.copy.backHome": "Back to the front page" },
-    { "sifpress2.copy.featured": "Featured" }
+    { "sifpress2.copy.featured": "Featured" },
+    { "sifpress2.copy.draftPreview": "Draft — preview only, this story is not published." },
+    { "sifpress2.copy.unsavedPreview": "Unsaved preview — this text has not been saved yet." }
   ],
   "examples": {
     "sifpress2.masthead.kicker": "The Daily Edition",

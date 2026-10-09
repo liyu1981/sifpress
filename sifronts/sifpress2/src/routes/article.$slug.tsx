@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ArrowLeft, Clock, Pencil, RefreshCw } from 'lucide-react';
 import { useRef } from 'react';
-import { MarkdownView, moduleUrl } from 'ui-sdk';
+import { MarkdownView, moduleUrl, readPreviewBuffer } from 'ui-sdk';
 import { Cover } from '@/components/cover';
 import { SectionLink } from '@/components/kicker';
 import { RailItem } from '@/components/story-card';
@@ -9,6 +9,7 @@ import { ReadingProgress } from '@/components/reading-progress';
 import { RawHtml } from '@/components/raw-html';
 import { ShareLinks } from '@/components/share-links';
 import { EmptyBlock, LoadingBlock } from '@/components/states';
+import { PreviewBanner, type PreviewMode } from '@/components/preview-banner';
 import { TableOfContents, useArticleHeadings, useScrollSpy } from '@/components/toc';
 import { formatDate } from '@/lib/format';
 import { useArticle, useLatestStories } from '@/lib/stories';
@@ -55,6 +56,8 @@ function ArticlePageRoute() {
   const { articleBottomHtml } = useThemeConfig();
   const contentRef = useRef<HTMLDivElement>(null);
   const article = useArticle(slug);
+  const previewBuffer = readPreviewBuffer(slug);
+  const unsavedPreview = previewBuffer !== null;
   const latest = useLatestStories();
 
   const ready = article.data !== undefined;
@@ -71,7 +74,13 @@ function ArticlePageRoute() {
           description: page.seo?.description || page.dek || page.excerpt,
           image: page.seo?.og_image || page.cover || undefined,
           canonical: page.seo?.canonical,
-          noindex: page.seo?.noindex,
+          /*
+           * A preview — and a draft — must stay out of the index. Without
+           * this, usePageMeta would clear the server-rendered noindex for a
+           * draft (its front matter does not say noindex) and mark an unsaved
+           * preview of a published story as indexable.
+           */
+          noindex: page.seo?.noindex === true || page.status === 'draft' || unsavedPreview,
           type: 'article',
         },
   );
@@ -99,6 +108,12 @@ function ArticlePageRoute() {
     );
   }
 
+  const previewMode: PreviewMode | null = unsavedPreview
+    ? 'unsaved'
+    : page.status === 'draft'
+      ? 'draft'
+      : null;
+
   const related = (latest.data ?? [])
     .filter(
       story => story.slug !== page.slug && story.section !== null && story.section === page.section,
@@ -108,6 +123,13 @@ function ArticlePageRoute() {
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
       <ReadingProgress />
+
+      {previewMode !== null && (
+        <PreviewBanner
+          mode={previewMode}
+          editHref={adminEditorUrl(unsavedPreview ? previewBuffer.edit_slug : page.slug)}
+        />
+      )}
 
       <nav aria-label="Breadcrumb" className="mb-8 flex items-center justify-between gap-4">
         <Link

@@ -63,6 +63,23 @@ export function prettyUrls(): boolean {
 }
 
 /**
+ * URL for a sifront route — the root-mounted counterpart of `moduleUrl()`
+ * (`/article/hello-world`, not a `sifpress/*` module path) — in whichever URL
+ * mode the artifact is serving. Used by the admin to link into the public
+ * front: `sifrontUrl('/article/' + slug)`.
+ */
+export function sifrontUrl(route: string, params: Record<string, string> = {}): string {
+  const path = route.startsWith('/') ? route : `/${route}`;
+  const query = new URLSearchParams(params).toString();
+
+  if (prettyUrls()) {
+    return `${mountPath()}${path}${query === '' ? '' : `?${query}`}`;
+  }
+
+  return `${appBaseUrl()}?${new URLSearchParams({ p: path, ...params }).toString()}`;
+}
+
+/**
  * Root-relative base for API/asset/chunk URLs. The single-file artifact always
  * serves those from the path the document was loaded from, so that path is
  * authoritative: a host alias (apex vs `www`, a preview domain, the LAN IP

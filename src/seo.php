@@ -340,6 +340,38 @@ function page_seo(array $page): array
 }
 
 /**
+ * `noindex` for an article route that must stay out of the index — a draft, a
+ * page without a public (guest) grant, or a slug that does not exist yet (an
+ * unsaved preview) — and '' for anything publicly viewable. The rule is
+ * exactly the one seo_meta_tags() applies to the admin shell.
+ *
+ * The sifront shell carries no other SEO meta (each theme sets what it needs
+ * from the client), so serve_sifront_page() appends this for *every* sifront,
+ * including bundles too old to know about previews.
+ */
+function article_noindex_meta(string $route): string
+{
+    if (db_needs_migration()) {
+        return '';
+    }
+
+    $route = '/' . ltrim($route, '/');
+
+    if (preg_match('#^/article/([a-z0-9]+(?:-[a-z0-9]+)*)$#', $route, $m) !== 1) {
+        return '';
+    }
+
+    $slug = $m[1];
+    $page = $slug === DEMO_PAGE_SLUG ? demo_page_payload() : fetch_page(0, $slug);
+
+    $public = $page !== null
+        && ($page['status'] ?? '') === 'published'
+        && can_view_page(null, $page);
+
+    return $public ? '' : '<meta name="robots" content="noindex,nofollow">' . "\n    ";
+}
+
+/**
  * The <head> meta block for the given SPA route ('' when the DB is not
  * migrated yet). Article routes resolve the page; everything else falls
  * back to site defaults, with private routes marked noindex.

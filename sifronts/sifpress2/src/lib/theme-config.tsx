@@ -36,6 +36,8 @@ const DEFAULT_COPY: Record<string, string> = {
   articleNotFound: 'Story not found',
   backHome: 'Back to the front page',
   featured: 'Featured',
+  draftPreview: 'Draft — preview only, this story is not published.',
+  unsavedPreview: 'Unsaved preview — this text has not been saved yet.',
 };
 
 const BASE_KEYS = [
