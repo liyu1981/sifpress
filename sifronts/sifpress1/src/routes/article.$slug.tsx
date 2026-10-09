@@ -15,6 +15,7 @@ import { PreviewBanner, type PreviewMode } from '@/components/preview-banner';
 import { RawHtml } from '@/components/raw-html';
 import { ReadingProgress } from '@/components/reading-progress';
 import { TableOfContents, useArticleHeadings, useScrollSpy } from '@/components/toc';
+import { useResolvedTheme } from '@/lib/theme';
 import { useThemeConfig } from '@/lib/theme-config';
 
 export const Route = createFileRoute('/article/$slug')({
@@ -58,6 +59,7 @@ function TagPill({ tag }: { tag: string }) {
 
 function ArticleDetailPage() {
   const { slug } = Route.useParams();
+  const resolvedTheme = useResolvedTheme();
   const { articleBottomHtml } = useThemeConfig();
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -194,6 +196,7 @@ function ArticleDetailPage() {
               <div ref={contentRef}>
                 <MarkdownView
                   content={page.content_md}
+                  theme={resolvedTheme}
                   className="prose max-w-none text-[0.95rem] leading-7"
                 />
               </div>

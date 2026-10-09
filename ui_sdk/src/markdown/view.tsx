@@ -27,13 +27,29 @@ export const MarkdownView = memo(function MarkdownView({
   theme = 'system',
 }: MarkdownViewProps) {
   const [html, setHtml] = useState('');
+  const [systemTheme, setSystemTheme] = useState<MermaidTheme>(() =>
+    window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
+  );
 
-  const resolved: MermaidTheme =
-    theme === 'system'
-      ? window.matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'dark'
-        : 'light'
-      : theme;
+  /*
+   * Follow the OS while `theme` is 'system': without this the diagrams keep
+   * the theme they were first rendered with when the preference flips.
+   */
+  useEffect(() => {
+    if (theme !== 'system') {
+      return;
+    }
+
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = () => setSystemTheme(media.matches ? 'dark' : 'light');
+
+    onChange();
+    media.addEventListener('change', onChange);
+
+    return () => media.removeEventListener('change', onChange);
+  }, [theme]);
+
+  const resolved: MermaidTheme = theme === 'system' ? systemTheme : theme;
 
   useEffect(() => {
     setMermaidTheme(resolved);

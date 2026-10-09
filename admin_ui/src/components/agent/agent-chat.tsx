@@ -52,6 +52,7 @@ import {
   refreshModels,
 } from '@/lib/agent/models';
 import { deleteSession, listSessionsFull, saveSession, type AgentSession } from '@/lib/agent/store';
+import { useResolvedTheme } from '@/lib/theme';
 import { AGENT_GUARDRAIL, resolveSystemPrompt } from '@/lib/agent/prompt';
 import { skillsSystemPrompt } from '@/lib/agent/skills';
 import { buildAgentTools } from '@/lib/agent/tools';
@@ -188,6 +189,7 @@ export function AgentChat({
   className,
 }: AgentChatProps) {
   const { t, i18n } = useTranslation();
+  const resolvedTheme = useResolvedTheme();
 
   const [sessions, setSessions] = useState<AgentSession[]>([]);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -831,7 +833,7 @@ export function AgentChat({
         <div className="min-w-0 max-w-[88%] space-y-1.5">
           {text !== '' && (
             <div className="glass-control-opaque rounded-2xl px-3 py-2">
-              <MarkdownView content={text} />
+              <MarkdownView content={text} theme={resolvedTheme} />
             </div>
           )}
           {calledTools.map(call => {

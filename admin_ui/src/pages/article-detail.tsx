@@ -9,6 +9,7 @@ import { ReadingProgress } from '@/components/reading-progress';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { usePageMeta } from '@/hooks/use-page-meta';
+import { useResolvedTheme } from '@/lib/theme';
 import { avatarUrl } from 'ui-sdk';
 import { useAuth } from 'ui-sdk';
 import { estimateReadingMinutes, formatDate } from '@/lib/format';
@@ -80,6 +81,7 @@ function ArticleSkeleton() {
 export function ArticleDetailPage({ slug }: { slug: string }) {
   const { t, i18n } = useTranslation();
   const { user, isAdmin } = useAuth();
+  const resolvedTheme = useResolvedTheme();
   const navigate = useNavigate();
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -245,6 +247,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
             <div ref={contentRef}>
               <MarkdownView
                 content={page.content_md}
+                theme={resolvedTheme}
                 className="prose max-w-none text-[0.95rem] leading-7"
               />
             </div>

@@ -104,5 +104,19 @@ export function setMarkdownContent(markdown: string): (ctx: Ctx) => void {
 }
 
 export function setMermaidTheme(theme: MermaidTheme): void {
-  requireMarkdown().setMermaidTheme(theme);
+  const lib = markdownLib();
+
+  if (lib !== null) {
+    lib.setMermaidTheme(theme);
+    return;
+  }
+
+  /*
+   * The chunk is not executing yet (a host beat it to the first paint):
+   * apply the moment it lands instead of throwing — themes are idempotent and
+   * any view that renders a diagram applies its own theme first anyway.
+   */
+  loadMarkdown()
+    .then(md => md.setMermaidTheme(theme))
+    .catch(() => undefined);
 }

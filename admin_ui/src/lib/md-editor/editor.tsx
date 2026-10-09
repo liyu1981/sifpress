@@ -16,8 +16,8 @@ import {
 import { TextSelection } from '@milkdown/kit/prose/state';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { type MermaidTheme, escapeTableCodePipes, loadMarkdown, setMarkdownContent } from 'ui-sdk';
-import { useTheme } from '@/lib/theme';
+import { escapeTableCodePipes, loadMarkdown, setMarkdownContent } from 'ui-sdk';
+import { useResolvedTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { configureDiagramTooltip, diagramTooltip } from './plugins/diagram-tooltip';
 import {
@@ -111,7 +111,7 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
     const containerRef = useRef<HTMLDivElement>(null);
     const builderRef = useRef<CrepeBuilder | null>(null);
     const [blockMenu, setBlockMenu] = useState<{ rect: DOMRect; ctx: Ctx } | null>(null);
-    const { theme } = useTheme();
+    const resolved = useResolvedTheme();
 
     useImperativeHandle(
       ref,
@@ -349,13 +349,12 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
       // Mount once; live updates flow through the handle, not re-mounting.
     }, []);
 
-    const resolved: MermaidTheme =
-      theme === 'system'
-        ? window.matchMedia('(prefers-color-scheme: dark)').matches
-          ? 'dark'
-          : 'light'
-        : theme;
-
+    /*
+     * Mermaid paints from a frozen palette: the editor hands it the app's
+     * resolved theme (never the raw stored preference, which may say 'system'),
+     * and applies the matching dark class so editor chrome and diagrams agree.
+     * The chunk loads on demand; diagrams rendered later read this theme.
+     */
     useEffect(() => {
       void loadMarkdown().then(lib => lib.setMermaidTheme(resolved));
     }, [resolved]);

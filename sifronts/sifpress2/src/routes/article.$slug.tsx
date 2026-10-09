@@ -13,6 +13,7 @@ import { PreviewBanner, type PreviewMode } from '@/components/preview-banner';
 import { TableOfContents, useArticleHeadings, useScrollSpy } from '@/components/toc';
 import { formatDate } from '@/lib/format';
 import { useArticle, useLatestStories } from '@/lib/stories';
+import { useResolvedTheme } from '@/lib/theme';
 import { kv, useCopy, useThemeConfig } from '@/lib/theme-config';
 import { usePageMeta } from 'ui-sdk';
 
@@ -52,6 +53,7 @@ function Byline({ article }: { article: ReturnType<typeof useArticle>['data'] })
 
 function ArticlePageRoute() {
   const { slug } = Route.useParams();
+  const resolvedTheme = useResolvedTheme();
   const copy = useCopy();
   const { articleBottomHtml } = useThemeConfig();
   const contentRef = useRef<HTMLDivElement>(null);
@@ -180,7 +182,11 @@ function ArticlePageRoute() {
         <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_15rem] lg:gap-14">
           <div className="min-w-0">
             <div ref={contentRef}>
-              <MarkdownView content={page.content_md} className="prose-editorial" />
+              <MarkdownView
+                content={page.content_md}
+                theme={resolvedTheme}
+                className="prose-editorial"
+              />
             </div>
 
             {page.tags.length > 0 && (
