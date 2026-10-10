@@ -1,6 +1,7 @@
 packages:
   - admin_ui
   - ui_sdk
+  - reagent
   - sifronts/sifpress1
   - sifronts/sifpress2
 allowBuilds:

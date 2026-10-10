@@ -9,6 +9,8 @@ WATCH_DIRS=(
   "$ROOT/src"
   "$ROOT/admin_ui/src"
   "$ROOT/admin_ui/index.html"
+  "$ROOT/reagent/src"
+  "$ROOT/reagent/styles.css"
   "$ROOT/ui_sdk/src"
   "$ROOT/sifronts/sifpress1/src"
   "$ROOT/sifronts/sifpress1/index.html"
@@ -111,7 +113,7 @@ trap cleanup EXIT
 trap 'cleanup; exit 1' INT TERM
 
 echo "==> Serving at http://localhost:$SIFPRESS_PORT"
-echo "==> Watching src/, admin_ui/, ui_sdk/, sifronts/sifpress1 and sifronts/sifpress2 for changes (Ctrl-C to stop)"
+echo "==> Watching src/, admin_ui/, reagent/, ui_sdk/, sifronts/sifpress1 and sifronts/sifpress2 for changes (Ctrl-C to stop)"
 
 while true; do
   if [ "$LAST_BUILD_OK" -eq 1 ]; then

@@ -340,7 +340,8 @@ sifronts/           public-facing sifront SPAs (each a pnpm workspace package,
 website/           static project website for GitHub Pages (plain HTML/CSS/JS,
   no build step; published by .github/workflows/pages.yml; see
   website/README.md)
-pnpm-workspace.yaml workspace root (packages: admin_ui, ui_sdk, sifronts/sifpress1)
+pnpm-workspace.yaml workspace root (packages: admin_ui, ui_sdk, reagent,
+                    sifronts/sifpress1, sifronts/sifpress2)
 pnpm-lock.yaml      workspace lockfile
 ```
 
@@ -519,47 +520,57 @@ pnpm-lock.yaml      workspace lockfile
     (`buildFrontMatter`, key sets) live in `admin_ui/src/lib/front-matter.ts`,
     which re-exports the parser so call sites keep importing from
     `@/lib/front-matter`.
-- **AI assistant (in-editor agent) — "ReAgent"**: `@earendil-works/pi-agent-core` +
-  pi-ai run **client-side**. The headless layer lives under
-  `admin_ui/src/lib/agent/` (`agent.ts`, `tools.ts`, `editor-mutations.ts`,
-  `models.ts`, `config.ts`, `session-store.ts`, `skill-registry.ts`), and the
-  React layer under `admin_ui/src/components/agent/` — `core/`
-  (`ReAgentProvider` + `useReAgent*` hooks), `ui/` (unstyled-ish parts:
-  `ReAgentRoot/Header/MessageList/Message/ToolCall/Composer` +
-  `ReAgentSessionsView` + `ui/settings/*`), and the styled preset `reagent.tsx` (`<ReAgent>`).
-  `agent-chat.tsx` is a deprecated re-export of the preset. The preset takes a
-  `surface` variant — `glass` (default, the frosted panel) or `solid` (a flat
-  near-white / near-dark plane; the editor uses `solid`), toggled with a
-  `data-surface` attribute that also flattens descendant glass bubbles.
-  - **Config**: one `AgentConfig` (`lib/agent/config.ts`, localStorage
+- **AI assistant (in-editor agent) — "ReAgent"**: a standalone workspace
+  package, **`@sifpress/reagent`** (`reagent/`), consumed by `admin_ui`. It
+  wraps `@earendil-works/pi-agent-core` + `pi-ai` (client-side) and ships its
+  own UI primitives and `styles.css`:
+  - `reagent/src/core/` — headless: `types.ts`, `config.ts`, `session-store.ts`,
+    `models.ts`, `skill-registry.ts`, `tools.ts`, `mcp.ts`, `agent.ts`,
+    `attachments.ts`, `messages.ts` (English copy + `makeTranslator`),
+    `i18n.ts` (micro-i18n/notify/theme hooks), `reagent-provider.tsx`,
+    `hooks.ts`.
+  - `reagent/src/ui/` — parts (`ReAgentRoot/Header/MessageList/Message/ToolCall/
+    Composer` + `ReAgentSessionsView` + `settings/*`) and the styled preset
+    `<ReAgent>`. The preset takes a `surface` variant — `glass` (default, the
+    frosted panel) or `solid` (a flat near-white / near-dark plane; the editor
+    uses `solid`), toggled with a `data-surface` attribute that also flattens
+    descendant glass bubbles.
+  - **Host integration** (`admin_ui/src/components/agent/sifpress-reagent.tsx`,
+    `SifpressReAgent`): binds app i18n (`translate`), theme, `MarkdownView`
+    (`renderMarkdown`), the Sifpress tool set
+    (`admin_ui/src/lib/agent/sifpress-tools.ts` — search/tags/web + front
+    matter), sonner (`notify`) and asset uploads (`uploadFile`).
+  - **Styling**: `admin_ui/src/index.css` imports
+    `@sifpress/reagent/styles.css` and adds `@source "../../reagent/dist"` so
+    the host Tailwind generates the package's utility classes.
+  - **Config**: one `AgentConfig` (package `core/config.ts`, localStorage
     `agent.config`) holds model/thinking, provider base URLs + verified flags,
     system prompt, custom skills, disabled built-ins, and MCP servers; legacy
     per-key localStorage is migrated once at load. The settings UI is a
     **self-contained view inside the component** (gear → `view: 'settings'`
     replaces the chat surface, back button returns), rendered by
     `ui/settings/reagent-settings-view.tsx`. `useReAgentConfig()` reads the
-    config via `useSyncExternalStore`, so `/settings` → My Account no longer
-    has an Agent tab.
+    config via `useSyncExternalStore`, so `/settings` → My Account has no
+    Agent tab.
   - **Tools & skills**: built-ins are `AgentToolDescriptor`s
-    (`lib/agent/tools.ts`); `config.toolsDisabled` switches them off and
-    consumers inject custom tools through the provider. Built-in skills
-    (`lib/agent/skill-registry.ts`) merge with user custom skills; tool labels
-    and the settings UI are generated from the registries.
-  - **Sessions**: active-only, stored in IndexedDB v2
-    (`lib/agent/session-store.ts`). `AgentSession.parentId` + `forkFromIndex`
-    form a fork tree shown by `ReAgentSessionsView` (a `view: 'sessions'`
-    surface that replaces the chat, same as settings); delete reparents
-    children.
+    (`core/tools.ts`); `config.toolsDisabled` switches them off and hosts add
+    their own descriptors through the provider (`extraDescriptors`). Built-in
+    skills (`core/skill-registry.ts`) merge with user custom skills; tool
+    labels and the settings UI are generated from the registries.
+  - **Sessions**: active-only, stored in IndexedDB v2 (`core/session-store.ts`).
+    `AgentSession.parentId` + `forkFromIndex` form a fork tree shown by
+    `ReAgentSessionsView` (a `view: 'sessions'` surface that replaces the chat,
+    same as settings); delete reparents children.
   - The editor write tools only *stage* changes and open the review dialog
     (they never persist). **Selection revision**: a whole-block selection can
     be rewritten via `get_selection`/`update_selection` and only that range is
     replaced (`plan/selection-revision-plan.md`); a clamped selection always
-    starts a **fresh root** session. **MCP** (`mcp.ts`): remote servers over
-    Streamable HTTP, adapted to `AgentTool`s. Exa (`https://mcp.exa.ai/mcp`) is
-    auto-enabled; tools are namespaced `mcp__exa__<tool>`. The Exa API key
-    lives in localStorage (Settings → Agent) with an in-component prompt on
-    auth failure. See `plan/mcp-support-plan.md` and
-    `plan/agent-component-revamp.md`.
+    starts a **fresh root** session. **MCP** (`core/mcp.ts`): remote servers
+    over Streamable HTTP, adapted to `AgentTool`s; Exa
+    (`https://mcp.exa.ai/mcp`) is auto-enabled and tools are namespaced
+    `mcp__exa__<tool>`. The Exa API key lives in localStorage with an
+    in-component prompt on auth failure. See `plan/mcp-support-plan.md`,
+    `plan/agent-component-revamp.md` and `plan/reagent-package-plan.md`.
 - **Glass design system** in `index.css` (`@layer components`):
   `glass-control` (frosted surfaces — applied by default to `Card`),
   `apple-panel` (chrome — used by the nav pill), `ambient-bg` (page

@@ -5,16 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "pnpm --filter @sifpress/reagent build && tsc --noEmit",
     "format": "biome format --write .",
     "format:check": "biome format .",
-    "build": "tsc --noEmit && vite build",
-    "build:dev": "tsc --noEmit && vite build --mode dev",
-    "build:release": "tsc --noEmit && vite build --mode release"
+    "build": "pnpm --filter @sifpress/reagent build && tsc --noEmit && vite build",
+    "build:dev": "pnpm --filter @sifpress/reagent build && tsc --noEmit && vite build --mode dev",
+    "build:release": "pnpm --filter @sifpress/reagent build && tsc --noEmit && vite build --mode release"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.84.2",
     "@earendil-works/pi-ai": "0.84.2",
+    "@sifpress/reagent": "workspace:*",
     "@fontsource-variable/geist": "^5.3.0",
     "@milkdown/crepe": "7.22.1",
     "@milkdown/kit": "7.22.1",
