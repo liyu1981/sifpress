@@ -20,10 +20,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
-import { AgentSettingsCard } from '@/components/agent/agent-settings';
-import { McpSettingsCard } from '@/components/agent/mcp-settings';
-import { SkillsSettingsCard } from '@/components/agent/skills-settings';
-import { SystemPromptSettingsCard } from '@/components/agent/system-prompt-settings';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -1637,14 +1633,6 @@ export function AccountManagementPage() {
               {t('account.tabProfile')}
             </span>
           </TabsTrigger>
-          <TabsTrigger
-            value="agent"
-            className="group justify-end rounded-full border-transparent px-0 data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent dark:data-[state=active]:shadow-none"
-          >
-            <span className="rounded-full px-3 py-1.5 transition-colors group-data-[state=active]:bg-accent group-data-[state=active]:text-accent-foreground">
-              {t('account.tabAgent')}
-            </span>
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile" className="space-y-6">
@@ -1673,13 +1661,6 @@ export function AccountManagementPage() {
           <ProfileCard />
 
           <ChangePasswordForm />
-        </TabsContent>
-
-        <TabsContent value="agent" className="space-y-6">
-          <AgentSettingsCard />
-          <SystemPromptSettingsCard />
-          <SkillsSettingsCard />
-          <McpSettingsCard />
         </TabsContent>
       </Tabs>
     </div>

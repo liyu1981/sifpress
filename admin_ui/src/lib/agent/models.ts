@@ -15,11 +15,12 @@ import { groqProvider } from '@earendil-works/pi-ai/providers/groq';
 import { openaiProvider } from '@earendil-works/pi-ai/providers/openai';
 import { openrouterProvider } from '@earendil-works/pi-ai/providers/openrouter';
 
-export const OLLAMA_PROVIDER_ID = 'ollama';
+import { getAgentConfig, updateAgentConfig } from './config';
+import { DEFAULT_OLLAMA_BASE_URL, OLLAMA_PROVIDER_ID } from './types';
 
-const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434';
+export { OLLAMA_PROVIDER_ID };
 
-const OLLAMA_BASE_URL_KEY = 'agent.ollama.baseUrl';
+const VERIFIED_KEY = 'agent.verified.providers';
 
 function readJson<T>(key: string): T | undefined {
   try {
@@ -102,24 +103,28 @@ class LocalCredentialStore implements CredentialStore {
 const credentialStore = new LocalCredentialStore();
 
 export function getOllamaBaseUrl(): string {
-  return localStorage.getItem(OLLAMA_BASE_URL_KEY) ?? DEFAULT_OLLAMA_BASE_URL;
+  return getAgentConfig().providers[OLLAMA_PROVIDER_ID]?.baseUrl ?? DEFAULT_OLLAMA_BASE_URL;
 }
 
 export function setOllamaBaseUrl(url: string): void {
   const normalized = url.trim().replace(/\/+$/, '') || DEFAULT_OLLAMA_BASE_URL;
-  localStorage.setItem(OLLAMA_BASE_URL_KEY, normalized);
+  const config = getAgentConfig();
+  updateAgentConfig({
+    providers: {
+      ...config.providers,
+      [OLLAMA_PROVIDER_ID]: { ...config.providers[OLLAMA_PROVIDER_ID], baseUrl: normalized },
+    },
+  });
   unverify(OLLAMA_PROVIDER_ID);
   rebuildModels();
 }
 
-const VERIFIED_KEY = 'agent.verified.providers';
-
-function readVerified(): string[] {
+function legacyVerified(): string[] {
+  const raw = localStorage.getItem(VERIFIED_KEY);
+  if (raw === null) {
+    return [];
+  }
   try {
-    const raw = localStorage.getItem(VERIFIED_KEY);
-    if (raw === null) {
-      return [];
-    }
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
   } catch {
@@ -127,24 +132,36 @@ function readVerified(): string[] {
   }
 }
 
-function writeVerified(ids: string[]): void {
-  localStorage.setItem(VERIFIED_KEY, JSON.stringify(ids));
-}
-
 /** Providers whose connection was verified by a successful test. */
 export function isVerified(providerId: string): boolean {
-  return readVerified().includes(providerId);
+  const config = getAgentConfig();
+  if (config.providers[providerId]?.verified !== undefined) {
+    return config.providers[providerId]?.verified === true;
+  }
+  return legacyVerified().includes(providerId);
 }
 
 function markVerified(providerId: string): void {
-  const ids = readVerified();
-  if (!ids.includes(providerId)) {
-    writeVerified([...ids, providerId]);
-  }
+  const config = getAgentConfig();
+  updateAgentConfig({
+    providers: {
+      ...config.providers,
+      [providerId]: { ...config.providers[providerId], verified: true },
+    },
+  });
 }
 
 function unverify(providerId: string): void {
-  writeVerified(readVerified().filter(id => id !== providerId));
+  const config = getAgentConfig();
+  if (config.providers[providerId] === undefined) {
+    return;
+  }
+  updateAgentConfig({
+    providers: {
+      ...config.providers,
+      [providerId]: { ...config.providers[providerId], verified: false },
+    },
+  });
 }
 
 export function hasCredential(providerId: string): boolean {

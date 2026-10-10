@@ -1,9 +1,12 @@
-import { Type, type TSchema } from '@earendil-works/pi-ai';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
+import { Type, type TSchema } from '@earendil-works/pi-ai';
+
 import { parseFrontMatter } from '@/lib/front-matter';
 import { pagesApi, tagsApi, webApi } from 'ui-sdk';
+
+import type { AgentToolBuildContext, AgentToolDescriptor, AgentToolGroup } from './types';
+import { buildUseSkillTool, USE_SKILL_TOOL_ID } from './skill-registry';
 import type { EditorMutationBridge, FrontMatterPatch } from './editor-mutations';
-import { buildSkillTools } from './skills';
 
 const MAX_FETCH_CHARS = 12000;
 
@@ -18,10 +21,6 @@ function textBlocks(...texts: string[]) {
   };
 }
 
-function tool<S extends TSchema>(t: AgentTool<S>): AgentTool<S> {
-  return t;
-}
-
 function requireEditor(editor: EditorMutationBridge | undefined): EditorMutationBridge {
   if (editor === undefined) {
     throw new Error('No editor is open — this tool requires the editor page.');
@@ -29,8 +28,30 @@ function requireEditor(editor: EditorMutationBridge | undefined): EditorMutation
   return editor;
 }
 
-export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[] {
-  const searchContent = tool({
+/**
+ * Wrap a tool factory in a registry descriptor. The metadata (id/label/
+ * description) is read from a probe build at module load; only the descriptor's
+ * `build` ever runs against a real editor.
+ */
+function defineTool<S extends TSchema>(
+  group: AgentToolGroup,
+  requiresEditor: boolean,
+  factory: (ctx: AgentToolBuildContext) => AgentTool<S>,
+): AgentToolDescriptor {
+  const probe = factory({});
+  return {
+    id: probe.name,
+    name: probe.name,
+    label: probe.label,
+    description: probe.description,
+    group,
+    requiresEditor,
+    build: factory as (ctx: AgentToolBuildContext) => AgentTool<any>,
+  };
+}
+
+export const BUILTIN_TOOLS: AgentToolDescriptor[] = [
+  defineTool('content', false, () => ({
     name: 'search_content',
     label: 'Search content',
     description:
@@ -53,9 +74,9 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
           .join('\n'),
       );
     },
-  });
+  })),
 
-  const listTags = tool({
+  defineTool('content', false, () => ({
     name: 'list_tags',
     label: 'List tags',
     description: 'List all tags in use and how many pages each has.',
@@ -67,9 +88,9 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
       }
       return textBlocks(tags.map(t => `- ${t.name} (${t.count})`).join('\n'));
     },
-  });
+  })),
 
-  const webFetch = tool({
+  defineTool('web', false, () => ({
     name: 'web_fetch',
     label: 'Web fetch',
     description:
@@ -81,21 +102,21 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
       const { content } = await webApi.fetch(args.url, navigator.userAgent);
       return textBlocks(truncate(content, MAX_FETCH_CHARS));
     },
-  });
+  })),
 
-  const getFrontmatter = tool({
+  defineTool('editor', true, ctx => ({
     name: 'get_frontmatter',
     label: 'Get frontmatter',
     description:
       "Return the current editor's frontmatter as a YAML string (without --- delimiters). Includes title, slug, date, tags, extra fields, and SEO fields. Requires the editor page to be open.",
     parameters: Type.Object({}),
     execute: async () => {
-      const ed = requireEditor(editor);
+      const ed = requireEditor(ctx.editor);
       return textBlocks(ed.getFrontMatterYaml());
     },
-  });
+  })),
 
-  const updateFrontmatter = tool({
+  defineTool('editor', true, ctx => ({
     name: 'update_frontmatter',
     label: 'Update frontmatter',
     description:
@@ -107,8 +128,8 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
       }),
     }),
     execute: async (_id, args) => {
-      const ed = requireEditor(editor);
-      const yaml = args.frontmatter_yaml.trim();
+      const ed = requireEditor(ctx.editor);
+      const yaml = (args as { frontmatter_yaml: string }).frontmatter_yaml.trim();
       if (yaml === '') {
         throw new Error('frontmatter_yaml cannot be empty.');
       }
@@ -178,22 +199,22 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
           }`,
       );
     },
-  });
+  })),
 
-  const getContent = tool({
+  defineTool('editor', true, ctx => ({
     name: 'get_content',
     label: 'Get content',
     description:
       "Return the current editor's markdown content (without the frontmatter section). Requires the editor page to be open.",
     parameters: Type.Object({}),
     execute: async () => {
-      const ed = requireEditor(editor);
+      const ed = requireEditor(ctx.editor);
       const content = ed.getContent();
       return textBlocks(content || '(empty)');
     },
-  });
+  })),
 
-  const updateContent = tool({
+  defineTool('editor', true, ctx => ({
     name: 'update_content',
     label: 'Update content',
     description:
@@ -205,29 +226,29 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
       }),
     }),
     execute: async (_id, args) => {
-      const ed = requireEditor(editor);
-      ed.setContent(args.content_md);
+      const ed = requireEditor(ctx.editor);
+      ed.setContent((args as { content_md: string }).content_md);
       return textBlocks('Replaced the content section in the editor (not yet saved).');
     },
-  });
+  })),
 
-  const getSelection = tool({
+  defineTool('editor', true, ctx => ({
     name: 'get_selection',
     label: 'Get selection',
     description:
       "Return the user's current editor selection as markdown, expanded to whole blocks. Returns 'No selection.' when nothing is selected. Requires the editor page to be open.",
     parameters: Type.Object({}),
     execute: async () => {
-      const ed = requireEditor(editor);
+      const ed = requireEditor(ctx.editor);
       const selection = ed.getSelection();
       if (selection === null) {
         return textBlocks('No selection.');
       }
       return textBlocks(selection.markdown || '(empty selection)');
     },
-  });
+  })),
 
-  const updateSelection = tool({
+  defineTool('editor', true, ctx => ({
     name: 'update_selection',
     label: 'Update selection',
     description:
@@ -239,26 +260,26 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
       }),
     }),
     execute: async (_id, args) => {
-      const ed = requireEditor(editor);
-      ed.updateSelection(args.content_md);
+      const ed = requireEditor(ctx.editor);
+      ed.updateSelection((args as { content_md: string }).content_md);
       return textBlocks('Replaced the selection in the editor (not yet saved).');
     },
-  });
+  })),
 
-  const getCommitNote = tool({
+  defineTool('editor', true, ctx => ({
     name: 'get_commit_note',
     label: 'Get commit note',
     description:
       'Return the current value of the editor\'s "Commit Note" field. This text is used as the commit message when the user saves the page. Requires the editor page to be open.',
     parameters: Type.Object({}),
     execute: async () => {
-      const ed = requireEditor(editor);
+      const ed = requireEditor(ctx.editor);
       const note = ed.getCommitNote();
       return textBlocks(note || '(empty)');
     },
-  });
+  })),
 
-  const setCommitNote = tool({
+  defineTool('editor', true, ctx => ({
     name: 'set_commit_note',
     label: 'Set commit note',
     description:
@@ -269,44 +290,71 @@ export function buildAgentTools(editor?: EditorMutationBridge): AgentTool<any>[]
       }),
     }),
     execute: async (_id, args) => {
-      const ed = requireEditor(editor);
-      const note = args.commit_note.trim();
+      const ed = requireEditor(ctx.editor);
+      const note = (args as { commit_note: string }).commit_note.trim();
       if (note === '') {
         throw new Error('commit_note cannot be empty.');
       }
       ed.setCommitNote(note);
       return textBlocks(`Set the commit note to: ${note}`);
     },
-  });
+  })),
 
-  const save = tool({
+  defineTool('editor', true, ctx => ({
     name: 'save',
     label: 'Save draft',
     description:
       "Submit your staged content changes for the user's review. Opens the review dialog where the user decides which changes to keep; the editor is only updated after they finish the review, and nothing is persisted to the server (the user saves afterwards). Call this once after you finish editing.",
     parameters: Type.Object({}),
     execute: async () => {
-      const ed = requireEditor(editor);
+      const ed = requireEditor(ctx.editor);
       ed.openReview();
       return textBlocks(
         'Changes submitted for review. The user will review the diff and save. You can consider this task complete.',
       );
     },
-  });
+  })),
 
-  return [
-    searchContent,
-    listTags,
-    webFetch,
-    getFrontmatter,
-    updateFrontmatter,
-    getContent,
-    updateContent,
-    getSelection,
-    updateSelection,
-    getCommitNote,
-    setCommitNote,
-    save,
-    ...buildSkillTools(),
-  ] as unknown as AgentTool<any>[];
+  {
+    id: USE_SKILL_TOOL_ID,
+    name: USE_SKILL_TOOL_ID,
+    label: 'Use skill',
+    description:
+      'Load the full instructions for one of the available skills by its exact name. Call this when a task matches a skill description, then follow the returned instructions.',
+    group: 'skills',
+    requiresEditor: false,
+    build: () => buildUseSkillTool() as AgentTool<any>,
+  },
+];
+
+export interface BuildAgentToolsOptions {
+  editor?: EditorMutationBridge;
+  extraTools?: AgentTool<any>[];
+  disabledIds?: string[];
+}
+
+/** Build the enabled tool instances from a descriptor list. */
+export function buildToolsFromDescriptors(
+  descriptors: AgentToolDescriptor[],
+  options: BuildAgentToolsOptions = {},
+): AgentTool<any>[] {
+  const { editor, disabledIds = [] } = options;
+  const disabled = new Set(disabledIds);
+  const out: AgentTool<any>[] = [];
+  for (const descriptor of descriptors) {
+    if (disabled.has(descriptor.id)) {
+      continue;
+    }
+    if (descriptor.requiresEditor === true && editor === undefined) {
+      continue;
+    }
+    out.push(descriptor.build({ editor }));
+  }
+  return out;
+}
+
+/** The built-in tool set (registry + skills) plus any app-injected tools. */
+export function buildAgentTools(options: BuildAgentToolsOptions = {}): AgentTool<any>[] {
+  const { extraTools = [], ...rest } = options;
+  return [...buildToolsFromDescriptors(BUILTIN_TOOLS, rest), ...extraTools];
 }

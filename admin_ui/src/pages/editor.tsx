@@ -21,7 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DeletePageMenu } from '@/components/delete-page-menu';
 import { OwnerPicker, type PageOwner } from '@/components/owner-picker';
-import { AgentChat, type AgentDraft } from '@/components/agent/agent-chat';
+import { ReAgent, type AgentDraft } from '@/components/agent/reagent';
 import { ReviewChangesDialog } from '@/components/review-changes-dialog';
 import type { EditorMutationBridge } from '@/lib/agent/editor-mutations';
 import { TagsInput } from '@/components/tags-input';
@@ -1989,11 +1989,12 @@ export function EditorPage({ slug, revision }: { slug: string | null; revision?:
           className="fixed bottom-0 left-1/2 z-50 flex -translate-x-1/2 flex-col rounded-t-2xl shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.35)] dark:shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.6)]"
           style={{ width: 'min(80vw, 51.2rem)' }}
         >
-          <AgentChat
+          <ReAgent
             draft={agentDraft}
             editor={editorBridge}
             selection={agentSelection}
             onClearSelection={handleClearSelection}
+            surface="solid"
             className="h-[70vh] rounded-b-none"
             onClose={handleCloseAgent}
           />

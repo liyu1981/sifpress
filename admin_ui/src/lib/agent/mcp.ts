@@ -4,6 +4,9 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { type Tool, ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
 
+import { getAgentConfig, updateAgentConfig } from './config';
+import { EXA_SERVER_ID, type McpServerConfig } from './types';
+
 /**
  * MCP (Model Context Protocol) support for the in-editor agent.
  *
@@ -12,65 +15,19 @@ import { type Tool, ToolListChangedNotificationSchema } from '@modelcontextproto
  * are adapted into Pi `AgentTool`s and merged into the agent's tool set.
  */
 
-export const EXA_SERVER_ID = 'exa';
+export { EXA_SERVER_ID };
+export type { McpServerConfig };
 
-const SERVERS_KEY = 'agent.mcp.servers';
 const EXA_KEY_KEY = 'agent.mcp.exa.apiKey';
 const CONNECT_TIMEOUT_MS = 5000;
 
-export interface McpServerConfig {
-  id: string;
-  name: string;
-  url: string;
-  enabled: boolean;
-}
-
-const EXA_DEFAULT: McpServerConfig = {
-  id: EXA_SERVER_ID,
-  name: 'Exa',
-  url: 'https://mcp.exa.ai/mcp',
-  enabled: true,
-};
-
-function readJson<T>(key: string): T | undefined {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw === null ? undefined : (JSON.parse(raw) as T);
-  } catch {
-    return undefined;
-  }
-}
-
-function writeJson(key: string, value: unknown): void {
-  localStorage.setItem(key, JSON.stringify(value));
-}
-
-function isServerConfig(value: unknown): value is McpServerConfig {
-  if (value === null || typeof value !== 'object') {
-    return false;
-  }
-  const candidate = value as Partial<McpServerConfig>;
-  return (
-    typeof candidate.id === 'string' &&
-    typeof candidate.name === 'string' &&
-    typeof candidate.url === 'string' &&
-    typeof candidate.enabled === 'boolean'
-  );
-}
-
-/** Configured servers. Exa is enabled out of the box on first run. */
+/** Configured servers (Seeded with Exa on first run by AgentConfig). */
 export function listMcpServers(): McpServerConfig[] {
-  const stored = readJson<McpServerConfig[]>(SERVERS_KEY);
-
-  if (!Array.isArray(stored) || stored.length === 0) {
-    return [{ ...EXA_DEFAULT }];
-  }
-
-  return stored.filter(isServerConfig);
+  return getAgentConfig().mcp;
 }
 
 export function saveMcpServers(servers: McpServerConfig[]): void {
-  writeJson(SERVERS_KEY, servers);
+  updateAgentConfig({ mcp: servers });
   void mcpManager.reset();
 }
 

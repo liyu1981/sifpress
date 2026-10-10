@@ -1,16 +1,17 @@
+import { getAgentConfig, updateAgentConfig } from './config';
+
 /**
  * User-editable system prompt for the in-editor agent.
  *
- * The custom prompt lives only in this browser (localStorage). When set it
- * replaces the built-in `agent.systemPrompt` text; `{{language}}` is still
- * interpolated so the assistant answers in the UI language.
+ * The custom prompt is stored in the shared `AgentConfig` (browser-local).
+ * When set it replaces the built-in `agent.systemPrompt` text; `{{language}}`
+ * is still interpolated so the assistant answers in the UI language.
  */
-
-const CUSTOM_PROMPT_KEY = 'agent.systemPrompt.custom';
 
 /** The raw custom system prompt, or '' when the built-in one is in use. */
 export function getCustomSystemPrompt(): string {
-  return localStorage.getItem(CUSTOM_PROMPT_KEY) ?? '';
+  const config = getAgentConfig();
+  return config.systemPrompt.mode === 'custom' ? config.systemPrompt.custom : '';
 }
 
 /**
@@ -19,14 +20,14 @@ export function getCustomSystemPrompt(): string {
  */
 export function setCustomSystemPrompt(text: string): void {
   if (text.trim() === '') {
-    localStorage.removeItem(CUSTOM_PROMPT_KEY);
+    clearCustomSystemPrompt();
     return;
   }
-  localStorage.setItem(CUSTOM_PROMPT_KEY, text);
+  updateAgentConfig({ systemPrompt: { mode: 'custom', custom: text } });
 }
 
 export function clearCustomSystemPrompt(): void {
-  localStorage.removeItem(CUSTOM_PROMPT_KEY);
+  updateAgentConfig({ systemPrompt: { mode: 'default', custom: '' } });
 }
 
 /**

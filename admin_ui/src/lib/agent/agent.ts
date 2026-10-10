@@ -4,6 +4,7 @@ import {
   type AgentTool,
   type ThinkingLevel,
 } from '@earendil-works/pi-agent-core';
+
 import { getModel, getModels } from './models';
 import { buildAgentTools } from './tools';
 import type { EditorMutationBridge } from './editor-mutations';
@@ -18,6 +19,8 @@ export interface AgentBuildOptions {
   editor?: EditorMutationBridge;
   /** Extra tools (e.g. MCP) merged into the built-in editor tools. */
   extraTools?: AgentTool<any>[];
+  /** Registry ids of built-in tools the user switched off. */
+  disabledToolIds?: string[];
 }
 
 export function buildAgent(options: AgentBuildOptions): Agent {
@@ -30,7 +33,11 @@ export function buildAgent(options: AgentBuildOptions): Agent {
       systemPrompt: options.systemPrompt,
       model,
       thinkingLevel: options.thinkingLevel,
-      tools: [...buildAgentTools(options.editor), ...(options.extraTools ?? [])],
+      tools: buildAgentTools({
+        editor: options.editor,
+        extraTools: options.extraTools,
+        disabledIds: options.disabledToolIds,
+      }),
       messages: options.messages ?? [],
     },
     streamFn: getModels().streamSimple.bind(getModels()),
