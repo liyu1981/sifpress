@@ -3,6 +3,7 @@ import { RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AuthProvider } from 'ui-sdk';
+import { seedAgentDefaults } from '@/lib/agent/agent-defaults';
 import { initLogger } from '@/lib/logger';
 import { ThemeProvider } from '@/lib/theme';
 import { router } from './router';
@@ -10,6 +11,7 @@ import '@/lib/i18n';
 import './index.css';
 
 initLogger();
+seedAgentDefaults();
 
 const queryClient = new QueryClient();
 

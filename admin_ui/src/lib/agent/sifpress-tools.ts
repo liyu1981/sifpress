@@ -5,7 +5,7 @@ import type {
   AgentToolDescriptor,
   EditorMutationBridge,
   FrontMatterPatch,
-} from '@sifpress/reagent';
+} from '@liyu1981/reagent';
 
 import { parseFrontMatter } from '@/lib/front-matter';
 import { pagesApi, tagsApi, webApi } from 'ui-sdk';

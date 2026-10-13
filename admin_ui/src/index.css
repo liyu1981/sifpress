@@ -4,9 +4,9 @@
 @import "@fontsource-variable/geist";
 @import "@milkdown/crepe/theme/common/style.css";
 @import "@milkdown/crepe/theme/classic.css";
-@import "@sifpress/reagent/styles.css";
+@import "@liyu1981/reagent/styles.css";
 
-@source "../../reagent/dist";
+@source "../node_modules/@liyu1981/reagent/dist";
 
 @plugin "@tailwindcss/typography";
 

@@ -23,7 +23,7 @@ import { DeletePageMenu } from '@/components/delete-page-menu';
 import { OwnerPicker, type PageOwner } from '@/components/owner-picker';
 import { SifpressReAgent } from '@/components/agent/sifpress-reagent';
 import { ReviewChangesDialog } from '@/components/review-changes-dialog';
-import type { AgentDraft, EditorMutationBridge } from '@sifpress/reagent';
+import type { AgentDraft, EditorMutationBridge } from '@liyu1981/reagent';
 import { TagsInput } from '@/components/tags-input';
 import { RevisionGraph } from '@/components/revision-graph';
 import { ReviewDiffView } from '@/components/review-diff-view';

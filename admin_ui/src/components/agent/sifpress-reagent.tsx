@@ -1,4 +1,4 @@
-import { ReAgent, type ReAgentProps, type ReAgentTranslate } from '@sifpress/reagent';
+import { ReAgent, type ReAgentProps, type ReAgentTranslate } from '@liyu1981/reagent';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { assetMarkdownLink, assetSourceUrl, assetsApi, MarkdownView } from 'ui-sdk';
