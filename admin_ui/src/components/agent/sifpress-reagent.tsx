@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { assetMarkdownLink, assetSourceUrl, assetsApi, MarkdownView } from 'ui-sdk';
 
 import { SIFPRESS_TOOLS } from '@/lib/agent/sifpress-tools';
+import { AGENT_STORAGE_PREFIX } from '@/lib/agent/agent-defaults';
 import { useResolvedTheme } from '@/lib/theme';
 
 type SifpressReAgentProps = Omit<
@@ -15,6 +16,7 @@ type SifpressReAgentProps = Omit<
   | 'extraDescriptors'
   | 'notify'
   | 'uploadFile'
+  | 'storagePrefix'
 >;
 
 /**
@@ -29,6 +31,7 @@ export function SifpressReAgent(props: SifpressReAgentProps) {
   return (
     <ReAgent
       {...props}
+      storagePrefix={AGENT_STORAGE_PREFIX}
       theme={theme}
       language={i18n.language}
       translate={t as unknown as ReAgentTranslate}

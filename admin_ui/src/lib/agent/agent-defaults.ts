@@ -15,7 +15,17 @@ import {
  * can edit, disable or delete them, and they will not come back.
  */
 
-const SEEDED_KEY = 'sifpress.agent.defaults.v1';
+/**
+ * Storage namespace for every piece of ReAgent state (localStorage config,
+ * provider credentials, MCP keys and the conversation IndexedDB). Sifpress
+ * passes it to `<ReAgent storagePrefix>` and to the config helpers below so
+ * the agent never shares the package's default `agent.*` keys.
+ */
+export const AGENT_STORAGE_PREFIX = 'sifpress';
+
+// v2: re-seed after moving from the package default `agent` namespace to
+// `sifpress`, so the defaults land in the new (empty) config.
+const SEEDED_KEY = 'sifpress.agent.defaults.v2';
 
 const EXA_SERVER = {
   id: 'exa',
@@ -84,17 +94,17 @@ export function seedAgentDefaults(): void {
       return;
     }
 
-    const config = getAgentConfig();
+    const config = getAgentConfig(AGENT_STORAGE_PREFIX);
 
     const existingSkillIds = new Set(config.skills.map(skill => skill.id));
     const skills = [
       ...config.skills,
       ...DEFAULT_SKILLS.filter(skill => !existingSkillIds.has(skill.id)),
     ];
-    updateAgentConfig({ skills });
+    updateAgentConfig({ skills }, AGENT_STORAGE_PREFIX);
 
     if (!config.mcp.some(server => server.id === EXA_SERVER.id)) {
-      saveMcpServers([...config.mcp, { ...EXA_SERVER }]);
+      saveMcpServers([...config.mcp, { ...EXA_SERVER }], AGENT_STORAGE_PREFIX);
     }
 
     localStorage.setItem(SEEDED_KEY, '1');

@@ -521,7 +521,7 @@ pnpm-lock.yaml      workspace lockfile
     which re-exports the parser so call sites keep importing from
     `@/lib/front-matter`.
 - **AI assistant (in-editor agent) — "ReAgent"**: the published npm package
-  **`@liyu1981/reagent`** (pinned `0.1.0`), consumed by `admin_ui`. It wraps
+  **`@liyu1981/reagent`** (pinned `0.1.2`), consumed by `admin_ui`. It wraps
   `@earendil-works/pi-agent-core` + `pi-ai` (client-side) and ships its own UI
   primitives and `styles.css`. The package is deliberately opinion-free — it
   ships **no** built-in tools, skills or MCP servers; the host opts into each:
@@ -544,8 +544,9 @@ pnpm-lock.yaml      workspace lockfile
     package is vanilla, Sifpress re-declares what the old fork carried — the
     three built-in skills (SEO review, Markdown style, Image alt text) and the
     Exa MCP server — seeding them into the shared `AgentConfig` once (guarded by
-    a `sifpress.agent.defaults.v1` marker) and merging by id so user data is
-    never clobbered. `main.tsx` calls `seedAgentDefaults()` before render.
+    a `sifpress.agent.defaults.v2` marker) and merging by id so user data is
+    never clobbered. `main.tsx` calls `seedAgentDefaults()` before render. The
+    same module exports `AGENT_STORAGE_PREFIX = 'sifpress'`.
   - **System prompt**: the Sifpress prompt lives in the admin i18n
     (`agent.systemPrompt`, en + zh) and reaches the package through
     `translate={t}`; the editor guardrail is appended automatically when the
@@ -554,10 +555,14 @@ pnpm-lock.yaml      workspace lockfile
     `@liyu1981/reagent/styles.css` and adds
     `@source "../node_modules/@liyu1981/reagent/dist"` so the host Tailwind
     generates the package's utility classes.
-  - **Config**: one `AgentConfig` (package `config`, localStorage
-    `agent.config`) holds model/thinking, provider base URLs + verified flags,
-    system prompt, custom skills, disabled built-ins, and MCP servers; legacy
-    per-key localStorage is migrated once at load. The settings UI is a
+  - **Config**: one `AgentConfig` (package `config`) holds model/thinking,
+    provider base URLs + verified flags, system prompt, custom skills, disabled
+    built-ins, and MCP servers. All persisted state is namespaced by
+    `<ReAgent storagePrefix>`; Sifpress passes `AGENT_STORAGE_PREFIX`
+    (`sifpress`), so the keys are `sifpress.config`,
+    `sifpress.credential.<provider>`, `sifpress.verified.providers`,
+    `sifpress.mcp.exa.apiKey`, … rather than the package default `agent.*`
+    (legacy per-key localStorage is migrated once at load). The settings UI is a
     **self-contained view inside the component** (gear → `view: 'settings'`
     replaces the chat surface, back button returns), rendered by
     `ui/settings/reagent-settings-view`. `useReAgentConfig()` reads the config
@@ -569,12 +574,10 @@ pnpm-lock.yaml      workspace lockfile
     `AgentToolDescriptor`s via `extraDescriptors`. `config.toolsDisabled`
     switches registry tools off, and tool labels/settings are generated from
     the registries.
-  - **Sessions**: active-only, stored in IndexedDB v2 (`reagent-agent`) —
-    **note the DB name differs from the old fork's `sifpress-agent`, so
-    pre-migration conversations do not carry over**. `AgentSession.parentId` +
-    `forkFromIndex` form a fork tree shown by `ReAgentSessionsView` (a
-    `view: 'sessions'` surface that replaces the chat, same as settings);
-    delete reparents children.
+  - **Sessions**: active-only, stored in IndexedDB v2 (`<prefix>-agent`, i.e.
+    `sifpress-agent`). `AgentSession.parentId` + `forkFromIndex` form a fork
+    tree shown by `ReAgentSessionsView` (a `view: 'sessions'` surface that
+    replaces the chat, same as settings); delete reparents children.
   - The editor write tools only *stage* changes and open the review dialog
     (they never persist). **Selection revision**: a whole-block selection can
     be rewritten via `get_selection`/`update_selection` and only that range is

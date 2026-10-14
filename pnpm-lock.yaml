@@ -18,8 +18,8 @@ importers:
         specifier: ^5.3.0
         version: 5.3.0
       '@liyu1981/reagent':
-        specifier: 0.1.0
-        version: 0.1.0(@earendil-works/pi-agent-core@0.84.2(@modelcontextprotocol/sdk@1.30.0(zod@4.4.3))(ws@8.21.3)(zod@4.4.3))(@earendil-works/pi-ai@0.84.2(@modelcontextprotocol/sdk@1.30.0(zod@4.4.3))(ws@8.21.3)(zod@4.4.3))(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.4.3)
+        specifier: 0.1.2
+        version: 0.1.2(@earendil-works/pi-agent-core@0.84.2(@modelcontextprotocol/sdk@1.30.0(zod@4.4.3))(ws@8.21.3)(zod@4.4.3))(@earendil-works/pi-ai@0.84.2(@modelcontextprotocol/sdk@1.30.0(zod@4.4.3))(ws@8.21.3)(zod@4.4.3))(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.4.3)
       '@milkdown/crepe':
         specifier: 7.22.1
         version: 7.22.1(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(typescript@7.0.2)
@@ -1074,8 +1074,8 @@ packages:
   '@lezer/yaml@1.0.4':
     resolution: {integrity: sha512-2lrrHqxalACEbxIbsjhqGpSW8kWpUKuY6RHgnSAFZa6qK62wvnPxA8hGOwOoDbwHcOFs5M4o27mjGu+P7TvBmw==}
 
-  '@liyu1981/reagent@0.1.0':
-    resolution: {integrity: sha512-cU5Pcv6WFioS9gBUnVuG2RPoCJggsh6HgHXwIuadkuHWmLbPLSNCMnY75n4q06YVFywGBMqreC6j6FRSppYTiA==}
+  '@liyu1981/reagent@0.1.2':
+    resolution: {integrity: sha512-HUQExbAZwxEJ9Yt8qiTvbGQdTcSdp9iiad4IpkWDwwcHE41hhUfmeQGhxw404iOV5XfGAwvwM07yPjqxqP4vMw==}
     engines: {node: '>=20'}
     peerDependencies:
       '@earendil-works/pi-agent-core': 0.84.2
@@ -6581,7 +6581,7 @@ snapshots:
       '@lezer/highlight': 1.2.3
       '@lezer/lr': 1.4.10
 
-  '@liyu1981/reagent@0.1.0(@earendil-works/pi-agent-core@0.84.2(@modelcontextprotocol/sdk@1.30.0(zod@4.4.3))(ws@8.21.3)(zod@4.4.3))(@earendil-works/pi-ai@0.84.2(@modelcontextprotocol/sdk@1.30.0(zod@4.4.3))(ws@8.21.3)(zod@4.4.3))(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.4.3)':
+  '@liyu1981/reagent@0.1.2(@earendil-works/pi-agent-core@0.84.2(@modelcontextprotocol/sdk@1.30.0(zod@4.4.3))(ws@8.21.3)(zod@4.4.3))(@earendil-works/pi-ai@0.84.2(@modelcontextprotocol/sdk@1.30.0(zod@4.4.3))(ws@8.21.3)(zod@4.4.3))(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.4.3)':
     dependencies:
       '@earendil-works/pi-agent-core': 0.84.2(@modelcontextprotocol/sdk@1.30.0(zod@4.4.3))(ws@8.21.3)(zod@4.4.3)
       '@earendil-works/pi-ai': 0.84.2(@modelcontextprotocol/sdk@1.30.0(zod@4.4.3))(ws@8.21.3)(zod@4.4.3)
