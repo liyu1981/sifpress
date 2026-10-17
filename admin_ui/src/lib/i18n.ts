@@ -703,6 +703,10 @@ const en = {
     selectModelPlaceholder: 'Select a model…',
     noModelsHint:
       'No verified model yet. Configure and test a connection in Settings → Agent to start chatting.',
+    noModelsFound: 'No models found.',
+    searchModels: 'Search models…',
+    cloudProvidersDisabled:
+      'Cloud providers are temporarily unavailable. Browser requests to AI gateways are blocked by CORS, so only the custom local/OpenAI-compatible endpoint can be used until backend support lands.',
     errorPrefix: 'Agent error:',
     settingsTitle: 'Agent settings',
     settingsDescription:
@@ -747,6 +751,8 @@ const en = {
     testNotConfigured: 'No API key configured for this provider.',
     testNoModel: 'No model available for this provider.',
     testFailed: 'Connection failed: {{detail}}',
+    testCorsFailed:
+      'The provider blocked the browser request before granting CORS access, so the real reason is hidden. Check the API key and that the model is available on this endpoint.',
     thinkingLevelField: 'Thinking level',
     customLocalLlm: 'Custom Local LLM (OpenAI compatible)',
     level: {
@@ -1478,6 +1484,10 @@ const zh = {
     skillsBuiltinBadge: '内置',
     selectModelPlaceholder: '选择模型…',
     noModelsHint: '尚无已验证的模型。请在设置 → 智能体中配置并测试连接后再开始聊天。',
+    noModelsFound: '未找到模型。',
+    searchModels: '搜索模型…',
+    cloudProvidersDisabled:
+      '云端提供商暂时不可用。浏览器直连 AI 网关被 CORS 阻止，在接入后端支持之前只能使用自定义本地 / OpenAI 兼容端点。',
     errorPrefix: '智能体错误：',
     settingsTitle: '智能体设置',
     settingsDescription: 'API 密钥仅保存在本浏览器中，并直接发送给你选择的提供商。',
@@ -1520,6 +1530,8 @@ const zh = {
     testNotConfigured: '此提供商未配置 API 密钥。',
     testNoModel: '此提供商没有可用模型。',
     testFailed: '连接失败：{{detail}}',
+    testCorsFailed:
+      '提供商在授予 CORS 之前阻止了浏览器请求，因此看不到真正的原因。请检查 API 密钥，并确认该端点提供此模型。',
     thinkingLevelField: '思考级别',
     customLocalLlm: '自定义本地大模型 (OpenAI 兼容)',
     level: {

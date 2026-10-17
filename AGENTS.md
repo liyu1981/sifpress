@@ -521,8 +521,9 @@ pnpm-lock.yaml      workspace lockfile
     which re-exports the parser so call sites keep importing from
     `@/lib/front-matter`.
 - **AI assistant (in-editor agent) — "ReAgent"**: the published npm package
-  **`@liyu1981/reagent`** (pinned `0.1.2`), consumed by `admin_ui`. It wraps
-  `@earendil-works/pi-agent-core` + `pi-ai` (client-side) and ships its own UI
+  **`@liyu1981/reagent`** (pinned `0.1.3`), consumed by `admin_ui`. It wraps
+  `@earendil-works/pi-agent-core` + `pi-ai` (pinned `1.3.0`, client-side) and
+  ships its own UI
   primitives and `styles.css`. The package is deliberately opinion-free — it
   ships **no** built-in tools, skills or MCP servers; the host opts into each:
   - `core/` (package) — headless: `types`, `config`, `session-store`, `models`,
