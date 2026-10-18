@@ -689,6 +689,7 @@ const en = {
     settingsTabSkills: 'Skills',
     settingsTabTools: 'Tools',
     settingsTabMcp: 'MCP',
+    settingsTabWebmcp: 'WebMCP',
     toolsGroup: {
       content: 'Content',
       editor: 'Editor',
@@ -697,6 +698,11 @@ const en = {
       mcp: 'MCP',
     },
     toolsDisabledHint: 'Switch a tool off to hide it from the model.',
+    webmcpBadge: 'page tool',
+    webmcpDescription:
+      'Tools the current page exposes through WebMCP (document.modelContext). ReAgent adds them to the agent automatically.',
+    webmcpEmpty: 'The page provides a WebMCP context but has not registered any tools.',
+    webmcpUnavailable: 'WebMCP is not available on this page.',
     skillsBuiltin: 'Built-in skills',
     skillsCustom: 'Custom skills',
     skillsBuiltinBadge: 'built-in',
@@ -1471,6 +1477,7 @@ const zh = {
     settingsTabSkills: '技能',
     settingsTabTools: '工具',
     settingsTabMcp: 'MCP',
+    settingsTabWebmcp: 'WebMCP',
     toolsGroup: {
       content: '内容',
       editor: '编辑器',
@@ -1479,6 +1486,11 @@ const zh = {
       mcp: 'MCP',
     },
     toolsDisabledHint: '关闭某个工具后，模型将看不到它。',
+    webmcpBadge: '页面工具',
+    webmcpDescription:
+      '当前页面通过 WebMCP（document.modelContext）提供的工具。ReAgent 会自动将它们添加到智能体中。',
+    webmcpEmpty: '页面提供了 WebMCP 上下文，但尚未注册任何工具。',
+    webmcpUnavailable: '当前页面不支持 WebMCP。',
     skillsBuiltin: '内置技能',
     skillsCustom: '自定义技能',
     skillsBuiltinBadge: '内置',

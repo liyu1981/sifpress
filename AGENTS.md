@@ -530,15 +530,15 @@ pnpm-lock.yaml      workspace lockfile
     which re-exports the parser so call sites keep importing from
     `@/lib/front-matter`.
 - **AI assistant (in-editor agent) — "ReAgent"**: the published npm package
-  **`@liyu1981/reagent`** (pinned `0.1.3`), consumed by `admin_ui`. It wraps
+  **`@liyu1981/reagent`** (pinned `0.1.4`), consumed by `admin_ui`. It wraps
   `@earendil-works/pi-agent-core` + `pi-ai` (pinned `1.3.0`, client-side) and
   ships its own UI
   primitives and `styles.css`. The package is deliberately opinion-free — it
   ships **no** built-in tools, skills or MCP servers; the host opts into each:
   - `core/` (package) — headless: `types`, `config`, `session-store`, `models`,
-    `skill-registry`, `tools`, `mcp`, `agent`, `attachments`, `messages`
-    (English copy + `makeTranslator`), `i18n` (micro-i18n/notify/theme hooks),
-    `reagent-provider`, `hooks`.
+    `skill-registry`, `tools`, `mcp`, `webmcp`, `agent`, `attachments`,
+    `messages` (English copy + `makeTranslator`), `i18n` (micro-i18n/notify/theme
+    hooks), `reagent-provider`, `hooks`.
   - `ui/` (package) — parts (`ReAgentRoot/Header/MessageList/Message/ToolCall/
     Composer` + `ReAgentSessionsView` + `settings/*`) and the styled preset
     `<ReAgent>`. The preset takes a `surface` variant — `glass` (default, the
@@ -595,9 +595,11 @@ pnpm-lock.yaml      workspace lockfile
     starts a **fresh root** session. **MCP**: remote servers over Streamable
     HTTP, adapted to `AgentTool`s; Exa (`https://mcp.exa.ai/mcp`) is seeded by
     the host and tools are namespaced `mcp__exa__<tool>`. The Exa API key lives
-    in localStorage with an in-component prompt on auth failure. See
-    `plan/mcp-support-plan.md`, `plan/agent-component-revamp.md` and
-    `plan/reagent-package-plan.md`.
+    in localStorage with an in-component prompt on auth failure. **WebMCP**:
+    ReAgent auto-detects tools a page exposes via `document.modelContext`,
+    registers them as agent tools (Settings → WebMCP) and refreshes on the
+    `toolchange` event — no host wiring. See `plan/mcp-support-plan.md`,
+    `plan/agent-component-revamp.md` and `plan/reagent-package-plan.md`.
 - **Glass design system** in `index.css` (`@layer components`):
   `glass-control` (frosted surfaces — applied by default to `Card`),
   `apple-panel` (chrome — used by the nav pill), `ambient-bg` (page
