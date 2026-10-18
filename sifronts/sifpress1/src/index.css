@@ -834,6 +834,17 @@
   --pele-zoom-left: 8px;
 }
 
+/*
+ * Fit the diagram inside the overlay at zoom 0 (Pele only fits width and
+ * disables dragging at scale 0), so tall diagrams are not clipped. Pele sets
+ * an inline width/height when zooming, which keeps this consistent with its
+ * viewBox math.
+ */
+.md-diagram-lightbox-stage svg {
+  max-width: 100%;
+  max-height: 100%;
+}
+
 .md-diagram-lightbox-close {
   position: absolute;
   top: 0.5rem;
