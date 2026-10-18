@@ -510,11 +510,20 @@ pnpm-lock.yaml      workspace lockfile
   - Article rendering pipeline: `parseFrontMatter` → `escapeTableCodePipes`
     (tables with pipes in code spans) → `markdownToHtml` (hidden renderer
     singleton + `getHTML()`) → `postProcessHtml` (block math → KaTeX,
-    mermaid SVG, video embeds, external links). Hosts that render math must
+    `mermaid` fences → Pele SVG via the lazy `ui-sdk-pele.mjs` chunk, themed
+    with the `--pele-*` CSS variables each host maps onto its design tokens,
+    video embeds, external links). Hosts that render math must
     load KaTeX's stylesheet, or the hidden `.katex-mathml` layer (incl. the
     raw `application/x-tex` annotation) becomes visible: `admin_ui` gets it
     transitively via `@milkdown/crepe/theme/common/style.css`, while the
     sifront apps import `katex/dist/katex.min.css` in their own `index.css`.
+  - **Diagram lightbox / zoom**: `openDiagramLightbox()` in
+    `ui_sdk/src/markdown/diagram.ts` mounts a diagram's source into a
+    full-screen overlay with Pele's zoom controls (buttons, pinch/ctrl-wheel,
+    drag, keyboard; Escape or the backdrop closes it). `MarkdownView` delegates
+    clicks on `.md-mermaid` (diagram-internal `<a>` links still navigate) and
+    the editor node view shows a hover expand button. Styled per host under
+    `.md-diagram-lightbox*` / `.milkdown-diagram-expand`.
   - Front matter: `parseFrontMatter`/`FrontMatter` live in
     `ui_sdk/src/front-matter.ts`; the admin serialization helpers
     (`buildFrontMatter`, key sets) live in `admin_ui/src/lib/front-matter.ts`,

@@ -2,7 +2,7 @@ import { memo, useEffect, useState } from 'react';
 import type { MouseEvent, Ref } from 'react';
 import { copyText } from '../api';
 import { parseFrontMatter } from '../front-matter';
-import { type MermaidTheme, setMermaidTheme } from './mermaid';
+import { type MermaidTheme, openDiagramLightbox, setMermaidTheme } from './diagram';
 import { postProcessHtml } from './postprocess';
 import { markdownToHtml } from './render';
 
@@ -17,7 +17,7 @@ export interface MarkdownViewProps {
 
 /**
  * Render markdown to HTML using the same schema as the editor. `theme`
- * ('light' | 'dark') selects the mermaid theme; pass 'system' to resolve
+ * ('light' | 'dark') selects the diagram theme; pass 'system' to resolve
  * from the user's prefers-color-scheme at render time.
  */
 export const MarkdownView = memo(function MarkdownView({
@@ -79,6 +79,21 @@ export const MarkdownView = memo(function MarkdownView({
 
   const onCopyClick = async (event: MouseEvent<HTMLDivElement>): Promise<void> => {
     const target = event.target as HTMLElement;
+
+    const diagram = target.closest('.md-mermaid');
+
+    if (diagram !== null) {
+      // Let links inside the diagram navigate instead of opening the overlay.
+      if (target.closest('a') === null) {
+        const chart = diagram.getAttribute('data-diagram') ?? '';
+
+        if (chart !== '') {
+          void openDiagramLightbox(chart);
+        }
+      }
+
+      return;
+    }
 
     if (!target.classList.contains('md-copy')) {
       return;

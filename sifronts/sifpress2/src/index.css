@@ -100,6 +100,27 @@
     --accent: oklch(0.28 0.006 60);
 }
 
+/*
+ * Pele diagram theming. Its SVG references these variables, so mapping them
+ * onto the app's design tokens themes every diagram (light and dark) without
+ * a re-render.
+ */
+:root {
+    --pele-bg: var(--background);
+    --pele-fg: var(--foreground);
+    --pele-muted: var(--muted-foreground);
+    --pele-line: var(--muted-foreground);
+    --pele-surface: var(--muted);
+    --pele-surface-alt: var(--accent);
+    --pele-border: var(--border);
+    --pele-accent: var(--primary);
+    --pele-critical: var(--destructive);
+    --pele-error: var(--destructive);
+    --pele-font: var(--font-sans, sans-serif);
+    --pele-font-mono: var(--font-mono, monospace);
+    --pele-radius: var(--radius, 4px);
+}
+
 @layer base {
     * {
         border-color: var(--color-rule);
@@ -410,7 +431,7 @@
     color: var(--color-ink-soft);
 }
 
-/* Mermaid / diagram figures should not inherit the article drop cap. */
+/* Diagram figures should not inherit the article drop cap. */
 .prose-editorial .md-figure,
 .prose-editorial figure {
     margin: 2rem 0;
@@ -437,4 +458,116 @@
     .btn-ghost {
         transition: none;
     }
+}
+
+/*
+ * Diagram lightbox (ui_sdk `openDiagramLightbox`). Clicking a rendered diagram
+ * opens a zoomable overlay; the in-editor preview gets a hover expand button.
+ */
+.md-mermaid {
+    cursor: zoom-in;
+}
+
+.md-diagram-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+}
+
+.md-diagram-lightbox-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgb(0 0 0 / 0.6);
+    backdrop-filter: blur(4px);
+}
+
+.md-diagram-lightbox-panel {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    width: min(96vw, 1200px);
+    height: min(90vh, 900px);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg, 0.5rem);
+    background: var(--card);
+    color: var(--card-foreground);
+    box-shadow: 0 20px 60px -10px rgb(0 0 0 / 0.5);
+}
+
+.md-diagram-lightbox-stage {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    position: relative;
+    padding: 1rem;
+    overflow: hidden;
+    /* Keep Pele's zoom controls clear of the close button (top-right). */
+    --pele-zoom-top: auto;
+    --pele-zoom-right: auto;
+    --pele-zoom-bottom: 8px;
+    --pele-zoom-left: 8px;
+}
+
+.md-diagram-lightbox-close {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: calc(var(--radius, 0.5rem) - 0.125rem);
+    background: var(--muted);
+    color: var(--muted-foreground);
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.md-diagram-lightbox-close:hover {
+    background: var(--accent);
+    color: var(--accent-foreground);
+}
+
+.milkdown-diagram-expand {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius, 0.5rem) - 0.125rem);
+    background: var(--card);
+    color: var(--muted-foreground);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 120ms ease;
+}
+
+.milkdown-diagram:hover .milkdown-diagram-expand,
+.milkdown-diagram-expand:focus-visible {
+    opacity: 1;
+}
+
+.milkdown-diagram-expand:hover {
+    color: var(--foreground);
+}
+
+.milkdown-diagram-expand svg {
+    width: 0.875rem;
+    height: 0.875rem;
 }

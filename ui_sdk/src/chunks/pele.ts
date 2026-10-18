@@ -1,8 +1,8 @@
-import mermaid from 'mermaid';
+import * as pele from 'pele';
 
 const w = window as unknown as { SifpressUI?: { Libs?: Record<string, unknown> } };
 w.SifpressUI = w.SifpressUI ?? {};
 w.SifpressUI.Libs = w.SifpressUI.Libs ?? {};
-w.SifpressUI.Libs.mermaid = mermaid;
+w.SifpressUI.Libs.pele = pele;
 
-export default mermaid;
+export default pele;

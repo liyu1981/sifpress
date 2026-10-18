@@ -65,10 +65,9 @@ export function useTheme(): ThemeContextValue {
 
 /**
  * The theme actually painted right now: `theme` with `system` resolved against
- * the OS and followed while it flips. Anything drawn from a *frozen* palette
- * — mermaid diagrams, canvas backgrounds — must be told this, not the raw
- * stored preference: an SVG rendered with the wrong palette never heals on its
- * own.
+ * the OS and followed while it flips. Anything drawn imperatively from a
+ * *frozen* palette — canvas backgrounds — must be told this, not the raw
+ * stored preference, because it never heals on its own.
  */
 export function useResolvedTheme(): 'light' | 'dark' {
   const { theme } = useTheme();

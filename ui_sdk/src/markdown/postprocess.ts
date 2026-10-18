@@ -1,5 +1,5 @@
 import { getUiLib, loadUiChunk } from '../lazy-chunks';
-import { nextDiagramId, renderMermaidChart } from './mermaid';
+import { nextDiagramId, renderMermaidChart } from './diagram';
 import { buildVideoElement } from './video-element';
 
 interface KatexApi {
@@ -67,6 +67,7 @@ async function renderMermaidDivs(body: HTMLElement): Promise<void> {
       const chart = el.getAttribute('data-value') ?? el.textContent ?? '';
       const holder = document.createElement('div');
       holder.className = 'md-mermaid my-6 flex justify-center overflow-x-auto';
+      holder.dataset.diagram = chart;
       el.replaceWith(holder);
 
       if (chart.trim() === '') {
@@ -196,10 +197,10 @@ function externalizeLinks(body: HTMLElement): void {
 /**
  * Post-process the `getHTML()` output so it renders the same way the
  * editor (and the old react-markdown pipeline) did: block math → KaTeX
- * display, mermaid divs → SVG, fenced code → highlighted `.md-codeblock`,
+ * display, diagram divs → Pele SVG, fenced code → highlighted `.md-codeblock`,
  * video images → players, external links → new tab.
  *
- * KaTeX, mermaid and highlight.js are loaded on demand, only when the
+ * KaTeX, pele and highlight.js are loaded on demand, only when the
  * article actually contains math, a diagram or a code block.
  */
 export async function postProcessHtml(html: string): Promise<string> {

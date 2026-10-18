@@ -2,7 +2,7 @@
  * Serve a shared ui-sdk chunk (`?p=sifpress/asset/js/<file>`).
  *
  * The core bundle (`ui-sdk.mjs`) contains React, ReactDOM, the common
- * libraries, and the whole ui-sdk API. Optional heavy libraries (mermaid,
+ * libraries, and the whole ui-sdk API. Optional heavy libraries (pele,
  * KaTeX, highlight.js) are built as separate self-contained chunks and
  * loaded on demand by the client; they are embedded into the artifact by
  * build.php as UI_SDK_CHUNKS and served here.

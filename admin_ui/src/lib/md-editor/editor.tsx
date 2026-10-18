@@ -350,10 +350,10 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
     }, []);
 
     /*
-     * Mermaid paints from a frozen palette: the editor hands it the app's
-     * resolved theme (never the raw stored preference, which may say 'system'),
-     * and applies the matching dark class so editor chrome and diagrams agree.
-     * The chunk loads on demand; diagrams rendered later read this theme.
+     * The editor hands the markdown pipeline the app's resolved theme (never
+     * the raw stored preference, which may say 'system') and flips the matching
+     * dark class so editor chrome and Pele diagrams agree. The chunk loads on
+     * demand; diagrams rendered later read this theme.
      */
     useEffect(() => {
       void loadMarkdown().then(lib => lib.setMermaidTheme(resolved));

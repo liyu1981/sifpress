@@ -30,7 +30,6 @@
     "jszip": "^3.10.2",
     "katex": "^0.18.4",
     "lucide-react": "^1.31.0",
-    "mermaid": "^11.16.1",
     "radix-ui": "^1.6.7",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
