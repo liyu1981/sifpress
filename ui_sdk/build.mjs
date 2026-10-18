@@ -8,7 +8,7 @@ import { externalGlobals } from '../build/vite-external-globals.ts';
  *
  *   ui-sdk.mjs            core (React, query, router, i18n, api, light markdown)
  *   ui-sdk-markdown.mjs   lazy: Milkdown/Crepe render + edit pipeline
- *   ui-sdk-mermaid.mjs    lazy: mermaid
+ *   ui-sdk-pele.mjs       lazy: pele (Mermaid diagram renderer)
  *   ui-sdk-katex.mjs      lazy: katex
  *   ui-sdk-highlight.mjs  lazy: highlight.js
  *
@@ -28,7 +28,7 @@ const root = fileURLToPath(new URL('.', import.meta.url));
 const entries = {
   'ui-sdk': 'src/sifpress-ui.ts',
   'ui-sdk-markdown': 'src/chunks/markdown.ts',
-  'ui-sdk-mermaid': 'src/chunks/mermaid.ts',
+  'ui-sdk-pele': 'src/chunks/pele.ts',
   'ui-sdk-katex': 'src/chunks/katex.ts',
   'ui-sdk-highlight': 'src/chunks/highlight.ts',
 };

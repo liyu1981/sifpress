@@ -2,7 +2,7 @@ import { memo, useEffect, useState } from 'react';
 import type { MouseEvent, Ref } from 'react';
 import { copyText } from '../api';
 import { parseFrontMatter } from '../front-matter';
-import { type MermaidTheme, setMermaidTheme } from './mermaid';
+import { type MermaidTheme, setMermaidTheme } from './diagram';
 import { postProcessHtml } from './postprocess';
 import { markdownToHtml } from './render';
 
@@ -17,7 +17,7 @@ export interface MarkdownViewProps {
 
 /**
  * Render markdown to HTML using the same schema as the editor. `theme`
- * ('light' | 'dark') selects the mermaid theme; pass 'system' to resolve
+ * ('light' | 'dark') selects the diagram theme; pass 'system' to resolve
  * from the user's prefers-color-scheme at render time.
  */
 export const MarkdownView = memo(function MarkdownView({

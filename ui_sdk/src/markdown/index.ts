@@ -1,4 +1,4 @@
-export { type MermaidTheme, setMermaidTheme } from './mermaid';
+export { type MermaidTheme, setMermaidTheme } from './diagram';
 export { postProcessHtml } from './postprocess';
 export { markdownToHtml } from './render';
 export {

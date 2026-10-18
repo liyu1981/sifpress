@@ -4,7 +4,7 @@ import type { EditorView } from '@milkdown/kit/prose/view';
 import { $inputRule, $nodeSchema, $remark, $view } from '@milkdown/kit/utils';
 import type { Root } from 'mdast';
 import { visit } from 'unist-util-visit';
-import { nextDiagramId, registerDiagramRerender, renderMermaidChart } from '../mermaid';
+import { nextDiagramId, registerDiagramRerender, renderMermaidChart } from '../diagram';
 
 const id = 'diagram';
 

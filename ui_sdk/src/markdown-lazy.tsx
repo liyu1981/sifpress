@@ -5,7 +5,7 @@ import type { Ctx } from '@milkdown/kit/ctx';
 import { getUiLib, loadUiChunk } from './lazy-chunks';
 import type { MarkdownViewProps, MarkdownViewTheme } from './markdown/view';
 import type { MarkdownEditorConfig } from './markdown/shared';
-import type { MermaidTheme } from './markdown/mermaid';
+import type { MermaidTheme } from './markdown/diagram';
 
 export type { MarkdownViewProps, MarkdownViewTheme, MarkdownEditorConfig, MermaidTheme };
 

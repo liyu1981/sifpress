@@ -42,3 +42,4 @@ minimumReleaseAgeExclude:
   - '@radix-ui/react-tooltip@1.4.1'
   - lucide-react@1.56.0
   - radix-ui@1.8.1
+  - pele@1.6.0

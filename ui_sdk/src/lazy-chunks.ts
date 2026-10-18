@@ -19,7 +19,7 @@ export function getUiLib<T>(name: string): T | null {
 }
 
 /**
- * Load a separately built ui-sdk chunk (e.g. `ui-sdk-mermaid.mjs`) by
+ * Load a separately built ui-sdk chunk (e.g. `ui-sdk-pele.mjs`) by
  * injecting a module script served from the `sifpress/asset/js/<file>`
  * module. The single-file backend cannot serve Vite's default `/assets/*.mjs`
  * chunk URLs, so chunks are addressed through the same route as the core

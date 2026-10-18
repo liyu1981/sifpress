@@ -510,7 +510,9 @@ pnpm-lock.yaml      workspace lockfile
   - Article rendering pipeline: `parseFrontMatter` → `escapeTableCodePipes`
     (tables with pipes in code spans) → `markdownToHtml` (hidden renderer
     singleton + `getHTML()`) → `postProcessHtml` (block math → KaTeX,
-    mermaid SVG, video embeds, external links). Hosts that render math must
+    `mermaid` fences → Pele SVG via the lazy `ui-sdk-pele.mjs` chunk, themed
+    with the `--pele-*` CSS variables each host maps onto its design tokens,
+    video embeds, external links). Hosts that render math must
     load KaTeX's stylesheet, or the hidden `.katex-mathml` layer (incl. the
     raw `application/x-tex` annotation) becomes visible: `admin_ui` gets it
     transitively via `@milkdown/crepe/theme/common/style.css`, while the

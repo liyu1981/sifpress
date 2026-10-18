@@ -169,6 +169,27 @@
   }
 }
 
+/*
+ * Pele diagram theming. Its SVG references these variables, so mapping them
+ * onto the app's design tokens themes every diagram (light and dark) without
+ * a re-render.
+ */
+:root {
+  --pele-bg: var(--background);
+  --pele-fg: var(--foreground);
+  --pele-muted: var(--muted-foreground);
+  --pele-line: var(--muted-foreground);
+  --pele-surface: var(--muted);
+  --pele-surface-alt: var(--accent);
+  --pele-border: var(--border);
+  --pele-accent: var(--primary);
+  --pele-critical: var(--destructive);
+  --pele-error: var(--destructive);
+  --pele-font: var(--font-sans, sans-serif);
+  --pele-font-mono: var(--font-mono, monospace);
+  --pele-radius: var(--radius, 4px);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
