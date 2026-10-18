@@ -67,6 +67,7 @@ async function renderMermaidDivs(body: HTMLElement): Promise<void> {
       const chart = el.getAttribute('data-value') ?? el.textContent ?? '';
       const holder = document.createElement('div');
       holder.className = 'md-mermaid my-6 flex justify-center overflow-x-auto';
+      holder.dataset.diagram = chart;
       el.replaceWith(holder);
 
       if (chart.trim() === '') {
