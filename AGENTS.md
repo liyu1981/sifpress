@@ -146,7 +146,15 @@ php buildfront.php release
   `SIFPRESS_ASSET_DIR`); `--dry-run` lists both. `config [--show-secrets]` lists
   values and
   `config --set KEY=VALUE` rewrites `define()` values in place with a
-  tokenizer (preserves comments, writes a `.bak`). `cron install|show|remove`
+  tokenizer (preserves comments, writes a `.bak`).
+  `config --upgrade [--dry-run]` regenerates the file from the *current*
+  template — new constants, refreshed docs — while re-applying every existing
+  value **as source text** (`sifpress_config_defines()`), so hand-written
+  expressions (`getenv(...) ?: 'x'`, arithmetic, arrays) survive; constants the
+  template no longer has are appended under a "kept from the previous version"
+  header instead of being dropped, `--set` can be combined with it, and the
+  rewritten file is parse-checked (`token_get_all(…, TOKEN_PARSE)`) before it
+  replaces the old one. `cron install|show|remove`
   manages a marked backup block in a user's crontab.
   `rewrite [apache|nginx|both|check|status]` prints (or `--out=`) the server
   rules that map clean paths onto the `?p=` protocol, `check` probes the live

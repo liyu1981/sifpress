@@ -112,6 +112,10 @@ Sign in with `admin` / `admin` — a password change is forced on first login.
 - `php sifpress.php status` prints paths, version and migration state.
   `php sifpress.php backup --dir=/srv/backups` snapshots and prunes
   (`php sifpress.php cron install` schedules it).
+- After replacing the artifact, `php sifpress.php config --upgrade [--dry-run]`
+  refreshes `sifpress_config.php` from the new template (new constants and
+  documentation) while keeping every value you set, including hand-written
+  expressions; the previous file is written to `.bak`.
 - **Social sign-in (Google)** is configured in `sifpress_config.php` only:
   `SIFPRESS_GOOGLE_CLIENT_ID` + `SIFPRESS_GOOGLE_CLIENT_SECRET` (both set =
   enabled), optionally `SIFPRESS_GOOGLE_REDIRECT_URI` and

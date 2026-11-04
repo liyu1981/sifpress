@@ -131,6 +131,9 @@ function sifpress_cli_usage(): void
         '  config           view or update sifpress_config.php:',
         '                   config [--config=PATH] [--show-secrets]',
         '                   config --set KEY=VALUE [--set KEY=VALUE ...]',
+        '                   config --upgrade [--dry-run] [--set KEY=VALUE ...]',
+        '                     rewrite it from the current template, keeping every',
+        '                     value (backup: sifpress_config.php.bak)',
         '  cron             manage the backup crontab entry for a user:',
         '                   cron install [--schedule="0 3 * * *"] [--user=USER] [--log=PATH]',
         '                   cron show | cron remove [--user=USER]',
@@ -633,11 +636,17 @@ function sifpress_config_cast(string $key, string $raw): mixed
 }
 
 /**
- * Rewrite `define()` values in a config source while preserving comments and
- * every other statement. The tokenizer keeps string values containing `);`
- * or quotes safe; keys that are missing are appended.
+ * Locate every `define('NAME', <value>)` in a config source. The returned
+ * byte ranges cover the value expression only, so callers can replace or read
+ * it without touching the rest of the file.
+ *
+ * One tokenizer walk serves both sifpress_config_patch() and
+ * sifpress_config_defines(): the tokenizer keeps string values containing
+ * `);` or quotes safe, and the paren depth walk keeps nested calls whole.
+ *
+ * @return list<array{name:string, start:int, end:int}>
  */
-function sifpress_config_patch(string $source, array $values): string
+function sifpress_config_define_ranges(string $source): array
 {
     $tokens = token_get_all($source);
     $offsets = [];
@@ -650,8 +659,7 @@ function sifpress_config_patch(string $source, array $values): string
 
     $offsets[count($tokens)] = $pos;
 
-    $replacements = [];
-    $found = [];
+    $ranges = [];
     $count = count($tokens);
 
     for ($i = 0; $i < $count; $i++) {
@@ -717,12 +725,63 @@ function sifpress_config_patch(string $source, array $values): string
             $j++;
         }
 
-        if (!array_key_exists($name, $values)) {
+        $ranges[] = [
+            'name' => $name,
+            'start' => $offsets[$valueStart],
+            'end' => $offsets[$j],
+        ];
+    }
+
+    return $ranges;
+}
+
+/**
+ * Every constant defined in a config source, as name => value *expression*
+ * text (e.g. `'https://example.com'`, `90`, `getenv('FOO') ?: 'bar'`).
+ *
+ * The source text — not the evaluated value — is what makes
+ * `config --upgrade` lossless: an operator's expression survives verbatim.
+ *
+ * @return array<string,string>
+ */
+function sifpress_config_defines(string $source): array
+{
+    $defines = [];
+
+    foreach (sifpress_config_define_ranges($source) as $range) {
+        $text = trim(substr($source, $range['start'], $range['end'] - $range['start']));
+        $defines[$range['name']] = $text;
+    }
+
+    return $defines;
+}
+
+/**
+ * Rewrite `define()` values in a config source while preserving comments and
+ * every other statement. Keys that are missing are appended.
+ *
+ * With `$raw` the values are PHP *source text* emitted verbatim (used by
+ * `config --upgrade`), otherwise they are PHP values rendered with
+ * var_export() (used by `config --set`).
+ *
+ * @param array<string,mixed> $values
+ */
+function sifpress_config_patch(string $source, array $values, bool $raw = false): string
+{
+    $replacements = [];
+    $found = [];
+
+    foreach (sifpress_config_define_ranges($source) as $range) {
+        if (!array_key_exists($range['name'], $values)) {
             continue;
         }
 
-        $replacements[] = [$offsets[$valueStart], $offsets[$j], var_export($values[$name], true)];
-        $found[$name] = true;
+        $text = $raw
+            ? (string) $values[$range['name']]
+            : var_export($values[$range['name']], true);
+
+        $replacements[] = [$range['start'], $range['end'], $text];
+        $found[$range['name']] = true;
     }
 
     usort($replacements, static fn (array $a, array $b): int => $b[0] <=> $a[0]);
@@ -737,7 +796,8 @@ function sifpress_config_patch(string $source, array $values): string
         $source = rtrim($source) . "\n";
 
         foreach ($missing as $name => $value) {
-            $source .= "\ndefine('" . $name . "', " . var_export($value, true) . ');';
+            $text = $raw ? (string) $value : var_export($value, true);
+            $source .= "\ndefine('" . $name . "', " . $text . ');';
         }
 
         $source .= "\n";
@@ -747,56 +807,56 @@ function sifpress_config_patch(string $source, array $values): string
 }
 
 /**
+ * Replace a config file in place, atomically: a `.bak` of the previous
+ * content, a temp file in the same directory, then rename. Keeps the original
+ * permissions and gives the new file the artifact's owner when run as root.
+ */
+function sifpress_config_write(string $configPath, string $content, string $previous): void
+{
+    if (@file_put_contents($configPath . '.bak', $previous) === false) {
+        fwrite(STDERR, "Could not write {$configPath}.bak\n");
+        exit(1);
+    }
+
+    $tmp = $configPath . '.tmp.' . bin2hex(random_bytes(4));
+
+    if (@file_put_contents($tmp, $content) === false) {
+        fwrite(STDERR, "Could not write {$tmp}\n");
+        exit(1);
+    }
+
+    @chmod($tmp, fileperms($configPath) & 0777);
+
+    if (!@rename($tmp, $configPath)) {
+        @unlink($tmp);
+        fwrite(STDERR, "Could not replace {$configPath}\n");
+        exit(1);
+    }
+
+    sifpress_cli_adopt_owner($configPath);
+}
+
+/**
  * `config [--config=PATH] [--show-secrets]` lists the current values;
  * `config --set KEY=VALUE [--set KEY=VALUE ...]` updates them in place.
  */
 function sifpress_cli_config(string $configPath, array $options, array $argv): void
 {
+    $bin = basename(__FILE__);
+
     if (!is_file($configPath)) {
-        fwrite(STDERR, "No config found at {$configPath}. Run: php " . basename(__FILE__) . " setup\n");
+        fwrite(STDERR, "No config found at {$configPath}. Run: php {$bin} setup\n");
         exit(1);
     }
 
-    $sets = [];
-    $args = array_slice($argv, 2);
-
-    for ($i = 0; $i < count($args); $i++) {
-        $arg = $args[$i];
-        $pair = null;
-
-        if (str_starts_with($arg, '--set=')) {
-            $pair = substr($arg, 6);
-        } elseif ($arg === '--set') {
-            $pair = $args[$i + 1] ?? null;
-            $i++;
-        }
-
-        if ($pair === null) {
-            continue;
-        }
-
-        $eq = strpos($pair, '=');
-
-        if ($eq === false || $eq === 0) {
-            fwrite(STDERR, "Invalid --set, expected KEY=VALUE: {$pair}\n");
-            exit(1);
-        }
-
-        $key = substr($pair, 0, $eq);
-
-        if (preg_match('/^[A-Z][A-Z0-9_]*$/', $key) !== 1) {
-            fwrite(STDERR, "Invalid config key: {$key}\n");
-            exit(1);
-        }
-
-        $sets[$key] = substr($pair, $eq + 1);
-    }
-
-    require_once $configPath;
-
+    $sets = sifpress_cli_config_sets($argv);
+    $upgrade = isset($options['upgrade']);
+    $dryRun = isset($options['dry-run']);
     $showSecrets = isset($options['show-secrets']);
 
-    if ($sets === []) {
+    if ($sets === [] && !$upgrade) {
+        require_once $configPath;
+
         $user = get_defined_constants(true)['user'] ?? [];
 
         foreach (sifpress_config_types() as $key => $type) {
@@ -836,29 +896,14 @@ function sifpress_cli_config(string $configPath, array $options, array $argv): v
         exit(1);
     }
 
+    if ($upgrade) {
+        sifpress_cli_config_upgrade($configPath, $source, $values, $dryRun, $showSecrets);
+
+        return;
+    }
+
     $patched = sifpress_config_patch($source, $values);
-
-    if (@file_put_contents($configPath . '.bak', $source) === false) {
-        fwrite(STDERR, "Could not write {$configPath}.bak\n");
-        exit(1);
-    }
-
-    $tmp = $configPath . '.tmp.' . bin2hex(random_bytes(4));
-
-    if (@file_put_contents($tmp, $patched) === false) {
-        fwrite(STDERR, "Could not write {$tmp}\n");
-        exit(1);
-    }
-
-    @chmod($tmp, fileperms($configPath) & 0777);
-
-    if (!@rename($tmp, $configPath)) {
-        @unlink($tmp);
-        fwrite(STDERR, "Could not replace {$configPath}\n");
-        exit(1);
-    }
-
-    sifpress_cli_adopt_owner($configPath);
+    sifpress_config_write($configPath, $patched, $source);
 
     foreach ($values as $key => $value) {
         $display = sifpress_config_secret($key) && !$showSecrets
@@ -869,6 +914,155 @@ function sifpress_cli_config(string $configPath, array $options, array $argv): v
     }
 
     fwrite(STDOUT, "Updated {$configPath} (backup: {$configPath}.bak)\n");
+}
+
+/**
+ * Parse `--set KEY=VALUE` / `--set=KEY=VALUE` into raw strings (cast later).
+ *
+ * @return array<string,string>
+ */
+function sifpress_cli_config_sets(array $argv): array
+{
+    $sets = [];
+    $args = array_slice($argv, 2);
+
+    for ($i = 0; $i < count($args); $i++) {
+        $arg = $args[$i];
+        $pair = null;
+
+        if (str_starts_with($arg, '--set=')) {
+            $pair = substr($arg, 6);
+        } elseif ($arg === '--set') {
+            $pair = $args[$i + 1] ?? null;
+            $i++;
+        }
+
+        if ($pair === null) {
+            continue;
+        }
+
+        $eq = strpos($pair, '=');
+
+        if ($eq === false || $eq === 0) {
+            fwrite(STDERR, "Invalid --set, expected KEY=VALUE: {$pair}\n");
+            exit(1);
+        }
+
+        $key = substr($pair, 0, $eq);
+
+        if (preg_match('/^[A-Z][A-Z0-9_]*$/', $key) !== 1) {
+            fwrite(STDERR, "Invalid config key: {$key}\n");
+            exit(1);
+        }
+
+        $sets[$key] = substr($pair, $eq + 1);
+    }
+
+    return $sets;
+}
+
+/**
+ * `config --upgrade [--dry-run] [--set KEY=VALUE ...]`
+ *
+ * Rebuild the config file from the current template — new constants, refreshed
+ * documentation — while carrying every existing value over verbatim. Values are
+ * copied as *source text* (see sifpress_config_defines()), so hand-written
+ * expressions (`getenv(...) ?: 'x'`, arithmetic, arrays) survive untouched.
+ *
+ * Constants the running version no longer templates are appended under a
+ * "kept from the previous version" header rather than dropped, so an upgrade
+ * never changes behavior on its own; the previous file is left at `.bak`.
+ *
+ * @param array<string,mixed> $sets values from --set, applied after the upgrade
+ */
+function sifpress_cli_config_upgrade(
+    string $configPath,
+    string $source,
+    array $sets,
+    bool $dryRun,
+    bool $showSecrets
+): void {
+    $existing = sifpress_config_defines($source);
+
+    /*
+     * The template renders four values inline; fill them from the file itself
+     * (never from the loaded constants, so an unloadable config can still be
+     * rebuilt). The raw patch below then restores the exact expressions.
+     */
+    $template = sifpress_config_template(
+        $existing['SIFPRESS_DB_DIR'] ?? '',
+        $existing['SIFPRESS_ADMIN_PASSWORD'] ?? '',
+        $existing['SIFPRESS_MANIFEST_URL'] ?? '',
+        $existing['SIFPRESS_BASE_URL'] ?? ''
+    );
+
+    $templated = array_keys(sifpress_config_defines($template));
+
+    /*
+     * Only hand the templated keys to the raw patch: it would otherwise append
+     * the leftovers itself, and the carried block below would define them a
+     * second time (a duplicate define() warns at runtime).
+     */
+    $overlap = array_intersect_key($existing, array_flip($templated));
+    $upgraded = sifpress_config_patch($template, $overlap, true);
+
+    $carried = array_values(array_diff(array_keys($existing), $templated));
+    $added = array_values(array_diff($templated, array_keys($existing)));
+    $preserved = array_keys($overlap);
+
+    if ($carried !== []) {
+        $upgraded = rtrim($upgraded) . "\n\n"
+            . "// Kept from the previous version: not part of the current template.\n";
+        $upgraded .= implode("\n", array_map(
+            static fn (string $key): string => "define('{$key}', {$existing[$key]});",
+            $carried
+        )) . "\n";
+    }
+
+    if ($sets !== []) {
+        $upgraded = sifpress_config_patch($upgraded, $sets);
+    }
+
+    /* Raw expressions are copied verbatim, so make sure the result is real
+     * PHP before it replaces a working file. */
+    try {
+        token_get_all($upgraded, TOKEN_PARSE);
+    } catch (Throwable $e) {
+        fwrite(STDERR, "Refusing to write {$configPath}: the upgraded file would not parse"
+            . " ({$e->getMessage()}). Nothing was changed.\n");
+        exit(1);
+    }
+
+    if ($dryRun) {
+        fwrite(STDOUT, "Would upgrade {$configPath} (dry run, nothing written)\n");
+    } else {
+        sifpress_config_write($configPath, $upgraded, $source);
+        fwrite(STDOUT, "Upgraded {$configPath} (backup: {$configPath}.bak)\n");
+    }
+
+    fwrite(STDOUT, '  preserved ' . count($preserved) . " value(s) from the current file\n");
+
+    if ($added !== []) {
+        fwrite(STDOUT, '  added ' . count($added) . ': ' . implode(', ', $added) . "\n");
+    }
+
+    if ($carried !== []) {
+        fwrite(STDOUT, '  carried over ' . count($carried) . ': ' . implode(', ', $carried) . "\n");
+    }
+
+    if ($sets !== []) {
+        foreach ($sets as $key => $value) {
+            $display = sifpress_config_secret($key) && !$showSecrets
+                ? '********'
+                : var_export($value, true);
+
+            fwrite(STDOUT, "  set {$key} = {$display}\n");
+        }
+    }
+
+    if ($dryRun) {
+        fwrite(STDOUT, "Re-run without --dry-run to write it.\n");
+    }
 }
 
 /**
