@@ -39,7 +39,7 @@ php buildfront.php release
   JS/CSS into the HTML, embeds it as `EMBEDDED_HTML`, and assembles the
   PHP fragments from `src/` (in order: `env.php`, `bootstrap.php`,
   `urlmode.php`, `db.php`,
-  `migration.php`, `auth.php`, `api.php`, `storage.php`, `asset.php`,
+  `migration.php`, `auth.php`, `oauth.php`, `api.php`, `storage.php`, `asset.php`,
   `sifront.php`,
   `spa.php`, `embed.php`, `migrations.php`, `backup.php`, `dev.php`,
   `router.php`)
@@ -103,7 +103,14 @@ php buildfront.php release
   `SIFPRESS_UPDATE_MANIFEST_URL`, `SIFPRESS_BASE_URL`) are still supported as
   fallbacks for backward compatibility.
   `SIFPRESS_PRETTY_URLS` (`'auto'` | `'1'` | `'0'`) picks which URL form the
-  app *emits* — see "URL modes" below.
+  app *emits* — see "URL modes" below. Social sign-in is configured here too:
+  `SIFPRESS_GOOGLE_CLIENT_ID` + `SIFPRESS_GOOGLE_CLIENT_SECRET` (both non-empty
+  = provider enabled, no separate switch), optional
+  `SIFPRESS_GOOGLE_REDIRECT_URI` (pins the callback URL; empty = derived) and
+  `SIFPRESS_SOCIAL_AUTO_LINK` (bool, default `true`). They are deliberately
+  **not** DB settings: credentials are infrastructure and must not travel
+  through the HTTP API. `php sifpress.php config --set KEY=VALUE` appends the
+  constants when the running config file predates them.
 - **CLI**: `php sifpress.php [setup|migrate|change_password|sessions|assets|inject_sifront|update_sifront|backup|config|cron|rewrite|status|version|help]`
   (default `setup`). `setup` writes `sifpress_config.php` + the DB folder as the
   invoking user — the way to bootstrap when the docroot is not writable by the
@@ -232,6 +239,7 @@ src/                PHP source fragments (edit these)
   db.php            SQLite open, pragmas, migration detect/runner, seeds
   migration.php     ?p=migration handler (status / run)
   auth.php          sessions, RBAC, page grants
+  oauth.php         ?p=oauth social sign-in (OAuth2/OIDC start + callback)
   api.php           JSON API handler
   storage.php       asset storage interface + filesystem backend (uuid keys)
   asset.php         ?p=asset binary serving (storage objects + legacy blobs)
@@ -446,6 +454,35 @@ pnpm-lock.yaml      workspace lockfile
     deleting audit rows. Unknown usernames still run `password_verify()`
     against `AUTH_DUMMY_HASH` (same bcrypt cost) so timing can't enumerate
     accounts; successful logins rehash when `password_needs_rehash()`.
+  - **Social sign-in** (migration `0028`): OAuth 2.0 / OpenID Connect with a
+    server-side authorization-code flow, so the client secret never reaches
+    the browser. `?p=oauth&action=start` (`mode=login|bind`, `next=/admin/...`)
+    stores a hashed single-use `state` (+ PKCE verifier) in `oauth_states`,
+    sets it in an HttpOnly `oauth_state` cookie — that cookie is what stops a
+    callback URL from being replayed into someone else's browser — and 302s to
+    the provider. The callback validates state/PKCE over TLS with curl (or
+    stream wrappers), requires a *verified* email, and then either signs in or
+    links. Sign-in matches the local account by email
+    (`users.email`, case-insensitive): an existing `user_identities` row wins,
+    otherwise the provider email must hit exactly one active account, which is
+    then linked (`SIFPRESS_SOCIAL_AUTO_LINK=false` disables even that, leaving
+    manual linking). Zero matches → `no_account`; two → `email_ambiguous`. **No
+    account is ever created** — accounts stay admin-managed. Linking requires
+    the social email to equal the target account's email (an account without
+    one adopts it, unless another user owns it); a `(provider, subject)` link
+    already held by someone else is refused. Both outcomes are reported to the
+    SPA by redirect (`?social=linked`, `?social_error=<code>`) and rendered by
+    the login page / My Account. Credentials are **config constants, not DB
+    settings**: `SIFPRESS_GOOGLE_CLIENT_ID` + `SIFPRESS_GOOGLE_CLIENT_SECRET`
+    (a provider is enabled exactly when both are non-empty),
+    `SIFPRESS_GOOGLE_REDIRECT_URI` (optional pin) and
+    `SIFPRESS_SOCIAL_AUTO_LINK`. `oauth_providers()` is the registry, and a
+    second provider's constants are `SIFPRESS_<ID>_CLIENT_ID` /
+    `_CLIENT_SECRET` / `_REDIRECT_URI`. Settings → Social login is read-only
+    (`social.get` + the public `auth.providers`, `settings.manage`): it reports
+    status, the effective callback URL with a copy button and a generated
+    snippet to paste into `sifpress_config.php`, so the secret never travels
+    through the API or the database.
 - **RBAC**: roles ⇄ permissions (`admin`/`editor`/`viewer` seeded
   idempotently); helpers `can()`, `require_permission()`, `is_admin()`.
 - **Page ownership**: editing needs `pages.write` AND (author OR a

@@ -34,6 +34,7 @@ declare(strict_types=1);
  *   src/db.php           SQLite open, pragmas, migration detection/runner, seeds
  *   src/migration.php    ?p=sifpress/migration handler
  *   src/auth.php         sessions, RBAC, page grants
+ *   src/oauth.php        ?p=sifpress/oauth social sign-in (OAuth2/OIDC)
  *   src/update.php       ?p=sifpress/update version check / upgrade handler
  *   src/demo_page.php    shared markdown-demo page (virtual + dev seed)
  *   src/api.php          JSON API handler
@@ -80,6 +81,7 @@ $parts = [
     'db.php',
     'migration.php',
     'auth.php',
+    'oauth.php',
     'update.php',
     'demo_page.php',
     'api.php',

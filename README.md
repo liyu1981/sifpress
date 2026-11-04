@@ -112,6 +112,12 @@ Sign in with `admin` / `admin` — a password change is forced on first login.
 - `php sifpress.php status` prints paths, version and migration state.
   `php sifpress.php backup --dir=/srv/backups` snapshots and prunes
   (`php sifpress.php cron install` schedules it).
+- **Social sign-in (Google)** is configured in `sifpress_config.php` only:
+  `SIFPRESS_GOOGLE_CLIENT_ID` + `SIFPRESS_GOOGLE_CLIENT_SECRET` (both set =
+  enabled), optionally `SIFPRESS_GOOGLE_REDIRECT_URI` and
+  `SIFPRESS_SOCIAL_AUTO_LINK`. Settings → Social login shows the callback URL
+  to register with Google (copy button) and a snippet to paste; nothing about
+  the credentials is stored in the database or served by the API.
 
 ## Routing — the `?p=` protocol
 
@@ -121,10 +127,11 @@ Sign in with `admin` / `admin` — a password change is forced on first login.
 | `/sifpress.php?p=/article/hello-world` | sifront route `/article/hello-world` |
 | `/sifpress.php?p=sifpress/admin` | admin UI (redirects to `?p=sifpress/admin/sifront`) |
 | `/sifpress.php?p=sifpress/api&action=auth.login` | JSON API |
+| `/sifpress.php?p=sifpress/oauth&action=start&provider=google` | social sign-in (302 to the provider) |
 | `/sifpress.php?p=sifpress/migration&action=run` | apply migrations over HTTP |
 
 Anything starting with `p=sifpress/` is handled server-side (`api`,
-`migration`, `asset`, `update`, `seo`, `favicon`, `admin/…`); everything else
+`oauth`, `migration`, `asset`, `update`, `seo`, `favicon`, `admin/…`); everything else
 belongs to the active sifront. There are no `.htaccess` rules and no `#/`
 hash routes — route changes go through `history.pushState`, so back/forward
 work out of the box and every link is real.

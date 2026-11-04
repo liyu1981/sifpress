@@ -3,9 +3,11 @@ import {
   ArrowDownToLine,
   BarChart3,
   ChevronDown,
+  Copy,
   ExternalLink,
   Globe,
   Image,
+  Link2,
   Loader2,
   Save,
   Search,
@@ -42,8 +44,9 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePageTitle } from '@/hooks/use-page-title';
+import { socialErrorMessage, socialFlagFromUrl } from '@/lib/social';
 import { ApiError } from 'ui-sdk';
-import { makeAvatarThumb } from 'ui-sdk';
+import { copyText, makeAvatarThumb, socialSettingsApi, socialStartUrl } from 'ui-sdk';
 import { useAuth } from 'ui-sdk';
 import {
   assetsApi,
@@ -1179,6 +1182,132 @@ function TrackingSettingsCard() {
   );
 }
 
+function SocialSettingsCard() {
+  const { t } = useTranslation();
+  const query = useQuery({ queryKey: ['social-settings'], queryFn: socialSettingsApi.get });
+
+  if (query.isLoading || query.data === undefined) {
+    return <SettingsLoadingCard />;
+  }
+
+  const settings = query.data;
+
+  async function copy(value: string, message: string) {
+    if (await copyText(value)) {
+      toast.success(message);
+    }
+  }
+
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardAction>
+          <Link2 className="size-5 text-muted-foreground" />
+        </CardAction>
+        <CardTitle>{t('social.settings.title')}</CardTitle>
+        <CardDescription>
+          {t('social.settings.description', { file: settings.config_file })}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {settings.providers.map(provider => (
+          <div key={provider.id} className="space-y-3 rounded-xl border border-border/60 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium">{provider.name}</p>
+              <Badge variant={provider.enabled ? 'default' : 'secondary'}>
+                {provider.enabled
+                  ? t('social.settings.statusEnabled')
+                  : t('social.settings.statusDisabled')}
+              </Badge>
+            </div>
+
+            <dl className="grid gap-1.5 text-xs sm:grid-cols-[10rem_1fr] sm:gap-x-3">
+              <dt className="text-muted-foreground">{t('social.settings.clientId')}</dt>
+              <dd className="font-mono break-all">
+                {provider.client_id === '' ? t('social.settings.notSet') : provider.client_id}
+              </dd>
+
+              <dt className="text-muted-foreground">{t('social.settings.clientSecret')}</dt>
+              <dd>
+                {provider.has_secret
+                  ? t('social.settings.secretSet')
+                  : t('social.settings.secretUnset')}
+              </dd>
+
+              <dt className="text-muted-foreground">{t('social.settings.autoLink')}</dt>
+              <dd>
+                {settings.auto_link
+                  ? t('social.settings.autoLinkOn')
+                  : t('social.settings.autoLinkOff')}
+              </dd>
+            </dl>
+
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">
+                {t('social.settings.redirectUri')}
+              </p>
+              <div className="flex gap-2">
+                <Input readOnly value={provider.redirect_uri} className="h-9 font-mono text-xs" />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => void copy(provider.redirect_uri, t('social.settings.copied'))}
+                >
+                  <Copy />
+                  {t('social.settings.copyRedirect')}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {provider.redirect_uri !== provider.redirect_uri_default
+                  ? t('social.settings.redirectUriPinned', {
+                      derived: provider.redirect_uri_default,
+                    })
+                  : t('social.settings.redirectUriHint')}
+              </p>
+            </div>
+          </div>
+        ))}
+
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-medium text-muted-foreground">
+              {t('social.settings.snippetTitle', { file: settings.config_file })}
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void copy(settings.config_snippet, t('social.settings.snippetCopied'))}
+            >
+              <Copy />
+              {t('social.settings.copySnippet')}
+            </Button>
+          </div>
+          <pre className="max-h-72 overflow-auto rounded-xl border border-border/60 bg-muted/40 p-3 font-mono text-[11px] leading-relaxed">
+            {settings.config_snippet}
+          </pre>
+          <p className="text-xs text-muted-foreground">{t('social.settings.snippetHint')}</p>
+        </div>
+
+        <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground">{t('social.settings.setupHint')}</p>
+          <a
+            href="https://console.cloud.google.com/apis/credentials"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-foreground underline-offset-2 hover:underline"
+          >
+            <ExternalLink className="size-3" aria-hidden="true" />
+            {t('social.settings.consoleLink')}
+          </a>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function SystemSettingsCard() {
   const { i18n, t } = useTranslation();
   const current = i18n.language?.startsWith('zh') ? 'zh' : 'en';
@@ -1610,6 +1739,91 @@ function UpdateCard() {
   );
 }
 
+function LinkedAccountsCard() {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [linked] = useState(() => socialFlagFromUrl('social') === 'linked');
+  const [errorCode] = useState(() => socialFlagFromUrl('social_error'));
+
+  const identities = useQuery({ queryKey: ['auth', 'identities'], queryFn: authApi.identities });
+
+  const unlink = useMutation({
+    mutationFn: (provider: string) => authApi.unlinkIdentity(provider),
+    onSuccess: () => {
+      toast.success(t('social.unlinked'));
+      void queryClient.invalidateQueries({ queryKey: ['auth', 'identities'] });
+    },
+    onError: () => toast.error(t('social.unlinkFailed')),
+  });
+
+  /* Disabled providers stay visible while a link exists, so it can be removed
+   * even after an administrator switched the provider off. */
+  const providers = (identities.data ?? []).filter(provider => provider.enabled || provider.linked);
+
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardAction>
+          <Link2 className="size-5 text-muted-foreground" />
+        </CardAction>
+        <CardTitle>{t('social.linkedTitle')}</CardTitle>
+        <CardDescription>{t('social.linkedDescription')}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {linked && <p className="text-sm text-emerald-600">{t('social.linkedDone')}</p>}
+        {errorCode !== null && (
+          <p className="text-sm text-destructive">{socialErrorMessage(t, errorCode)}</p>
+        )}
+
+        {identities.isLoading && (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            {t('settings.loading')}
+          </p>
+        )}
+
+        {!identities.isLoading && providers.length === 0 && (
+          <p className="text-sm text-muted-foreground">{t('social.noneAvailable')}</p>
+        )}
+
+        {providers.map(provider => (
+          <div key={provider.id} className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium">{provider.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {provider.linked
+                  ? (provider.email ?? t('social.linkedTag'))
+                  : provider.enabled
+                    ? t('social.notLinked')
+                    : t('social.disabled')}
+              </p>
+            </div>
+            {provider.linked ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={unlink.isPending}
+                onClick={() => unlink.mutate(provider.id)}
+              >
+                {t('social.unlink')}
+              </Button>
+            ) : (
+              provider.enabled && (
+                <Button asChild variant="outline" size="sm">
+                  <a href={socialStartUrl(provider.id, { mode: 'bind', next: '/admin/account' })}>
+                    {t('social.link')}
+                  </a>
+                </Button>
+              )
+            )}
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function AccountManagementPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -1659,6 +1873,8 @@ export function AccountManagementPage() {
           )}
 
           <ProfileCard />
+
+          <LinkedAccountsCard />
 
           <ChangePasswordForm />
         </TabsContent>
@@ -1751,6 +1967,16 @@ export function SettingsPage() {
               </span>
             </TabsTrigger>
           )}
+          {canManageSettings && (
+            <TabsTrigger
+              value="social"
+              className="group justify-end rounded-full border-transparent px-0 data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent dark:data-[state=active]:shadow-none"
+            >
+              <span className="rounded-full px-3 py-1.5 transition-colors group-data-[state=active]:bg-accent group-data-[state=active]:text-accent-foreground">
+                {t('social.settings.tab')}
+              </span>
+            </TabsTrigger>
+          )}
           {user !== null && user.roles.includes('admin') && (
             <TabsTrigger
               value="update"
@@ -1777,6 +2003,12 @@ export function SettingsPage() {
         {canManageSettings && (
           <TabsContent value="tracking" className="space-y-6">
             <TrackingSettingsCard />
+          </TabsContent>
+        )}
+
+        {canManageSettings && (
+          <TabsContent value="social" className="space-y-6">
+            <SocialSettingsCard />
           </TabsContent>
         )}
 

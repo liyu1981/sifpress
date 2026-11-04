@@ -187,6 +187,35 @@ define('SIFPRESS_BASE_URL', %s);
 define('SIFPRESS_PRETTY_URLS', 'auto');
 
 /**
+ * Social sign-in (Google). Both values come from an OAuth client ID of type
+ * "Web application" in the Google Cloud console:
+ *
+ *   https://console.cloud.google.com/apis/credentials
+ *
+ * Register the callback URL shown on Settings -> Social login there as an
+ * "Authorized redirect URI". A provider is enabled exactly when the client id
+ * and secret are both non-empty; leave them empty (the default) to keep the
+ * login button hidden. Credentials are infrastructure, so they live here and
+ * never travel through the HTTP API or the database.
+ */
+define('SIFPRESS_GOOGLE_CLIENT_ID', '');
+define('SIFPRESS_GOOGLE_CLIENT_SECRET', '');
+
+/**
+ * Optional pin for the OAuth callback URL. Leave empty to derive it from
+ * SIFPRESS_BASE_URL and the active URL mode; pin it only when the site
+ * switches between ?p= links and clean paths (the value must match the
+ * provider console exactly).
+ */
+define('SIFPRESS_GOOGLE_REDIRECT_URI', '');
+
+/**
+ * Whether a social sign-in whose verified email matches a local account links
+ * the two automatically. false requires users to connect it from My Account.
+ */
+define('SIFPRESS_SOCIAL_AUTO_LINK', true);
+
+/**
  * Folder where `php sifpress.php backup` writes snapshot archives.
  * REQUIRED for the backup command: there is no default, and the command
  * fails when this is left empty. The folder must be writable by the user

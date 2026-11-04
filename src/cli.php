@@ -563,6 +563,10 @@ function sifpress_config_types(): array
         'SIFPRESS_MANIFEST_URL' => 'string',
         'SIFPRESS_BASE_URL' => 'string',
         'SIFPRESS_PRETTY_URLS' => 'string',
+        'SIFPRESS_GOOGLE_CLIENT_ID' => 'string',
+        'SIFPRESS_GOOGLE_CLIENT_SECRET' => 'string',
+        'SIFPRESS_GOOGLE_REDIRECT_URI' => 'string',
+        'SIFPRESS_SOCIAL_AUTO_LINK' => 'bool',
         'SIFPRESS_BACKUP_DIR' => 'string',
         'SIFPRESS_BACKUP_KEEP' => 'int',
         'SIFPRESS_BACKUP_PREFIX' => 'string',
@@ -591,6 +595,18 @@ function sifpress_config_cast(string $key, string $raw): mixed
 
     if ($type === 'string') {
         return $raw;
+    }
+
+    if ($type === 'bool') {
+        if (in_array(strtolower($value), ['1', 'true', 'yes', 'on'], true)) {
+            return true;
+        }
+
+        if (in_array(strtolower($value), ['0', 'false', 'no', 'off', ''], true)) {
+            return false;
+        }
+
+        throw new RuntimeException("{$key} must be true or false.");
     }
 
     if (strcasecmp($value, 'true') === 0) {

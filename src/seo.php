@@ -9,12 +9,24 @@
  */
 
 /**
- * Read a site setting (empty default when absent). Cached per request;
- * missing table (pre-migration) degrades to defaults instead of crashing.
+ * The per-request settings cache. Pass an array to replace it, nothing to
+ * read it. Shared by setting_get()/setting_set() so a write issued earlier in
+ * the same request is visible to a later read (the settings API answers with
+ * the payload it just saved).
+ *
+ * @param array<string,string>|null $set
+ *
+ * @return array<string,string>
  */
-function setting_get(string $key, ?string $default = null): ?string
+function setting_cache(?array $set = null): array
 {
     static $cache = null;
+
+    if ($set !== null) {
+        $cache = $set;
+
+        return $cache;
+    }
 
     if ($cache === null) {
         $cache = [];
@@ -29,11 +41,23 @@ function setting_get(string $key, ?string $default = null): ?string
         }
     }
 
+    return $cache;
+}
+
+/**
+ * Read a site setting (empty default when absent). Cached per request;
+ * missing table (pre-migration) degrades to defaults instead of crashing.
+ */
+function setting_get(string $key, ?string $default = null): ?string
+{
+    $cache = setting_cache();
+
     return array_key_exists($key, $cache) ? $cache[$key] : $default;
 }
 
 /**
- * Upsert a site setting (created/updated timestamps tracked).
+ * Upsert a site setting (created/updated timestamps tracked). The cache is
+ * updated too, so callers can read back what they just wrote.
  */
 function setting_set(string $key, string $value): void
 {
@@ -42,6 +66,10 @@ function setting_set(string $key, string $value): void
          ON CONFLICT(key) DO UPDATE SET value = excluded.value,
                                         updated_at = datetime(\'now\')'
     )->execute([$key, $value]);
+
+    $cache = setting_cache();
+    $cache[$key] = $value;
+    setting_cache($cache);
 }
 
 /**

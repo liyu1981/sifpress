@@ -708,6 +708,111 @@ function api_auth_avatar(string $method): never
     json_response(['user' => user_payload((int) $user['id'])]);
 }
 
+/**
+ * Social providers a visitor may sign in with: enabled ones only, so the
+ * login page can render its buttons without knowing any configuration.
+ */
+function api_auth_social_providers(string $method): never
+{
+    if ($method !== 'GET') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    json_response(['providers' => oauth_enabled_providers()]);
+}
+
+/**
+ * Every supported provider with the current user's link state, so My Account
+ * can render Connect / Disconnect. Includes disabled providers that are still
+ * linked (the link must remain visible and removable).
+ */
+function api_auth_identities(string $method): never
+{
+    if ($method !== 'GET') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $user = require_auth();
+
+    $stmt = db()->prepare(
+        'SELECT provider, email, created_at, last_used_at
+           FROM user_identities WHERE user_id = ?'
+    );
+    $stmt->execute([(int) $user['id']]);
+    $linked = [];
+
+    foreach ($stmt->fetchAll() as $row) {
+        $linked[(string) $row['provider']] = $row;
+    }
+
+    $providers = [];
+
+    foreach (oauth_providers() as $id => $definition) {
+        $row = $linked[$id] ?? null;
+
+        $providers[] = [
+            'id' => $id,
+            'name' => $definition['name'],
+            'enabled' => oauth_provider_enabled($id),
+            'linked' => $row !== null,
+            'email' => $row === null ? null : (string) $row['email'],
+            'linked_at' => $row === null ? null : (string) $row['created_at'],
+            'last_used_at' => $row === null || $row['last_used_at'] === null
+                ? null
+                : (string) $row['last_used_at'],
+        ];
+    }
+
+    json_response(['providers' => $providers]);
+}
+
+/**
+ * Remove one of the current user's own links. No password prompt: a link is
+ * not a credential on its own (the password stays untouched), and every user
+ * row keeps a password hash.
+ */
+function api_auth_unlink_identity(string $method): never
+{
+    if ($method !== 'POST') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    $user = require_auth();
+    $body = read_json_body();
+    $provider = trim((string) ($body['provider'] ?? ''));
+
+    if (oauth_provider($provider) === null) {
+        json_response(['error' => 'unknown provider'], 422);
+    }
+
+    $stmt = db()->prepare(
+        'DELETE FROM user_identities WHERE user_id = ? AND provider = ?'
+    );
+    $stmt->execute([(int) $user['id'], $provider]);
+
+    if ($stmt->rowCount() === 0) {
+        json_response(['error' => 'not linked'], 404);
+    }
+
+    json_response(['ok' => true]);
+}
+
+/**
+ * Social sign-in configuration, read-only: the credentials live in
+ * sifpress_config.php (server infrastructure), so the admin UI only reports
+ * what is configured, the effective callback URL and the snippet to paste.
+ * The client secret is reported as a boolean, never echoed back.
+ */
+function api_social_get(string $method): never
+{
+    if ($method !== 'GET') {
+        json_response(['error' => 'Method not allowed'], 405);
+    }
+
+    require_permission('settings.manage');
+    json_response(['social' => social_settings_payload()]);
+}
+
 function api_system_status(string $method): never
 {
     if ($method !== 'GET') {
@@ -4720,6 +4825,7 @@ function handle_api(string $action, string $method): never
         'index',
         'auth.login',
         'auth.me',
+        'auth.providers',
         'system.status',
         'settings.get',
         'tracking.get',
@@ -4753,8 +4859,10 @@ function handle_api(string $action, string $method): never
                 'actions' => [
                     'auth.login', 'auth.logout', 'auth.me', 'auth.changePassword',
                     'auth.profile', 'auth.avatar',
+                    'auth.providers', 'auth.identities', 'auth.unlinkIdentity',
                     'system.status',
                     'settings.get', 'settings.update',
+                    'social.get',
                     'tracking.get', 'tracking.update',
                     'pages.list', 'pages.get', 'pages.create', 'pages.update',
                     'pages.setFlags',
@@ -4794,6 +4902,18 @@ function handle_api(string $action, string $method): never
 
         case 'auth.avatar':
             api_auth_avatar($method);
+
+        case 'auth.providers':
+            api_auth_social_providers($method);
+
+        case 'auth.identities':
+            api_auth_identities($method);
+
+        case 'auth.unlinkIdentity':
+            api_auth_unlink_identity($method);
+
+        case 'social.get':
+            api_social_get($method);
 
         case 'system.status':
             api_system_status($method);

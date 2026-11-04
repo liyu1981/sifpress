@@ -4,6 +4,7 @@ import {
   apiRequest,
   apiUrl,
   migrationRequest,
+  moduleUrl,
   uploadRequest,
 } from './api';
 
@@ -268,6 +269,79 @@ export const trackingApi = {
     }),
 };
 
+/** Provider as offered to a visitor (the login page renders one button each). */
+export interface SocialProvider {
+  id: string;
+  name: string;
+  enabled: boolean;
+}
+
+/** Provider plus the current user's link state (My Account). */
+export interface SocialIdentity {
+  id: string;
+  name: string;
+  enabled: boolean;
+  linked: boolean;
+  email: string | null;
+  linked_at: string | null;
+  last_used_at: string | null;
+}
+
+/**
+ * Server-side OAuth client status. Credentials come from sifpress_config.php,
+ * so there is nothing to update over the API: `enabled` means the client id
+ * and secret are both configured, and the secret itself is a boolean only.
+ */
+export interface SocialProviderConfig {
+  id: string;
+  name: string;
+  enabled: boolean;
+  client_id: string;
+  has_secret: boolean;
+  /** Effective callback URL (pinned override or the derived default). */
+  redirect_uri: string;
+  /** Callback URL derived from the artifact's URL mode. */
+  redirect_uri_default: string;
+}
+
+export interface SocialSettings {
+  providers: SocialProviderConfig[];
+  auto_link: boolean;
+  /** Name of the config file the artifact loaded (`sifpress_config.php`). */
+  config_file: string;
+  /** Ready-to-paste constants block, generated server-side. */
+  config_snippet: string;
+}
+
+/**
+ * Browser URL that starts the OAuth dance. It is navigated to, not fetched:
+ * the backend answers with a 302 to the provider (see src/oauth.php) and the
+ * session cookie is set on the way back, so nothing here touches the client
+ * secret.
+ *
+ * `next` is an internal SPA path (`/admin/account`), validated server-side.
+ */
+export function socialStartUrl(
+  provider: string,
+  options: { mode?: 'login' | 'bind'; next?: string } = {},
+): string {
+  const params: Record<string, string> = { action: 'start', provider };
+
+  if (options.mode === 'bind') {
+    params.mode = 'bind';
+  }
+
+  if (options.next !== undefined && options.next !== '') {
+    params.next = options.next;
+  }
+
+  return moduleUrl('sifpress/oauth', params);
+}
+
+export const socialSettingsApi = {
+  get: () => apiRequest<{ social: SocialSettings }>('social.get').then(r => r.social),
+};
+
 export const authApi = {
   me: () => apiRequest<{ user: AuthUser | null }>('auth.me').then(r => r.user),
   login: (username: string, password: string) =>
@@ -293,6 +367,15 @@ export const authApi = {
 
   removeAvatar: () =>
     apiRequest<{ user: AuthUser }>('auth.avatar', { method: 'DELETE' }).then(r => r.user),
+
+  socialProviders: () =>
+    apiRequest<{ providers: SocialProvider[] }>('auth.providers').then(r => r.providers),
+
+  identities: () =>
+    apiRequest<{ providers: SocialIdentity[] }>('auth.identities').then(r => r.providers),
+
+  unlinkIdentity: (provider: string) =>
+    apiRequest<{ ok: true }>('auth.unlinkIdentity', { method: 'POST', body: { provider } }),
 };
 
 export const pagesApi = {

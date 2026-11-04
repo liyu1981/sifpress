@@ -7,6 +7,7 @@
  *   p=sifpress/api        -> server-side JSON API (action required)
  *   p=sifpress/migration  -> schema migration status / run
  *   p=sifpress/asset      -> binary asset serving
+ *   p=sifpress/oauth      -> social sign-in (start / provider callback)
  *   p=sifpress/sifront-bundle -> a sifront's bundle.js (from its ZIP bundle)
  *   p=sifpress/update     -> update check / upgrade
  *   p=sifpress/seo        -> sitemap / robots.txt
@@ -59,6 +60,10 @@ if (str_starts_with($p, 'sifpress/')) {
 
     if ($inner === 'asset') {
         handle_asset($method);
+    }
+
+    if ($inner === 'oauth') {
+        handle_oauth((string) request_param('action', ''), $method);
     }
 
     if ($inner === 'sifront-bundle') {
