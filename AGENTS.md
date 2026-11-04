@@ -661,6 +661,20 @@ pnpm-lock.yaml      workspace lockfile
 
 ## Conventions
 
+- **Never commit on your own.** A change is finished when it is written,
+  formatted, typechecked and verified — not when it is committed. Do not run
+  `git commit` (or `git add`-and-commit, amend, squash, rebase, push, tag)
+  unless the user explicitly asks for a commit in that turn.
+  - An explicit ask buys **exactly one commit** covering the work they asked
+    about, with a conventional-commit message and a body explaining the why
+    (see `git log` for the house style).
+  - After that commit, go back to **waiting for the next commit ask**: further
+    edits stay uncommitted, and a bare "commit" later means the next batch,
+    never "continue committing whatever appears".
+  - If `git status` is already clean when asked, say so instead of inventing
+    a commit (no empty commits, no message-only commits).
+  - Never push, open a PR, rewrite published history, or force-push without a
+    separate, explicit instruction.
 - **Never install or attempt to run a browser** (Chromium, Chrome, Playwright,
   Puppeteer, Firefox, etc.) in this environment — the required system
   libraries are unavailable and must not be installed. There is no
