@@ -18,7 +18,7 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     sourcemap: mode === 'dev' ? true : false,
-    minify: mode === 'dev' ? false : 'esbuild',
+    minify: mode === 'dev' ? false : 'oxc',
     rolldownOptions: {
       output: {
         codeSplitting: false,
