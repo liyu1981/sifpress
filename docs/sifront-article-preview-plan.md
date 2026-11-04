@@ -4,7 +4,7 @@
 > `noindex` for non-public article shells (`article_noindex_meta()` in
 > `src/seo.php`, appended by `serve_sifront_page()`). Deferred: 2a
 > save-then-preview, 2c shareable tokens, Phase 3.
-> Related: `plan/pretty-urls-rewrite.md` (URL modes), `ui_sdk/src/inspect.tsx`
+> Related: `docs/pretty-urls-rewrite.md` (URL modes), `ui_sdk/src/inspect.tsx`
 > (`withInspect` + the `createQueryRewrite` keep-list), AGENTS.md → "KV inspect
 > mode" and the sifpress2 copy-key rules.
 

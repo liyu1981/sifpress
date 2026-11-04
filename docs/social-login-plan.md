@@ -158,24 +158,9 @@ constants block for the operator to edit.
 
 ## 6. Setup (Google)
 
-1. Google Cloud console → **APIs & Services → Credentials → Create OAuth client
-   ID** (type *Web application*).
-2. Add the **Authorized redirect URI** shown on Settings → Social login
-   (copy button). It is `route_url('sifpress/oauth', action=callback,
-   provider=google)` in the artifact's current URL mode — pin it with
-   `SIFPRESS_GOOGLE_REDIRECT_URI` if the site switches between `?p=` and clean
-   paths.
-3. Either copy the generated snippet from that page into `sifpress_config.php`
-   and fill in the two values, or run:
-
-   ```bash
-   php sifpress.php config \
-     --set SIFPRESS_GOOGLE_CLIENT_ID=…apps.googleusercontent.com \
-     --set SIFPRESS_GOOGLE_CLIENT_SECRET=…
-   ```
-
-4. Reload the admin page: the card shows **Enabled** and the login page shows
-   **Continue with Google** (the login form collapses behind it).
+The full operator walkthrough — console steps, the exact callback URI for each
+URL mode, the config constants, who is allowed to sign in, and a
+troubleshooting table — lives in [`google-login-setup.md`](google-login-setup.md).
 
 ---
 

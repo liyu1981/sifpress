@@ -2733,7 +2733,7 @@ function api_assets_create(string $method): never
     /*
      * Build the INSERT from the columns this database actually has: `data` and
      * `thumb` are dropped once every asset lives in storage (phase 5 of
-     * plan/asset-storage-plan.md). New rows never fill them anyway, so they are
+     * docs/asset-storage-plan.md). New rows never fill them anyway, so they are
      * written as NULL while they exist.
      */
     $stmt = db()->prepare(asset_insert_sql());

@@ -182,7 +182,7 @@ function asset_blob_column_status(?array $set = null): array
 
 /**
  * Drop `assets.data` and `assets.thumb` once they are empty (phase 5 of
- * plan/asset-storage-plan.md).
+ * docs/asset-storage-plan.md).
  *
  * Two guards, both deliberate:
  *
@@ -495,7 +495,7 @@ function seed_favicon(): void
      * The favicon is an asset like any other, so it goes through the storage
      * backend rather than into a BLOB: a seeded BLOB row would count as legacy
      * and keep the `data` column alive forever (phase 5 of
-     * plan/asset-storage-plan.md).
+     * docs/asset-storage-plan.md).
      */
     $current = null;
 

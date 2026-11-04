@@ -250,7 +250,7 @@ change). **KV only ever selects a registered id and supplies data — never code
 1. `meta.json` + `ThemeConfig` (`lib/theme-config.tsx`) gain
    `sifpress1.background.kind` (string, default `"ambient"`) and
    `sifpress1.background.config` (JSON). This slots into the existing
-   `kvs.batchGet` theme hydration from `plan/sifront-theme-kv-config.md`
+   `kvs.batchGet` theme hydration from `docs/sifront-theme-kv-config.md`
    (which already reserves `sifpress1.ambient.palette`).
 2. `lib/background/registry.ts`:
    ```ts

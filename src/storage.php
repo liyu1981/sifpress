@@ -446,7 +446,7 @@ function asset_blob_column_count(): int
  *   storage_key, thumb_key, storage_etag
  *
  * The legacy columns are written as NULL: new assets never carry bytes in the
- * database, and they disappear in phase 5 of plan/asset-storage-plan.md.
+ * database, and they disappear in phase 5 of docs/asset-storage-plan.md.
  */
 function asset_insert_sql(): string
 {

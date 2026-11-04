@@ -1,7 +1,7 @@
 # asset-storage-plan.md — move asset bytes out of SQLite behind a storage interface
 
 > Status: **phases 1–7 shipped**; phase 8 (object storage) is the only one left.
-> Follow-up to `plan/assets_upload.md`, whose decision 1 explicitly reserved this
+> Follow-up to `docs/assets_upload.md`, whose decision 1 explicitly reserved this
 > escape hatch: *"A later `storage = 'db' | 'file'` column is the escape hatch
 > (keep `data` nullable) if the DB ever gets unwieldy."*
 

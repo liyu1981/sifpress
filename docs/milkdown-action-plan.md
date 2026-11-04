@@ -1,6 +1,6 @@
 # Plan — Milkdown Editor + Rendering (Action Plan)
 
-Based on `plan/markdown-editor-research.md`. Locked decisions:
+Based on `docs/markdown-editor-research.md`. Locked decisions:
 
 - **Editor**: Milkdown via `@milkdown/crepe` v7.22.x (math ✅, v7 mature,
   ~0.89 MB gz). MDXEditor/Muya dropped.

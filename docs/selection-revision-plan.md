@@ -1,7 +1,7 @@
 # selection-revision-plan.md — revise an editor selection with the AI assistant
 
 > Status: **implemented** (Phases 1–2 + core Phase 3). Companion to
-> `plan/pi-web-agent-plan.md` and `plan/mcp-support-plan.md`.
+> `docs/pi-web-agent-plan.md` and `docs/mcp-support-plan.md`.
 
 Scope: let the user select a chunk of text in the editor and ask the AI
 assistant to rewrite *only that selection* with an instruction; the result is

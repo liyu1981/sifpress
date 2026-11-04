@@ -1,8 +1,8 @@
 # Plan — clean-path URLs (`/sifpress/admin/assets`) + generated rewrite rules
 
 Status: **shipped** — server, ui-sdk, CLI and docs are in; the only thing an
-operator adds is the generated server config. Follows `plan/seo.md` (canonical
-/ sitemap URLs come from the same helper) and `plan/asset-storage-plan.md`
+operator adds is the generated server config. Follows `docs/seo.md` (canonical
+/ sitemap URLs come from the same helper) and `docs/asset-storage-plan.md`
 phase 7 (a rule the *operator* must install, which the artifact can only
 describe).
 

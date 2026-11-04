@@ -5,7 +5,7 @@ servers** over Streamable HTTP — starting with Exa's remote server
 `https://mcp.exa.ai/mcp` — by discovering their tools and exposing them to the
 model as regular `AgentTool`s.
 
-Related: `plan/pi-web-agent-plan.md` (the agent), `admin_ui/src/lib/agent/`.
+Related: `docs/pi-web-agent-plan.md` (the agent), `admin_ui/src/lib/agent/`.
 
 ---
 

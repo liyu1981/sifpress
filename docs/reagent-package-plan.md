@@ -1,7 +1,7 @@
 # reagent-package-plan.md — extract ReAgent into a standalone npm package
 
 > Status: **implemented** (workspace package + Sifpress consumption; npm
-> publish pending). Companion to `plan/agent-component-revamp.md` (which built
+> publish pending). Companion to `docs/agent-component-revamp.md` (which built
 > ReAgent inside `admin_ui`). This plan moves it out and makes Sifpress one
 > consumer of the package.
 

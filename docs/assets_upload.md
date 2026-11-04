@@ -77,7 +77,7 @@ frontend/src/
   pages/assets.tsx         NEW: assets management page
   router.tsx               + /assets route; nav link; needsAuth update
   lib/i18n.ts              + assets.* keys (en/zh)
-plan/
+docs/
   assets_upload.md         this plan
 ```
 

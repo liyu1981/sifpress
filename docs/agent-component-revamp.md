@@ -1,8 +1,8 @@
-# plan/agent-component-revamp.md — ReAgent: the agent as a composable React component
+# docs/agent-component-revamp.md — ReAgent: the agent as a composable React component
 
-> Status: **implemented**. Companion to `plan/pi-web-agent-plan.md`,
-> `plan/agent-composer-redesign.md`, `plan/mcp-support-plan.md`,
-> `plan/selection-revision-plan.md`. This plan supersedes the *UI packaging*
+> Status: **implemented**. Companion to `docs/pi-web-agent-plan.md`,
+> `docs/agent-composer-redesign.md`, `docs/mcp-support-plan.md`,
+> `docs/selection-revision-plan.md`. This plan supersedes the *UI packaging*
 > and *session-list* sections of `pi-web-agent-plan.md` (its tool/transport/
 > persistence decisions still hold).
 >

@@ -278,7 +278,7 @@ const APP_VERSION = '0.1.0';
 
 /*
  * Update-check configuration. The manifest is a JSON document reporting the
- * latest release (see plan/version-check-and-update.md):
+ * latest release (see docs/version-check-and-update.md):
  *
  *   { "version": "0.2.0", "md5": "...", "url": "...", "size_bytes": 2710345,
  *     "notes": "..." }

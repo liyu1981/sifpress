@@ -5,8 +5,8 @@ AI assistant rewrites content, a large dialog opens automatically showing a
 **side-by-side before/after diff**, with controls to undo individual changes
 before the user commits them with Save.
 
-Related docs: `plan/pi-web-agent-plan.md` (the in-editor agent),
-`plan/milkdown-action-plan.md` (editor stack).
+Related docs: `docs/pi-web-agent-plan.md` (the in-editor agent),
+`docs/milkdown-action-plan.md` (editor stack).
 
 ---
 

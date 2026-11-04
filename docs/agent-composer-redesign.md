@@ -1,8 +1,8 @@
 # agent-composer-redesign.md — single-card agent composer
 
 > Status: **implemented**. Companion to
-> `plan/pi-web-agent-plan.md`, `plan/selection-revision-plan.md`,
-> `plan/mcp-support-plan.md`.
+> `docs/pi-web-agent-plan.md`, `docs/selection-revision-plan.md`,
+> `docs/mcp-support-plan.md`.
 
 Reference: `~/.suwu/dropbox/image_3.png`. Goal: collapse the agent composer into
 one rounded card with a borderless textarea on top and a single control row at

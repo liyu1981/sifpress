@@ -356,6 +356,10 @@ sifronts/           public-facing sifront SPAs (each a pnpm workspace package,
 website/           static project website for GitHub Pages (plain HTML/CSS/JS,
   no build step; published by .github/workflows/pages.yml; see
   website/README.md)
+docs/              project documentation: design/status write-ups per feature
+                    (one file per topic, cross-linked; these are the *why* and
+                    the plan), plus operator guides such as
+                    docs/google-login-setup.md (the *how*)
 pnpm-workspace.yaml workspace root (packages: admin_ui, ui_sdk,
                     sifronts/sifpress1, sifronts/sifpress2)
 pnpm-lock.yaml      workspace lockfile
@@ -397,7 +401,7 @@ pnpm-lock.yaml      workspace lockfile
     backoff with jitter, 4xx treated as final, and progress derived from
     completed parts (`fetch` has no upload progress event).
 - **Asset bytes live in files, not the DB** (`src/storage.php`; the full story,
-  including what is deliberately still open, is `plan/asset-storage-plan.md` —
+  including what is deliberately still open, is `docs/asset-storage-plan.md` —
   phases 1–7 shipped, object storage is the only one left). The row keeps
   owning identity (name, mime, size, md5) and access control (`is_public` +
   `asset_grants`); only bytes move. `assets.storage` is the backend id (`fs`
@@ -490,7 +494,9 @@ pnpm-lock.yaml      workspace lockfile
     (`social.get` + the public `auth.providers`, `settings.manage`): it reports
     status, the effective callback URL with a copy button and a generated
     snippet to paste into `sifpress_config.php`, so the secret never travels
-    through the API or the database.
+    through the API or the database. Operator walkthrough (console steps, the
+    exact callback URI per URL mode, troubleshooting):
+    `docs/google-login-setup.md`.
 - **RBAC**: roles ⇄ permissions (`admin`/`editor`/`viewer` seeded
   idempotently); helpers `can()`, `require_permission()`, `is_admin()`.
 - **Page ownership**: editing needs `pages.write` AND (author OR a
@@ -636,15 +642,15 @@ pnpm-lock.yaml      workspace lockfile
   - The editor write tools only *stage* changes and open the review dialog
     (they never persist). **Selection revision**: a whole-block selection can
     be rewritten via `get_selection`/`update_selection` and only that range is
-    replaced (`plan/selection-revision-plan.md`); a clamped selection always
+    replaced (`docs/selection-revision-plan.md`); a clamped selection always
     starts a **fresh root** session. **MCP**: remote servers over Streamable
     HTTP, adapted to `AgentTool`s; Exa (`https://mcp.exa.ai/mcp`) is seeded by
     the host and tools are namespaced `mcp__exa__<tool>`. The Exa API key lives
     in localStorage with an in-component prompt on auth failure. **WebMCP**:
     ReAgent auto-detects tools a page exposes via `document.modelContext`,
     registers them as agent tools (Settings → WebMCP) and refreshes on the
-    `toolchange` event — no host wiring. See `plan/mcp-support-plan.md`,
-    `plan/agent-component-revamp.md` and `plan/reagent-package-plan.md`.
+    `toolchange` event — no host wiring. See `docs/mcp-support-plan.md`,
+    `docs/agent-component-revamp.md` and `docs/reagent-package-plan.md`.
 - **Glass design system** in `index.css` (`@layer components`):
   `glass-control` (frosted surfaces — applied by default to `Card`),
   `apple-panel` (chrome — used by the nav pill), `ambient-bg` (page

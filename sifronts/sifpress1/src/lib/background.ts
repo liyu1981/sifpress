@@ -4,7 +4,7 @@ import { matrixScene } from '@/components/matrix';
 
 /**
  * Background scene registry. The KV key `sifpress1.background.kind` selects an
- * entry by id — KV never carries code (see plan/sifront-background-canvas-plan.md
+ * entry by id — KV never carries code (see docs/sifront-background-canvas-plan.md
  * §7.4), only a name that maps to a scene shipped in this bundle.
  */
 

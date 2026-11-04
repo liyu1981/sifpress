@@ -121,7 +121,9 @@ Sign in with `admin` / `admin` — a password change is forced on first login.
   enabled), optionally `SIFPRESS_GOOGLE_REDIRECT_URI` and
   `SIFPRESS_SOCIAL_AUTO_LINK`. Settings → Social login shows the callback URL
   to register with Google (copy button) and a snippet to paste; nothing about
-  the credentials is stored in the database or served by the API.
+  the credentials is stored in the database or served by the API. Step-by-step:
+  [docs/google-login-setup.md](docs/google-login-setup.md) — includes the exact
+  callback URI for each deployment shape and a troubleshooting table.
 
 ## Routing — the `?p=` protocol
 

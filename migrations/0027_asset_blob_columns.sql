@@ -1,4 +1,4 @@
--- Phase 5 of plan/asset-storage-plan.md: drop the `data` / `thumb` BLOB columns
+-- Phase 5 of docs/asset-storage-plan.md: drop the `data` / `thumb` BLOB columns
 -- now that every asset lives in a storage object.
 --
 -- The work runs in PHP — drop_legacy_asset_blob_columns(), called from

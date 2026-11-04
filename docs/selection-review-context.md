@@ -1,7 +1,7 @@
 # selection-review-context.md — show document context in the selection review dialog
 
-> Status: **implemented**. Companion to `plan/selection-revision-plan.md`,
-> `plan/review-changes-mode.md`, `plan/agent-composer-redesign.md`.
+> Status: **implemented**. Companion to `docs/selection-revision-plan.md`,
+> `docs/review-changes-mode.md`, `docs/agent-composer-redesign.md`.
 
 ## 1. Problem
 
